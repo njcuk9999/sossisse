@@ -35,7 +35,7 @@ pip install -U -e .
 
 Note one can also use venv (instead of conda)
 
-Note {SOSSISSE_ROOT} is the path to the cloned github repository (i.e. /path/to/sossisse)
+Note `{SOSSISSE_ROOT}` is the path to the cloned github repository (i.e. `/path/to/sossisse`)
 
 
 ## Example data set
