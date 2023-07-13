@@ -1,22 +1,23 @@
-from astropy.table import Table
-
-import numpy as np
-from tqdm import tqdm
-from etienne_tools import lin_mini, sigma, lowpassfilter, robust_polyfit, printc,color
-from scipy.ndimage import shift
-import warnings
-from scipy.interpolate import InterpolatedUnivariateSpline as ius
-from astropy.io import fits
 import os
-import matplotlib.pyplot as plt
+import warnings
+
 import h5py
-from wpca import EMPCA
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.io import fits
+from astropy.table import Table
+from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from scipy.ndimage import binary_dilation
+from scipy.ndimage import shift
 from scipy.signal import medfilt2d
-from scipy.ndimage import binary_erosion, binary_dilation
 from skimage import measure
+from tqdm import tqdm
+from wpca import EMPCA
+
+from sossisse import math, misc
+
 
 # sosssisse stuff
-from sossisse import soss_io
 
 
 def per_pixel_baseline(cube, mask, params):
@@ -26,17 +27,17 @@ def per_pixel_baseline(cube, mask, params):
     poly_order = params['transit_baseline_polyord']
 
     mid_transit = int(np.nanmean(params['it']))
-    rms0 = sigma(cube[mid_transit] * mask)
+    rms0 = math.sigma(cube[mid_transit] * mask)
 
     for ix in tqdm(range(params['DATA_X_SIZE']), leave=False):
-        slice = np.array(cube[:, :, ix])
+        cube_slice = np.array(cube[:, :, ix])
 
-        if True not in np.isfinite(slice):
+        if True not in np.isfinite(cube_slice):
             continue
 
         for iy in range(params['DATA_Y_SIZE']):
             if np.isfinite(mask[iy, ix]):
-                sample = slice[:, iy]
+                sample = cube_slice[:, iy]
                 sample2 = sample[oot]
                 index2 = index[oot]
                 if np.sum(np.isfinite(sample2)) > poly_order:
@@ -44,51 +45,53 @@ def per_pixel_baseline(cube, mask, params):
                         g = np.isfinite(sample2)
                         sample2 = sample2[g]
                         index2 = index2[g]
-                    fit = robust_polyfit(index2, sample2, poly_order, 5)[0]
-                    slice[:, iy] -= np.polyval(fit, index)
+                    fit = math.robust_polyfit(index2, sample2, poly_order, 5)[0]
+                    cube_slice[:, iy] -= np.polyval(fit, index)
 
-        cube[:, :, ix] = np.array(slice)
+        cube[:, :, ix] = np.array(cube_slice)
 
-    rms1 = sigma(cube[mid_transit] * mask)
-    printc('-- For sample mid-transit frame -- ', '')
-    printc('\t rms[before] : {:.3f}'.format(rms0), 'number')
-    printc('\t rms[after] : {:.3f}'.format(rms1), 'number')
+    rms1 = math.sigma(cube[mid_transit] * mask)
+    misc.printc('-- For sample mid-transit frame -- ', '')
+    misc.printc('\t rms[before] : {:.3f}'.format(rms0), 'number')
+    misc.printc('\t rms[after] : {:.3f}'.format(rms1), 'number')
 
     return cube
 
+
 from scipy.signal import convolve2d
+
 
 def get_mask_order0(params):
     if params['mode'] != 'SOSS':
-        printc('This is *not* a SOSS dataset, we do not mask order 0', 'bad3')
-        printc('Don''t worry, we will just skip that step and set "mask order 0" = False', 'bad2')
+        misc.printc('This is *not* a SOSS dataset, we do not mask order 0', 'bad3')
+        misc.printc('Don''t worry, we will just skip that step and set "mask order 0" = False', 'bad2')
         params['mask_order_0'] = False
         return 1
 
     diff = fits.getdata(params['file_temporary_in_vs_out'])
 
     if params['mode'] == 'SOSS':
-        posmax, throughput = get_trace_pos(params, order=1, round=False)
+        posmax, throughput = get_trace_pos(params, order=1, round_pos=False)
         posmax -= np.nanmean(posmax)
 
         diff2 = np.array(diff)
         for i in range(diff.shape[1]):
-            valid = np.isfinite(diff[:,i])
-            if np.mean(valid)<0.5:
+            valid = np.isfinite(diff[:, i])
+            if np.mean(valid) < 0.5:
                 continue
-            spl = ius(np.arange(diff.shape[0])[valid]-posmax[i],diff[:,i][valid],k=3,ext=1)
-            diff2[:,i] = spl(np.arange(diff.shape[0]))
+            spl = ius(np.arange(diff.shape[0])[valid] - posmax[i], diff[:, i][valid], k=3, ext=1)
+            diff2[:, i] = spl(np.arange(diff.shape[0]))
 
         for i in range(diff.shape[0]):
-            diff2[i] = lowpassfilter(diff2[i])
+            diff2[i] = math.lowpassfilter(diff2[i])
 
         for i in range(diff.shape[1]):
-            spl = ius(np.arange(diff2.shape[0])+posmax[i],diff2[:,i],k=3,ext=1)
-            diff2[:,i] = spl(np.arange(diff2.shape[0]))
+            spl = ius(np.arange(diff2.shape[0]) + posmax[i], diff2[:, i], k=3, ext=1)
+            diff2[:, i] = spl(np.arange(diff2.shape[0]))
     else:
         diff2 = np.array(diff)
         for i in range(diff.shape[0]):
-            diff2[i] = lowpassfilter(diff2[i])
+            diff2[i] = math.lowpassfilter(diff2[i])
 
     diff -= diff2
 
@@ -98,7 +101,7 @@ def get_mask_order0(params):
     nsig = np.array(diff)
 
     for i in tqdm(range(diff.shape[0]), leave=False):
-        nsig[i] /= lowpassfilter(np.abs(diff[i]))
+        nsig[i] /= math.lowpassfilter(np.abs(diff[i]))
 
     mask = nsig > 1  # we look for a consistent set of >2 sigma pixels
 
@@ -107,7 +110,7 @@ def get_mask_order0(params):
     for u in tqdm(np.unique(all_labels1), leave=False):
 
         g = (u == all_labels1)
-        if mask[g][0] == False:
+        if not mask[g][0]:
             continue
 
         if np.sum(g) > 100:
@@ -136,10 +139,7 @@ def get_mask_order0(params):
     return mask, x, y
 
 
-
-
 def pixeldetrending(cube, params):
-
     tracemap = params['tracemap']
 
     tbl = Table.read(params["pixel_level_detrending_file"])
@@ -148,9 +148,9 @@ def pixeldetrending(cube, params):
 
     for ikey in range(len(keys)):
         sample[:, ikey] = tbl[keys[ikey]]
-        sample[:, ikey] -= lowpassfilter(sample[:, ikey], 15)
+        sample[:, ikey] -= math.lowpassfilter(sample[:, ikey], 15)
 
-    printc('We perform pixel-level decorrelation', 'info')
+    misc.printc('We perform pixel-level decorrelation', 'info')
     for iy in tqdm(range(cube.shape[1]), leave=False):
         tmp = np.array(cube[:, iy, :])
 
@@ -163,11 +163,11 @@ def pixeldetrending(cube, params):
                 continue
 
             if mean_finite > 0.5:
-                dv = v - lowpassfilter(v, 15)
+                dv = v - math.lowpassfilter(v, 15)
 
                 v2 = np.array(v)
 
-                amps = lin_mini(dv, sample)[0]
+                amps = math.lin_mini(dv, sample)[0]
                 for ikey in range(len(keys) - 1):
                     v2 -= sample[:, ikey] * amps[ikey]
 
@@ -177,32 +177,34 @@ def pixeldetrending(cube, params):
     return cube
 
 
-def get_trace_map(params, silent = False):
+def get_trace_map(params, silent=False):
     if params['trace_width_masking'] < 1:
         params['TRACEMAP'] = np.ones([params['DATA_Y_SIZE'], params['DATA_X_SIZE']], dtype=bool)
         return params
 
+    # avoid ambiguity with existence of tracemap
+    tracemap = None
     if params['mode'] == 'SOSS':
         if params['DATA_Y_SIZE'] == 256:
             if 'wlc_domain' not in params.keys():
                 # that's for the SOSS mode
-                tracemap1, throughput = get_trace_pos(params, map2d=True, order=1,silent = silent)
-                tracemap2, throughput = get_trace_pos(params, map2d=True, order=2,silent = silent)
+                tracemap1, throughput = get_trace_pos(params, map2d=True, order=1, silent=silent)
+                tracemap2, throughput = get_trace_pos(params, map2d=True, order=2, silent=silent)
 
                 tracemap = tracemap1 | tracemap2
             else:  # only get order 1 if wlc domain is defined
-                tracemap, throughput = get_trace_pos(params, map2d=True, order=1,silent = silent)
+                tracemap, throughput = get_trace_pos(params, map2d=True, order=1, silent=silent)
 
         if params['DATA_Y_SIZE'] == 96:
-            tracemap, throughput = get_trace_pos(params, map2d=True, order=1,silent = silent)
+            tracemap, throughput = get_trace_pos(params, map2d=True, order=1, silent=silent)
 
     if params['mode'] == 'PRISM':
-        tracemap, throughput = get_trace_pos(params, map2d=True, order=1,silent = silent)
+        tracemap, throughput = get_trace_pos(params, map2d=True, order=1, silent=silent)
 
     if 'wlc_domain' in params.keys():
         if not silent:
             message = 'We cut the domain of the WLC to {0:.2f} to {1:.2f}µm'
-            printc(message.format(params['wlc_domain'][0], params['wlc_domain'][1]), 'number')
+            misc.printc(message.format(params['wlc_domain'][0], params['wlc_domain'][1]), 'number')
         wavegrid = get_wavegrid(params, order=1)
         tracemap[:, wavegrid < params['wlc_domain'][0]] = False
         tracemap[:, wavegrid > params['wlc_domain'][1]] = False
@@ -210,7 +212,6 @@ def get_trace_map(params, silent = False):
 
     params['TRACEMAP'] = tracemap
     return params
-
 
 
 def get_effective_wavelength(params):
@@ -226,27 +227,17 @@ def get_effective_wavelength(params):
     mean_energy_weighted = np.nansum(sp_energy * wavegrid) / np.nansum(sp_energy * np.isfinite(wavegrid))
 
     if 'wlc domain' in params.keys():
-        printc('Domain :\t {0:.3f} -- {1:.3f} µm'.format(params['wlc_domain'][0], params['wlc_domain'][1]),
-               'number')
+        misc.printc('Domain :\t {0:.3f} -- {1:.3f} µm'.format(params['wlc_domain'][0], params['wlc_domain'][1]),
+                    'number')
     else:
-        printc("Full domain included, parameter params['wlc_domain'] not defined", 'bad2')
-    printc('energy-weighted mean :\t{0:.3f} µm'.format(mean_energy_weighted), 'number')
-    printc('photon-weighted mean :\t{0:.3f} µm'.format(mean_photon_weighted), 'number')
+        misc.printc("Full domain included, parameter params['wlc_domain'] not defined", 'bad2')
+    misc.printc('energy-weighted mean :\t{0:.3f} µm'.format(mean_energy_weighted), 'number')
+    misc.printc('photon-weighted mean :\t{0:.3f} µm'.format(mean_photon_weighted), 'number')
 
     params['photon_weighted_wavelength'] = mean_photon_weighted
     params['energy_weighted_wavelength'] = mean_energy_weighted
 
     return params
-
-
-
-
-
-
-
-
-
-
 
 
 def get_rms_baseline(v=None, method='linear_sigma'):
@@ -259,13 +250,13 @@ def get_rms_baseline(v=None, method='linear_sigma'):
 
     if method == 'linear_sigma':
         # difference to immediate neighbours
-        return sigma(v[1:-1] - (v[2:] + v[0:-2]) / 2) / np.sqrt(1 + 0.5)
+        return math.sigma(v[1:-1] - (v[2:] + v[0:-2]) / 2) / np.sqrt(1 + 0.5)
     if method == 'lowpass_sigma':
-        return sigma(v - lowpassfilter(v, width=15))
+        return math.sigma(v - math.lowpassfilter(v, width=15))
 
     if method == 'quadratic_sigma':
         v2 = -np.roll(v, -2) / 3 + np.roll(v, -1) + np.roll(v, 1) / 3
-        return sigma(v - v2) / np.sqrt(20 / 9.0)
+        return math.sigma(v - v2) / np.sqrt(20 / 9.0)
 
 
 def patch_isolated_bads(cube, params):
@@ -283,14 +274,14 @@ def patch_isolated_bads(cube, params):
             files_exist = False
 
         if files_exist:
-            printc('patch_isolated_bads\twe read temporary files to speed things', 'info')
-            printc('Reading {}'.format(params['file_temporary_clean_NaN']), 'info')
+            misc.printc('patch_isolated_bads\twe read temporary files to speed things', 'info')
+            misc.printc('Reading {}'.format(params['file_temporary_clean_NaN']), 'info')
             # printc('Reading {}'.format(params['file_temporary_clean_cube_mask']),'info')
 
             return fits.getdata(params['file_temporary_clean_NaN'])  # , \
             # np.array(fits.getdata(params['file_temporary_clean_cube_mask']), dtype=bool)
 
-    printc('Removing isolated NaNs', 'info')
+    misc.printc('Removing isolated NaNs', 'info')
     for islice in tqdm(range(cube.shape[0]), leave=False):
         cube_slice = np.array(cube[islice, :, :])
         mask_slice = np.isfinite(cube_slice)
@@ -308,8 +299,8 @@ def patch_isolated_bads(cube, params):
         # cube_mask[islice, :, :] = mask_slice
 
     if params['allow_temporary']:
-        printc('We write intermediate files, they will be read to speed things next time', 'info')
-        printc(params['file_temporary_clean_NaN'], 'info')
+        misc.printc('We write intermediate files, they will be read to speed things next time', 'info')
+        misc.printc(params['file_temporary_clean_NaN'], 'info')
         # printc(params['file_temporary_clean_cube_mask'],'info')
 
         fits.writeto(params['file_temporary_clean_NaN'], cube, overwrite=True)
@@ -333,7 +324,7 @@ def remove_background(cube, params):
     cube = np.array(cube, dtype=float)
 
     if params['bkgfile'] != '':
-        printc('applying the chorisoss background model correction', 'info')
+        misc.printc('applying the chorisoss background model correction', 'info')
 
         bgnd = np.array(params['bgnd'], dtype=float)
         with warnings.catch_warnings(record=True) as _:
@@ -341,29 +332,31 @@ def remove_background(cube, params):
 
         box = params['soss_background_glitch_box']
 
-        bgnd_shifts = np.arange(-5.0,5.0,.2)
+        bgnd_shifts = np.arange(-5.0, 5.0, .2)
         rms = np.zeros_like(bgnd_shifts)
-        printc('Tweaking the position of the background','info')
-        for ishift in tqdm(range(len(bgnd_shifts)),leave = False):
+        misc.printc('Tweaking the position of the background', 'info')
+        for ishift in tqdm(range(len(bgnd_shifts)), leave=False):
             bgnd_shift = bgnd_shifts[ishift]
-            bgnd2 = shift(bgnd,(0,bgnd_shift))
+            bgnd2 = shift(bgnd, (0, bgnd_shift))
+            xvalues = bgnd2[box[2]:box[3], box[0]:box[1]].ravel()
+            yvalues = moy[box[2]:box[3], box[0]:box[1]].ravel()
             fit = \
-            robust_polyfit(bgnd2[box[2]:box[3], box[0]:box[1]].ravel(), moy[box[2]:box[3], box[0]:box[1]].ravel(), 1,
-                           5)[0]
+                math.robust_polyfit(xvalues, yvalues, 1, 5)[0]
 
-            diff = moy - np.polyval(fit,bgnd2)
-            med = np.nanmedian(diff[box[2]:box[3],box[0]:box[1]],axis=0)
+            diff = moy - np.polyval(fit, bgnd2)
+            med = np.nanmedian(diff[box[2]:box[3], box[0]:box[1]], axis=0)
             rms[ishift] = np.std(med)
         imin = np.argmin(rms)
         fit = np.polyfit(bgnd_shifts[imin - 1:imin + 2], rms[imin - 1:imin + 2], 2)
-        optimal_offset=  -.5*fit[1]/fit[0]
-        printc('Optimal backgorund offset {:.3f} pix'.format(optimal_offset),'number')
+        optimal_offset = -.5 * fit[1] / fit[0]
+        misc.printc('Optimal backgorund offset {:.3f} pix'.format(optimal_offset), 'number')
 
         bgnd2 = shift(bgnd, (0, optimal_offset))
         fit = \
-            robust_polyfit(bgnd2[box[2]:box[3], box[0]:box[1]].ravel(), moy[box[2]:box[3], box[0]:box[1]].ravel(), 1,
-                           5)[0]
-        bgnd = np.polyval(fit,bgnd2)
+            math.robust_polyfit(bgnd2[box[2]:box[3], box[0]:box[1]].ravel(), moy[box[2]:box[3], box[0]:box[1]].ravel(),
+                                1,
+                                5)[0]
+        bgnd = np.polyval(fit, bgnd2)
         for i in tqdm(range(cube.shape[0]), leave=False):
             cube[i] -= bgnd
 
@@ -376,35 +369,35 @@ def remove_background(cube, params):
                 mask[:, i] = moy[:, i] < np.nanpercentile(moy[:, i], 50)
         mask[mask != 1.0] = np.nan
 
-        #ref_bgnd_level = np.nanmedian(mask * bgnd)
-        #moy_bgnd_level = np.nanmedian(mask * moy)
-        #ratio = moy_bgnd_level / ref_bgnd_level
+        # ref_bgnd_level = np.nanmedian(mask * bgnd)
+        # moy_bgnd_level = np.nanmedian(mask * moy)
+        # ratio = moy_bgnd_level / ref_bgnd_level
 
-        #with warnings.catch_warnings(record=True) as _:
-        #    lowp = lowpassfilter(np.nanmedian(mask * bgnd, axis=0), 25)
-        #bgnd -= np.tile(lowp, 256).reshape(moy.shape)
+        # with warnings.catch_warnings(record=True) as _:
+        #    lowp = math.lowpassfilter(np.nanmedian(mask * bgnd, axis=0), 25)
+        # bgnd -= np.tile(lowp, 256).reshape(moy.shape)
 
-        #printc('Background ratio : {:.3f}'.format(ratio), 'number')
-        #for i in tqdm(range(cube.shape[0]), leave=False):
+        # printc('Background ratio : {:.3f}'.format(ratio), 'number')
+        # for i in tqdm(range(cube.shape[0]), leave=False):
         #    cube[i] -= (ratio * bgnd)
 
         for i in tqdm(range(cube.shape[0]), leave=False):
             with warnings.catch_warnings(record=True) as _:
-                lowp = lowpassfilter(np.nanmedian(mask * cube[i], axis=0), 25)
+                lowp = math.lowpassfilter(np.nanmedian(mask * cube[i], axis=0), 25)
             cube[i] -= np.tile(lowp, 256).reshape(moy.shape)
 
     else:
-        printc('we do not clean background, do_bkg == False', 'bad1')
+        misc.printc('we do not clean background, do_bkg == False', 'bad1')
 
     return cube
 
 
 def get_gradients(med, params, doplot=False):
-    printc('We find the gradients', 'info')
+    misc.printc('We find the gradients', 'info')
 
     med2 = np.array(med)
 
-    for ite in tqdm(range(4), leave=False):
+    for _ in tqdm(range(4), leave=False):
         med_filter = medfilt2d(med2, kernel_size=[1, 5])
         bad = ~np.isfinite(med2)
         med2[bad] = med_filter[bad]
@@ -424,7 +417,7 @@ def get_gradients(med, params, doplot=False):
     rotxy = x * dy - y * dx
 
     if doplot:
-        fig, ax = plt.subplots(nrows=3, ncols=1, sharex=True, sharey=True)
+        fig, ax = plt.subplots(nrows=3, ncols=1, sharex='all', sharey='all')
         rms = np.nanpercentile(dx, [5, 95])
         rms = rms[1] - rms[0]
         ax[0].imshow(dx, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
@@ -483,16 +476,16 @@ def clean_1f(cube, err, params):
             files_exist = False
 
         if files_exist:
-            printc('clean_1f\tWe read temporary files to speed things', 'info')
+            misc.printc('clean_1f\tWe read temporary files to speed things', 'info')
 
             if params['fit_pca']:
                 params['PCA components'] = fits.getdata(params['file_temporary_pcas'])
 
             # cube, med, med_diff, diff_in_out, params
             return fits.getdata(params['clean_cube_file']), \
-                   fits.getdata(params['median_image_file']), \
-                   fits.getdata(params['file_temporary_before_after_clean1f']), \
-                   fits.getdata(params['file_temporary_in_vs_out']), params
+                fits.getdata(params['median_image_file']), \
+                fits.getdata(params['file_temporary_before_after_clean1f']), \
+                fits.getdata(params['file_temporary_in_vs_out']), params
 
     ############################################################################
     # Part of the code that does the 1/f filtering
@@ -500,7 +493,7 @@ def clean_1f(cube, err, params):
     # create a copy of the cube, we will normalize the amplitude of each trace
     cube2 = np.array(cube, dtype=float)
     # first estimate of the trace amplitude
-    printc('first median of cube to create trace estimate', 'info')
+    misc.printc('first median of cube to create trace estimate', 'info')
 
     params = get_valid_oot(params)
     with warnings.catch_warnings(record=True) as _:
@@ -518,7 +511,7 @@ def clean_1f(cube, err, params):
         cube2[i] /= amps[i]
 
     # median of the normalized cube
-    printc('2nd median of cube with proper normalization', 'info')
+    misc.printc('2nd median of cube with proper normalization', 'info')
     with warnings.catch_warnings(record=True) as _:
         if params['ootmed']:
             med = np.nanmedian(cube2[params['oot_domain']], axis=0)
@@ -529,7 +522,7 @@ def clean_1f(cube, err, params):
             med_diff = (before - after)
 
             for i in range(med_diff.shape[0]):
-                med_diff[i] = lowpassfilter(med_diff[i], 15)
+                med_diff[i] = math.lowpassfilter(med_diff[i], 15)
 
             ratio = np.sqrt(np.nansum(med ** 2) / np.nansum(med_diff ** 2))
             med_diff = med_diff * ratio
@@ -575,7 +568,6 @@ def clean_1f(cube, err, params):
 
                 try:
                     v1, err1, index = residual[:, col], err2[:, col], np.arange(residual.shape[0], dtype=float)
-                    3
                     g = np.isfinite(v1 + err1) * ~tracemap[:, col] * (np.abs(v1 / err1) < 5)
                     v1, err1, index = v1[g], err1[g], index[g]
 
@@ -584,6 +576,7 @@ def clean_1f(cube, err, params):
                     cube[i, :, col] -= np.polyval(fit, np.arange(residual.shape[0]))
 
                 except:
+                    # if the fit fails, we just set the column to NaN
                     cube[i, :, col] = np.nan
 
     if params['fit_pca']:
@@ -610,7 +603,7 @@ def clean_1f(cube, err, params):
 
         with warnings.catch_warnings(record=True) as _:
             valid = np.where(np.nanmean(weights != 0, axis=0) > 0.95)[0]
-        printc('Computing principal components', 'info')
+        misc.printc('Computing principal components', 'info')
         with warnings.catch_warnings(record=True) as _:
             pca = EMPCA(n_components=params['n_pca']).fit(cube3[:, valid],
                                                           weights=weights[:, valid])
@@ -631,8 +624,8 @@ def clean_1f(cube, err, params):
         cube3[mask] = 0.0
         # weights = np.zeros_like(pcas)
 
-        fig, ax = plt.subplots(nrows=params['n_pca'], ncols=1, sharex=True,
-                               sharey=True, figsize=[8, 4 * params['n_pca']])
+        fig, ax = plt.subplots(nrows=params['n_pca'], ncols=1, sharex='all',
+                               sharey='all', figsize=[8, 4 * params['n_pca']])
         for ipca in tqdm(range(params['n_pca']), leave=False):
 
             for iframe in range(cube3.shape[0]):
@@ -644,7 +637,7 @@ def clean_1f(cube, err, params):
                 tmp[:, icol] -= np.nanmedian(tmp[:, icol])
 
             # for irow in range(pcas.shape[1]):
-            #    tmp[irow,:] = lowpassfilter(tmp[irow,:],15)
+            #    tmp[irow,:] = math.lowpassfilter(tmp[irow,:],15)
             tmp /= np.sqrt(np.nansum(tmp ** 2 * nanmask) / np.nansum(med ** 2 * nanmask))
             pcas[ipca, :, :] = tmp
 
@@ -675,9 +668,9 @@ def clean_1f(cube, err, params):
     fits.writeto(params['file_temporary_in_vs_out'], diff_in_out, overwrite=True)
 
     if params['allow_temporary']:
-        printc('We write temporary files to speed things next time', 'info')
-        printc(params['median_image_file'], 'info')
-        printc(params['clean_cube_file'], 'info')
+        misc.printc('We write temporary files to speed things next time', 'info')
+        misc.printc(params['median_image_file'], 'info')
+        misc.printc(params['clean_cube_file'], 'info')
 
         fits.writeto(params['clean_cube_file'], cube, overwrite=True)
         fits.writeto(params['median_image_file'], med, overwrite=True)
@@ -686,31 +679,31 @@ def clean_1f(cube, err, params):
     return cube, med, med_diff, diff_in_out, params
 
 
-def get_trace_pos(params, map2d=False, order=1, round = True, silent = False):
+def get_trace_pos(params, map2d=False, order=1, round_pos=True, silent=False):
     if not os.path.isfile(params['pos_file']) and params['mode'] == 'PRISM':
         hf = h5py.File(params['CALIBPATH'] + '/' + params['wave_file_prism'], 'r')
         xpix = hf['x']
         wave = hf['wave_1d']
 
         if not silent:
-            printc('This is an PRISM dataset without a pos file', 'bad1')
+            misc.printc('This is an PRISM dataset without a pos file', 'bad1')
         med = np.nanmedian(fits.getdata(params['file_temporary_clean_NaN']), axis=0)
         iy, ix = np.indices(med.shape)
         s1 = np.nansum(iy * med, axis=0)
         s2 = np.nansum(med, axis=0)
         index = np.arange(med.shape[1])
         is_flux = s2 > (np.nanpercentile(s2, 95) / 5)
-        fit, mask = robust_polyfit(index[is_flux], (s1 / s2)[is_flux], 2, 4)
+        fit, mask = math.robust_polyfit(index[is_flux], (s1 / s2)[is_flux], 2, 4)
 
         tbl = Table()
         tbl['X'] = index
-        tbl['Y'] = np.polyval(fit+ params['y_trace_offset'], index+ params['x_trace_offset'])
+        tbl['Y'] = np.polyval(fit + params['y_trace_offset'], index + params['x_trace_offset'])
         # set to NaN if outside of domain
         tbl['WAVELENGTH'] = np.nan
         # put values from table if inside
         tbl['WAVELENGTH'][np.array(xpix, dtype=int)] = wave
 
-        printc('We write {}'.format(tbl.write(params['pos_file'])), 'info')
+        misc.printc('We write {}'.format(tbl.write(params['pos_file'])), 'info')
         tbl.write(params['pos_file'], overwrite=True)
 
     # reference TRACE table
@@ -718,18 +711,18 @@ def get_trace_pos(params, map2d=False, order=1, round = True, silent = False):
     # if we don't have a throughput, we assume == 1
     if 'THROUGHPUT' not in tbl_ref.keys():
         if not silent:
-            printc('\tThe trace table does not have a "THROUGHPUT" column', 'bad3')
-            printc('\tWe set THROUGHPUT = 1', 'bad3')
+            misc.printc('\tThe trace table does not have a "THROUGHPUT" column', 'bad3')
+            misc.printc('\tWe set THROUGHPUT = 1', 'bad3')
         tbl_ref['THROUGHPUT'] = 1.0
 
     valid = (tbl_ref['X'] > 0) & (tbl_ref['X'] < params['DATA_X_SIZE'] - 1)
     tbl_ref = tbl_ref[valid]
     tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
 
-    spl_y = ius(tbl_ref['X']+ params['x_trace_offset'], tbl_ref['Y'] + params['y_trace_offset'], ext=0, k=1)
-    spl_throughput = ius(tbl_ref['X']+ params['x_trace_offset'], tbl_ref['THROUGHPUT'], ext=0, k=1)
+    spl_y = ius(tbl_ref['X'] + params['x_trace_offset'], tbl_ref['Y'] + params['y_trace_offset'], ext=0, k=1)
+    spl_throughput = ius(tbl_ref['X'] + params['x_trace_offset'], tbl_ref['THROUGHPUT'], ext=0, k=1)
 
-    if round:
+    if round_pos:
         dtype = int
     else:
         dtype = float
@@ -751,7 +744,8 @@ def get_trace_pos(params, map2d=False, order=1, round = True, silent = False):
     else:
         return posmax, throughput
 
-def bin_cube(cube,params, bin_type = 'Flux'):
+
+def bin_cube(cube, params, bin_type='Flux'):
     """
 
     :param cube:
@@ -761,26 +755,27 @@ def bin_cube(cube,params, bin_type = 'Flux'):
     """
     if not params['time_bin']:
         return cube
-    if params['n_time_bin'] ==1:
+    if params['n_time_bin'] == 1:
         return cube
 
-    if bin_type not in ["Flux","Error","DQ"]:
+    if bin_type not in ["Flux", "Error", "DQ"]:
         err_string = 'bin_type in function "bin_cube" must be "Flux", "Error" or "DQ" \n type {}'.format(bin_type)
         raise ValueError(err_string)
 
-    dims_bin = np.array(cube.shape,dtype = int)
-    dims_bin[0] = dims_bin[0]//params['n_time_bin']
+    dims_bin = np.array(cube.shape, dtype=int)
+    dims_bin[0] = dims_bin[0] // params['n_time_bin']
     cube2 = np.zeros(dims_bin)
-    printc('We bin data by a factor {}'.format(params['n_time_bin']),'number')
-    for i in tqdm(range(dims_bin[0]),leave = False):
+    misc.printc('We bin data by a factor {}'.format(params['n_time_bin']), 'number')
+    for i in tqdm(range(dims_bin[0]), leave=False):
         if bin_type == "Flux":
-            cube2[i] = np.nansum(cube[i*params['n_time_bin']:(i+1)*params['n_time_bin']],axis=0)
+            cube2[i] = np.nansum(cube[i * params['n_time_bin']:(i + 1) * params['n_time_bin']], axis=0)
         if bin_type == "Error":
-            cube2[i] = np.sqrt(np.nansum(cube[i*params['n_time_bin']:(i+1)*params['n_time_bin']]**2,axis=0))
+            cube2[i] = np.sqrt(np.nansum(cube[i * params['n_time_bin']:(i + 1) * params['n_time_bin']] ** 2, axis=0))
         if bin_type == "DQ":
-            cube2[i] = np.nanmax(cube[i*params['n_time_bin']:(i+1)*params['n_time_bin']],axis=0)
+            cube2[i] = np.nanmax(cube[i * params['n_time_bin']:(i + 1) * params['n_time_bin']], axis=0)
 
     return cube2
+
 
 def load_data_with_dq(params):
     if params['allow_temporary']:
@@ -798,7 +793,7 @@ def load_data_with_dq(params):
             files_exist = False
 
         if files_exist:
-            printc('load_data\twe read temporary files to speed things', 'info')
+            misc.printc('load_data\twe read temporary files to speed things', 'info')
             cube = fits.getdata(params['file_temporary_initial_cube'])
             # for future reference in the code, we keep track of data size
             params['DATA_X_SIZE'] = cube.shape[2]
@@ -812,8 +807,7 @@ def load_data_with_dq(params):
     n = 0  # number of slices in the final cube
     # handling the files with their varying sizes. We read and count slices
     for ifile in range(len(params['files'])):
-        c = bin_cube(fits.getdata(params['files'][ifile]),params,  "Flux")
-
+        c = bin_cube(fits.getdata(params['files'][ifile]), params, "Flux")
 
         n += c.shape[0]
 
@@ -836,10 +830,10 @@ def load_data_with_dq(params):
 
     n = 0
     for ifile in range(len(params['files'])):
-        printc('Nth file being read :  {}/{}'.format(ifile + 1, len(params['files'])), 'number')
-        c = bin_cube(fits.getdata(params['files'][ifile]),params,  "Flux")
+        misc.printc('Nth file being read :  {}/{}'.format(ifile + 1, len(params['files'])), 'number')
+        c = bin_cube(fits.getdata(params['files'][ifile]), params, "Flux")
         if type(c.ravel()[0]) != np.float64:
-            printc('\twe change datatype to float64', 'bad2')
+            misc.printc('\twe change datatype to float64', 'bad2')
             c = np.array(c, dtype=float)
 
         flag_cds = False
@@ -852,22 +846,22 @@ def load_data_with_dq(params):
         cube[n:n + c.shape[0], :, :] = c
 
         if not flag_cds:
-            # if *not* an fgs image, we assume a SOSS image and get the proper extensions
+            # if *not* a fgs image, we assume a SOSS image and get the proper extensions
             if 'fg' not in params['files'][ifile]:
-                c = bin_cube(fits.getdata(params['files'][ifile], ext=2),params, "Error")
+                c = bin_cube(fits.getdata(params['files'][ifile], ext=2), params, "Error")
                 err[n:n + c.shape[0], :, :] = c
-                c = bin_cube(fits.getdata(params['files'][ifile], ext=3), params,"DQ")
+                c = bin_cube(fits.getdata(params['files'][ifile], ext=3), params, "DQ")
                 dq[n:n + c.shape[0], :, :] = c
-            else:  # an fgs image, we use sqrt(N) as a noise proxy
+            else:  # a fgs image, we use sqrt(N) as a noise proxy
                 err[n:n + c.shape[0], :, :] = np.sqrt(c)
         else:
             err[n:n + c.shape[0], :, :] = np.sqrt(np.abs(c) + params['RON'])
-            dq[n:n + c.shape[0], :, :] = np.isfinite(c) == False
+            dq[n:n + c.shape[0], :, :] = ~np.isfinite(c)
 
         n += c.shape[0]
 
     if 'flatfile' in params.keys():
-        printc('We apply the flat field', 'info')
+        misc.printc('We apply the flat field', 'info')
         for iframe in tqdm(range(cube.shape[0]), leave=False):
             cube[iframe] /= flat
             err[iframe] /= flat
@@ -879,7 +873,7 @@ def load_data_with_dq(params):
     #  Trick to get a mask where True is valid
     cube_mask = np.zeros_like(cube, dtype=bool)
     for valid_dq in params['valid_dq']:
-        printc('Accepting DQ = {}'.format(valid_dq), 'number')
+        misc.printc('Accepting DQ = {}'.format(valid_dq), 'number')
         cube_mask[dq == valid_dq] = True
 
     cube = remove_background(cube, params)
@@ -888,17 +882,17 @@ def load_data_with_dq(params):
     err[~cube_mask] = np.inf
 
     if params['allow_temporary']:
-        printc('We write intermediate files, they will be read to speed things next time', 'info')
-        printc(params['file_temporary_initial_cube'], 'info')
-        printc(params['file_temporary_initial_err'], 'info')
+        misc.printc('We write intermediate files, they will be read to speed things next time', 'info')
+        misc.printc(params['file_temporary_initial_cube'], 'info')
+        misc.printc(params['file_temporary_initial_err'], 'info')
         # printc(params['file_temporary_initial_dq'],'info')
         # printc(params['file_temporary_initial_cube_mask'],'info')
 
         if type(cube[0, 0, 0]) != np.float64:
-            printc('\twe change datatype to float64', 'bad2')
+            misc.printc('\twe change datatype to float64', 'bad2')
             cube = np.array(cube, dtype=float)
         if type(cube[0, 0, 0]) != np.float64:
-            printc('\twe change datatype to float64', 'bad2')
+            misc.printc('\twe change datatype to float64', 'bad2')
             err = np.array(err, dtype=float)
         # if type(cube[0,0,0]) != np.float64:
         #    cube = np.array(cube, dtype = float)
@@ -914,6 +908,7 @@ def load_data_with_dq(params):
     params['DATA_Z_SIZE'] = cube.shape[0]
 
     return cube, err  # , dq, cube_mask
+
 
 def get_wavegrid(params, order=1):
     tbl_ref = Table.read(params['pos_file'], order)

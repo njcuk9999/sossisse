@@ -1,90 +1,93 @@
+import glob
 import hashlib
+import os
 import shutil
 from datetime import datetime
 
-import yaml
-from astraeus import xarrayIO as xrio
-from etienne_tools import printc
 import numpy as np
+import yaml
 from astropy.io import fits
 from astropy.table import Table
-import glob
 from tqdm import tqdm
-import os
+
+from sossisse import misc
+
 
 def yaml_to_html(params):
-
-    keys= params.keys()
+    keys = params.keys()
 
     out_keys = []
     out_txt = []
 
     for key in keys:
         tmp = params[key]
-        #print(type(tmp))
+        # print(type(tmp))
         if type(tmp) == bool:
-            out_keys = np.append(out_keys,key)
-            out_txt = np.append(out_txt,'{}<br>\n'.format(str(tmp)))
+            out_keys = np.append(out_keys, key)
+            out_txt = np.append(out_txt, '{}<br>\n'.format(str(tmp)))
         if type(tmp) == str:
-            out_keys = np.append(out_keys,key)
-            out_txt = np.append(out_txt,'{}<br>\n'.format(tmp))
+            out_keys = np.append(out_keys, key)
+            out_txt = np.append(out_txt, '{}<br>\n'.format(tmp))
         if type(tmp) == list:
 
             if type(tmp[0]) == str:
-                tmp = '<br>'.join(np.array(tmp,dtype = 'U999'))
-                out_keys = np.append(out_keys,key)
-                out_txt = np.append(out_txt,'{}<br>\n'.format(tmp))
+                tmp = '<br>'.join(np.array(tmp, dtype='U999'))
+                out_keys = np.append(out_keys, key)
+                out_txt = np.append(out_txt, '{}<br>\n'.format(tmp))
             else:
-                tmp = ', '.join(np.array(tmp,dtype = 'U999'))
-                out_keys = np.append(out_keys,key)
-                out_txt = np.append(out_txt,'[{}]<br>\n'.format(tmp))
+                tmp = ', '.join(np.array(tmp, dtype='U999'))
+                out_keys = np.append(out_keys, key)
+                out_txt = np.append(out_txt, '[{}]<br>\n'.format(tmp))
 
     out_html = ''
-    out_html +=    """
+    out_html += """
     <!DOCTYPE html>
     <html>
     <body>
     """
-    out_html +="<h1>{}</h1>\n".format(params['object'])
-    out_html +="<h1>{}</h1>\n".format(str(datetime.now()))
+    out_html += "<h1>{}</h1>\n".format(params['object'])
+    out_html += "<h1>{}</h1>\n".format(str(datetime.now()))
 
-    png_files = glob.glob(params['PLOT_PATH']+'/*.png')
-    out_html +="<h2>{}</h2>\n".format('All plots')
+    png_files = glob.glob(params['PLOT_PATH'] + '/*.png')
+    out_html += "<h2>{}</h2>\n".format('All plots')
 
     for png_file in png_files:
         out_html += '<img src="{0}" alt="{0}" width = "600"><br><br><br>'.format(png_file.split('/')[-1])
 
-    csv_files = glob.glob(params['PLOT_PATH']+'/*.csv')
+    csv_files = glob.glob(params['PLOT_PATH'] + '/*.csv')
 
-
-    out_html+='<br><br><br>'
-    out_html +="<h2>{}</h2>\n".format('All CSVs')
+    out_html += '<br><br><br>'
+    out_html += "<h2>{}</h2>\n".format('All CSVs')
 
     for csv_file in csv_files:
         out_html += '<a href="{0}">{0}</a><br>'.format(csv_file.split('/')[-1])
 
-    out_html+='<br><br><br>'
-    out_html +="<h2>{}</h2>\n".format('All inputs from yaml file')
+    out_html += '<br><br><br>'
+    out_html += "<h2>{}</h2>\n".format('All inputs from yaml file')
 
     for i in range(len(out_keys)):
-        out_html +="<p> <b>{} </b></p>\n".format(out_keys[i])
-        out_html +=out_txt[i]
+        out_html += "<p> <b>{} </b></p>\n".format(out_keys[i])
+        out_html += out_txt[i]
 
-    out_html +="""
+    out_html += """
     </body>
     </html>
     """
-    f = open(params['PLOT_PATH']+"/index.html", "w")
+    f = open(params['PLOT_PATH'] + "/index.html", "w")
     f.write(out_html)
     f.close()
 
-    outdir = params['object']+'_'+datetime.now().isoformat('_').replace(':','-').split('.')[0]+'_'+params['checksum']
+    outdir = params['object'] + '_' + datetime.now().isoformat('_').replace(':', '-').split('.')[0] + '_' + params[
+        'checksum']
     cmd = 'rsync -av -e "ssh  -oPort=5822"  {}/* artigau@venus.astro.umontreal.ca:/home/artigau/www/sossisse/{}'.format(
-        params['PLOT_PATH'],outdir)
+        params['PLOT_PATH'], outdir)
 
     os.system(cmd)
 
+
 def to_eureka_fmt(flux, flux_error, wave, time, outfile):
+    from astraeus import xarrayIO as xrio
+
     # flux and flux_error should be of shape time x wavelength
     # wavelength should be in descending order (and in microns)
     # time in BJD_TBD
@@ -106,6 +109,7 @@ def to_eureka_fmt(flux, flux_error, wave, time, outfile):
 
     xrio.writeXR(outfile + '.h5', outdata)
 
+
 # =====================================================================================================================
 # Define functions
 # =====================================================================================================================
@@ -115,7 +119,7 @@ def sossisson_to_eureka(params):
 
     Parameters
     ----------
-    param_file: str
+    params: str
                 Name of the config file.
 
     Returns
@@ -128,7 +132,7 @@ def sossisson_to_eureka(params):
     params = mk_tag(params)
 
     for trace_order in params['trace_orders']:
-        printc("Processing order {}...".format(trace_order), 'number')
+        misc.printc("Processing order {}...".format(trace_order), 'number')
 
         # Get file names
         fname = "{}/spectra_ord{}{}.fits".format(params['FITS_PATH'], trace_order, params['tag2'])  # "extract1d" specs
@@ -137,27 +141,28 @@ def sossisson_to_eureka(params):
         # Define the file name for the output
         outfname = fname[:-len(".fits")]
 
-        printc("Opening sossisson output...", 'info')
+        misc.printc("Opening sossisson output...", 'info')
 
         ffile = fits.open(fname)
         flux, flux_error, wave = ffile["RELFLUX"].data, ffile["RELFLUX_ERROR"].data, ffile["WAVELENGTH"].data
         wave = wave[0, :]  # assuming wavelength arrays are the same for all integrations
 
-        printc("Sorting in decreasing wavelength order...", 'info')
+        misc.printc("Sorting in decreasing wavelength order...", 'info')
         isort = np.argsort(wave)[::-1]
         flux, flux_error, wave = flux[:, isort], flux_error[:, isort], wave[isort]
 
-        printc("Reading jw file(s) to get time array...", 'info')
+        misc.printc("Reading jw file(s) to get time array...", 'info')
         time = np.array([])
         for fname_time_i in fnames_time:
             in_times_tbl = fits.open(fname_time_i)["INT_TIMES"].data
             time = np.concatenate((time, Table(in_times_tbl)["int_mid_BJD_TDB"].data))
 
-        printc("Converting to Eureka! format...", 'info')
+        misc.printc("Converting to Eureka! format...", 'info')
         to_eureka_fmt(flux, flux_error, wave, time, outfname)
-        printc("Done.", 'info')
+        misc.printc("Done.", 'info')
 
     return 0
+
 
 def clean_doublets():
     """
@@ -185,7 +190,6 @@ def clean_doublets():
     return
 
 
-
 def get_checksum(filename, hash_function="md5"):
     """Generate checksum for file baed on hash function (MD5 or SHA256).
 
@@ -203,15 +207,16 @@ def get_checksum(filename, hash_function="md5"):
     hash_function = hash_function.lower()
 
     with open(filename, "rb") as f:
-        bytes = f.read()  # read file as bytes
+        byte_data = f.read()  # read file as bytes
         if hash_function == "md5":
-            readable_hash = hashlib.md5(bytes).hexdigest()
+            readable_hash = hashlib.md5(byte_data).hexdigest()
         elif hash_function == "sha256":
-            readable_hash = hashlib.sha256(bytes).hexdigest()
+            readable_hash = hashlib.sha256(byte_data).hexdigest()
         else:
             raise ValueError("{} is an invalid hash function. Please Enter MD5 or SHA256")
 
     return readable_hash
+
 
 def mk_tag(params):
     cds_tag = ''
@@ -236,46 +241,46 @@ def mk_tag(params):
 
     return params
 
-def load_yaml_default(silent = False):
-    default_param_file = os.path.join(os.path.dirname(__file__),'data','defaults.yaml')
+
+def load_yaml_default(silent=False):
+    default_param_file = os.path.join(os.path.dirname(__file__), 'data', 'defaults.yaml')
     with open(default_param_file, "r") as yamlfile:
         params = yaml.load(yamlfile, Loader=yaml.FullLoader)
         if not silent:
-            printc("Read of default parameters successful", 'info')
+            misc.printc("Read of default parameters successful", 'info')
 
     return params
 
-def load_yaml_params(param_file, force=False, do_time_link = False, silent = False):
+
+def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
     with open(param_file, "r") as yamlfile:
         params = yaml.load(yamlfile, Loader=yaml.FullLoader)
 
-
         if not silent:
-            printc("Read of parameters successful", 'info')
+            misc.printc("Read of parameters successful", 'info')
 
     params = dict(params)
     params2 = dict(params)
     for key in params.keys():
         key_tmp = str(key)
         if ' ' in key:
-            printc('rename "{}" for "{}" in {}'.format(key_tmp, key_tmp.replace(' ','_'), param_file),'bad3')
-            params2[key_tmp.replace(' ','_')] = params2[key_tmp]
+            misc.printc('rename "{}" for "{}" in {}'.format(key_tmp, key_tmp.replace(' ', '_'), param_file), 'bad3')
+            params2[key_tmp.replace(' ', '_')] = params2[key_tmp]
             del params2[key_tmp]
-            key_tmp = key_tmp.replace(' ','_')
+            key_tmp = key_tmp.replace(' ', '_')
         if '-' in key:
-            printc('rename "{}" for "{}" in {}'.format(key_tmp, key_tmp.replace('-','_'), param_file),'bad3')
-            params2[key_tmp.replace('-','_')] = params2[key_tmp]
+            misc.printc('rename "{}" for "{}" in {}'.format(key_tmp, key_tmp.replace('-', '_'), param_file), 'bad3')
+            params2[key_tmp.replace('-', '_')] = params2[key_tmp]
             del params2[key_tmp]
-            key_tmp = key_tmp.replace(' ','_')
 
     params = dict(params2)
 
-    defaults = dict(load_yaml_default(silent = silent))
+    defaults = dict(load_yaml_default(silent=silent))
     for key in defaults.keys():
         if key not in params.keys():
             if not silent:
-                printc('Parameter "{}" is not given in the yaml, we use the default'.format(key), 'bad1')
-                printc('\t{} : {}'.format(key, defaults[key]), 'bad1')
+                misc.printc('Parameter "{}" is not given in the yaml, we use the default'.format(key), 'bad1')
+                misc.printc('\t{} : {}'.format(key, defaults[key]), 'bad1')
             params[key] = defaults[key]
 
     params['SOSSIOPATH'] = os.getenv('SOSSIOPATH')
@@ -303,21 +308,20 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
 
     params['CALIBPATH'] = params['MODEPATH'] + 'calibrations'
     if not os.path.isdir(params['CALIBPATH']):
-        err_string ='Path {} does not exit, we stop!'.format(params['CALIBPATH'])
+        err_string = 'Path {} does not exit, we stop!'.format(params['CALIBPATH'])
         raise ValueError(err_string)
 
     params['OBJECTPATH'] = params['MODEPATH'] + params['object'] + '/' + params['checksum']
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['OBJECTPATH']):
-        printc('We create {} that does not exit'.format(params['OBJECTPATH']), 'bad3')
+        misc.printc('We create {} that does not exit'.format(params['OBJECTPATH']), 'bad3')
         os.mkdir(params['OBJECTPATH'])
 
     if do_time_link:
         time = datetime.now().isoformat('_')
-        cmd = 'ln -s {} {}'.format( params['checksum'], params['MODEPATH'] + params['object'] + '/' + time)
+        cmd = 'ln -s {} {}'.format(params['checksum'], params['MODEPATH'] + params['object'] + '/' + time)
         os.system(cmd)
-        printc(cmd,'bad1')
-
+        misc.printc(cmd, 'bad1')
 
     params['RAWPATH'] = params['MODEPATH'] + params['object'] + '/rawdata'
 
@@ -330,7 +334,7 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['TEMP_PATH']):
         if not silent:
-            printc('We create {} that does not exit'.format(params['TEMP_PATH']), 'bad1')
+            misc.printc('We create {} that does not exit'.format(params['TEMP_PATH']), 'bad1')
         os.mkdir(params['TEMP_PATH'])
 
     # file that will be created with the diff between in and out of transit
@@ -340,21 +344,21 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
     # we check that the PLOT_PATH path exists
     if not os.path.isdir(params['PLOT_PATH']):
         if not silent:
-            printc('We create {} that does not exit'.format(params['PLOT_PATH']), 'bad1')
+            misc.printc('We create {} that does not exit'.format(params['PLOT_PATH']), 'bad1')
         os.mkdir(params['PLOT_PATH'])
 
     params['CSV_PATH'] = params['OBJECTPATH'] + '/csvs'
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['CSV_PATH']):
         if not silent:
-            printc('We create {} that does not exit'.format(params['CSV_PATH']), 'bad1')
+            misc.printc('We create {} that does not exit'.format(params['CSV_PATH']), 'bad1')
         os.mkdir(params['CSV_PATH'])
 
     params['FITS_PATH'] = params['OBJECTPATH'] + '/fits'
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['FITS_PATH']):
         if not silent:
-            printc('We create {} that does not exit'.format(params['FITS_PATH']), 'bad1')
+            misc.printc('We create {} that does not exit'.format(params['FITS_PATH']), 'bad1')
         os.mkdir(params['FITS_PATH'])
 
     files = []
@@ -365,7 +369,7 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
     for file in params['files']:
         if os.path.isfile(file):
             if not silent:
-                printc('File {} exists'.format(file), 'info')
+                misc.printc('File {} exists'.format(file), 'info')
         else:
             err_string = 'We have a problem... {} does not exist!'.format(file)
             raise ValueError(err_string)
@@ -394,7 +398,7 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
 
     if force:
         if not silent:
-            printc('We have force = True as an input, we re-create temporary files if they exist.', 'bad1')
+            misc.printc('We have force = True as an input, we re-create temporary files if they exist.', 'bad1')
         params['allow_temporary'] = False
 
     # get the tag for unique ID
@@ -409,16 +413,16 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
     # we will *not* mask order 0 if this is not a SOSS file
     if params['mode'] != 'SOSS':
         if not silent:
-            printc('We will not mask order 0, this is a {} dataset'.format(params['mode']), 'bad1')
+            misc.printc('We will not mask order 0, this is a {} dataset'.format(params['mode']), 'bad1')
         params['mask_order_0'] = False
 
     # if mode == PRISM, we should not have params['recenter_trace_position'] = True
-    if (params['mode'] == 'PRISM')*(params['recenter_trace_position'] == True):
-        printc('With the PRISM mode, we set "recenter_trace_position" = False','bad3')
+    if (params['mode'] == 'PRISM') * (params['recenter_trace_position']):
+        misc.printc('With the PRISM mode, we set "recenter_trace_position" = False', 'bad3')
         params['recenter_trace_position'] = False
 
     if not silent:
-        printc('We copy config file to {}'.format(params['CSV_PATH']), 'info')
+        misc.printc('We copy config file to {}'.format(params['CSV_PATH']), 'info')
     # os.path.copy(param_file,params['CSV_PATH'])
 
     if params['zero_point_offset'] and params['quadratic_term']:
@@ -430,4 +434,3 @@ def load_yaml_params(param_file, force=False, do_time_link = False, silent = Fal
         shutil.copyfile(param_file, outname)
 
     return params
-
