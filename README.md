@@ -153,8 +153,8 @@ provided as an example (see section below). Here are the main steps of the analy
 -- **Step 2** : Read the raw data and the calibration files. The raw data are read as a cube of 3D images. The
 calibration files are read as a cube of 2D images. The calibration files are used to construct a master flat field
 and a master bad pixel mask. The master flat field is used to correct for the pixel-to-pixel variations in the
-detector response. The per-pixel QC values are used to flag pixels that are known to be bad. The raw 
-data are then corrected for the flat field and the bad pixels.
+detector response. We use the per-pixel QC value to flag bad pixels. We correct the raw 
+data for the flat field and the bad pixels.
 
 -- **Step 3** : Construct a normalized reference trace. This is done by medianing all the frames in the raw data 
 cube. This is done iteratively as one expects the amplitude to change slightly from frame to frame.
