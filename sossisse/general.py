@@ -273,6 +273,8 @@ def white_light_curve(param_file_or_params, force=False):
 
             plt.tight_layout()
             for figtype in params['figure_types']:
+                # TODO: you shouldn't use '/'  as it is OS dependent
+                # TODO: use os.path.join(1, 2, 3)
                 outname = '{}/sample_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
                 plt.savefig(outname)
             if params['show_plots']:
@@ -306,6 +308,8 @@ def white_light_curve(param_file_or_params, force=False):
     ax[1].set(title='Apperture correction', ylabel='corr [ppt]', ylim=ylim)
     plt.tight_layout()
     for figtype in params['figure_types']:
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         outname = '{}/apperture_correction{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
         plt.savefig(outname)
     if params['show_plots']:
@@ -325,18 +329,26 @@ def white_light_curve(param_file_or_params, force=False):
         misc.printc('Performing per-pixel baseline subtraction', 'info')
         cube = science.per_pixel_baseline(cube, mask, params)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     outname = '{}/errormap{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
         fits.writeto(outname, err, overwrite=True)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     outname = '{}/residual{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
         fits.writeto(outname, cube, overwrite=True)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     outname = '{}/recon{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
         fits.writeto(outname, all_recon, overwrite=True)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     tbl.write('{}/soss_stability{}.csv'.format(params['CSV_PATH'], params['tag']), overwrite=True)
     tbl.write('{}/soss_stability{}.csv'.format(params['PLOT_PATH'], params['tag']), overwrite=True)
 
@@ -376,6 +388,9 @@ def wrapper(param_file, force=False):
 
 
 def summary(obj, search_string='*'):
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     yaml_files = np.array(glob.glob('*/{}/*/*/*{}*yaml'.format(obj, search_string)))
     yaml_files = yaml_files[[not os.path.islink('/'.join(file.split('/')[0:3])) for file in yaml_files]]
 
@@ -447,6 +462,8 @@ def summary(obj, search_string='*'):
 
             tbl[key][i] = tmp
 
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.basename()
         tbl['yaml files'][i] = tbl['yaml files'][i].split('/')[-1]
 
         tmp = np.array(glob.glob(params['CSV_PATH'] + '/*.csv'))
@@ -485,12 +502,21 @@ def spectral_extraction(param_file_or_params, force=False):
 
     for trace_order in params['trace_orders']:
         # Used for scaling residuals
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         tbl = Table.read('{}/soss_stability{}.csv'.format(params['CSV_PATH'], params['tag']))
 
         # median trace after normalization
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         med = fits.getdata('{}/median{}.fits'.format(params['TEMP_PATH'], params['tag']))
 
         # residual cube
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         residual = fits.getdata('{}/residual{}.fits'.format(params['TEMP_PATH'], params['tag']))
         params['DATA_X_SIZE'] = residual.shape[2]
         params['DATA_Y_SIZE'] = residual.shape[1]
@@ -519,11 +545,15 @@ def spectral_extraction(param_file_or_params, force=False):
                                                                                                           trace_order))
         plt.tight_layout()
         for fig_type in params['figure_types']:
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             plt.savefig('{}/sed_{}_ord{}.{}'.format(params['PLOT_PATH'], params['object'], trace_order, fig_type))
         if params['show_plots']:
             plt.show()
         plt.close()
 
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         outname = '{}/sed_{}_ord{}.csv'.format(params['CSV_PATH'], params['object'], trace_order)
         tbl_sed = Table()
         tbl_sed['wavelength'] = wavegrid
@@ -533,9 +563,15 @@ def spectral_extraction(param_file_or_params, force=False):
         tbl_sed.write(outname, overwrite=True)
 
         # error cube
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         err = fits.getdata('{}/errormap{}.fits'.format(params['TEMP_PATH'], params['tag']))
 
         # model trace to be compared
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         model = fits.getdata('{}/recon{}.fits'.format(params['TEMP_PATH'], params['tag']))
 
         if params['mask_order_0']:
@@ -611,11 +647,15 @@ def spectral_extraction(param_file_or_params, force=False):
                 sp[:, i] -= np.polyval(fit, np.arange(sp.shape[0]))
 
         if params['saveresults']:
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             outname = '{}/residual_no_grey_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
             misc.printc('We write {}'.format(outname), 'info')
             fits.writeto(outname, sp, overwrite=True)
             sp2 = sp + np.reshape(np.repeat(np.array(tbl['amplitude']), sp.shape[1]), sp.shape)
 
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             outname = '{}/residual_grey_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
             misc.printc('We write {}'.format(outname), 'info')
             fits.writeto(outname, sp2, overwrite=True)
@@ -626,6 +666,9 @@ def spectral_extraction(param_file_or_params, force=False):
             hdu_extsp = fits.ImageHDU(sp2, name="RELFLUX")
             hdu_extsperr = fits.ImageHDU(sp_err, name="RELFLUX_ERROR")
             hdul = fits.HDUList(hdus=[fits.PrimaryHDU(), hdu_wave, hdu_extsp, hdu_extsperr])
+
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             hdul.writeto("{}/spectra_ord{}{}.fits".format(params['FITS_PATH'], trace_order, params['tag2']),
                          overwrite=True)
 
@@ -662,6 +705,8 @@ def spectral_extraction(param_file_or_params, force=False):
         err_in[~np.isfinite(err_in)] = np.nan
         err_out[~np.isfinite(err_out)] = np.nan
 
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         outname = '{}/wavelength_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
         misc.printc('We write {}'.format(outname), 'info')
         fits.writeto(outname, wavegrid, overwrite=True)
@@ -677,6 +722,8 @@ def spectral_extraction(param_file_or_params, force=False):
                     alpha=0.25, label='in-transit, order {}'.format(trace_order))
 
         if params["saveresults"]:
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             np.savetxt("{}/tspec_ord{}{}.csv".format(params['CSV_PATH'], trace_order, params["tag2"]),
                        np.array([wavegrid, (sp_in + transit_depth) * 1e6, err_in * 1e6]).T)
 

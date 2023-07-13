@@ -128,6 +128,8 @@ def get_mask_order0(params):
     plt.tight_layout()
 
     for figtype in params['figure_types']:
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         plt.savefig('{}/masking_order0_{}.pdf'.format(params['PLOT_PATH'], params['tag'], figtype))
 
     if params['show_plots']:
@@ -215,6 +217,9 @@ def get_trace_map(params, silent=False):
 
 
 def get_effective_wavelength(params):
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     med = fits.getdata('{}/median{}.fits'.format(params['TEMP_PATH'], params['tag']))
     params = get_trace_map(params)
     wavegrid = get_wavegrid(params, order=1)
@@ -264,6 +269,9 @@ def patch_isolated_bads(cube, params):
     # that can be used in derivative
 
     if params['allow_temporary']:
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         params['file_temporary_clean_NaN'] = params['TEMP_PATH'] + '/temporary_cleaned_isolated.fits'
         # params['file_temporary_clean_cube_mask'] = params['TEMP_PATH'] + '/temporary_cleaned_isolated_err.fits'
 
@@ -428,6 +436,8 @@ def get_gradients(med, params, doplot=False):
         rms = rms[1] - rms[0]
         ax[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
         for figtype in params['figure_types']:
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             plt.savefig('{}/derivatives{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype))
 
     dx = np.array(dx, dtype=float)
@@ -459,6 +469,9 @@ def clean_1f(cube, err, params):
     # we must update the param file prior to checking if 1/f-cleaned files exist
 
     if params['allow_temporary']:
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         params['median_image_file'] = '{}/median{}.fits'.format(params['TEMP_PATH'], params['tag'])
         params['clean_cube_file'] = '{}/cube{}.fits'.format(params['TEMP_PATH'], params['tag'])
         params['file_temporary_before_after_clean1f'] = params['TEMP_PATH'] + '/temporary_before_after_clean1f.fits'
@@ -652,6 +665,8 @@ def clean_1f(cube, err, params):
         plt.tight_layout()
 
         for fig_type in params['figure_types']:
+            # TODO: you shouldn't use '/'  as it is OS dependent
+            # TODO: use os.path.join(1, 2, 3)
             outname = params['PLOT_PATH'] + '/pcas.' + fig_type
             plt.savefig(outname)
         if params['whoami'] in params['user_show_plot']:
@@ -681,6 +696,9 @@ def clean_1f(cube, err, params):
 
 def get_trace_pos(params, map2d=False, order=1, round_pos=True, silent=False):
     if not os.path.isfile(params['pos_file']) and params['mode'] == 'PRISM':
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         hf = h5py.File(params['CALIBPATH'] + '/' + params['wave_file_prism'], 'r')
         xpix = hf['x']
         wave = hf['wave_1d']
@@ -779,6 +797,9 @@ def bin_cube(cube, params, bin_type='Flux'):
 
 def load_data_with_dq(params):
     if params['allow_temporary']:
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         params['file_temporary_initial_cube'] = params['TEMP_PATH'] + '/temporary_initial_cube.fits'
         params['file_temporary_initial_err'] = params['TEMP_PATH'] + '/temporary_initial_err.fits'
         # params['file_temporary_initial_dq'] = params['TEMP_PATH'] + '/temporary_initial_dq.fits'
@@ -830,6 +851,9 @@ def load_data_with_dq(params):
 
     n = 0
     for ifile in range(len(params['files'])):
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         misc.printc('Nth file being read :  {}/{}'.format(ifile + 1, len(params['files'])), 'number')
         c = bin_cube(fits.getdata(params['files'][ifile]), params, "Flux")
         if type(c.ravel()[0]) != np.float64:

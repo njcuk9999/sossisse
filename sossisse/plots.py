@@ -60,6 +60,8 @@ def plot_sossice(tbl, params):
 
     plt.tight_layout()
     for figtype in params['figure_types']:
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         plt.savefig('{}/stability_soss{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype))
     if params['show_plots']:
         plt.show()
@@ -107,6 +109,8 @@ def plot_transit(tbl, params):
 
     plt.tight_layout()
     for figtype in params['figure_types']:
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         plt.savefig('{}/transit_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype))
     if params['show_plots']:
         plt.show()

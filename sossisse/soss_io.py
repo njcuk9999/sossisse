@@ -73,12 +73,16 @@ def yaml_to_html(params):
     </body>
     </html>
     """
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     f = open(params['PLOT_PATH'] + "/index.html", "w")
     f.write(out_html)
     f.close()
 
     outdir = params['object'] + '_' + datetime.now().isoformat('_').replace(':', '-').split('.')[0] + '_' + params[
         'checksum']
+    # TODO: This wont work for anyone but you!
     cmd = 'rsync -av -e "ssh  -oPort=5822"  {}/* artigau@venus.astro.umontreal.ca:/home/artigau/www/sossisse/{}'.format(
         params['PLOT_PATH'], outdir)
 
@@ -86,7 +90,12 @@ def yaml_to_html(params):
 
 
 def to_eureka_fmt(flux, flux_error, wave, time, outfile):
-    from astraeus import xarrayIO as xrio
+    try:
+        from astraeus import xarrayIO as xrio
+    except ImportError:
+        print('Please install the astraeus package manually to use '
+              '"to_eureka_fmt" with the following: \n')
+        print('pip install git+https://github.com/kevin218/Astraeus.git')
 
     # flux and flux_error should be of shape time x wavelength
     # wavelength should be in descending order (and in microns)
@@ -135,6 +144,9 @@ def sossisson_to_eureka(params):
         misc.printc("Processing order {}...".format(trace_order), 'number')
 
         # Get file names
+
+        # TODO: you shouldn't use '/'  as it is OS dependent
+        # TODO: use os.path.join(1, 2, 3)
         fname = "{}/spectra_ord{}{}.fits".format(params['FITS_PATH'], trace_order, params['tag2'])  # "extract1d" specs
         fnames_time = params['files']  # "raw" data files to get time stamps
 
@@ -170,6 +182,9 @@ def clean_doublets():
     a huge amount of disk space
     """
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     files = glob.glob('*/*/*/*.fits')
     cs = []
     for file in tqdm(files, leave=False):
@@ -182,8 +197,12 @@ def clean_doublets():
             continue
 
         for gg in g[1:]:
+            # TODO: You can't use linux commands that user may not have
+            #       access to
+            # TODO: rm can be replaces with os.remove
             cmd = 'rm ' + files[gg]
             os.system(cmd)
+            # TODO: ln -L I'm not sure about
             cmd = 'ln -L ' + files[g[0]] + ' ' + files[gg]
             os.system(cmd)
 
@@ -299,6 +318,8 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
         os.mkdir(params['SOSSIOPATH'])
         raise ValueError(err_string)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['MODEPATH'] = params['SOSSIOPATH'] + params['mode'] + '/'
     # we check that the MODE path exists
     if not os.path.isdir(params['MODEPATH']):
@@ -311,6 +332,8 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
         err_string = 'Path {} does not exit, we stop!'.format(params['CALIBPATH'])
         raise ValueError(err_string)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['OBJECTPATH'] = params['MODEPATH'] + params['object'] + '/' + params['checksum']
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['OBJECTPATH']):
@@ -319,10 +342,15 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
 
     if do_time_link:
         time = datetime.now().isoformat('_')
+        # TODO: shouldn't use ln -s    it os OS specific
+        # TODO: you can use an os.symlink command
         cmd = 'ln -s {} {}'.format(params['checksum'], params['MODEPATH'] + params['object'] + '/' + time)
         os.system(cmd)
         misc.printc(cmd, 'bad1')
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['RAWPATH'] = params['MODEPATH'] + params['object'] + '/rawdata'
 
     # we check that the OBJECTPATH path exists
@@ -330,6 +358,8 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
         err_string = 'Path {} does not exit, we stop!'.format(params['RAWPATH'])
         raise ValueError(err_string)
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['TEMP_PATH'] = params['OBJECTPATH'] + '/temporary'
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['TEMP_PATH']):
@@ -338,8 +368,14 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
         os.mkdir(params['TEMP_PATH'])
 
     # file that will be created with the diff between in and out of transit
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['file_temporary_in_vs_out'] = params['TEMP_PATH'] + '/temporary_in_vs_out.fits'
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['PLOT_PATH'] = params['OBJECTPATH'] + '/plots'
     # we check that the PLOT_PATH path exists
     if not os.path.isdir(params['PLOT_PATH']):
@@ -347,6 +383,8 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
             misc.printc('We create {} that does not exit'.format(params['PLOT_PATH']), 'bad1')
         os.mkdir(params['PLOT_PATH'])
 
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['CSV_PATH'] = params['OBJECTPATH'] + '/csvs'
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['CSV_PATH']):
@@ -354,6 +392,9 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
             misc.printc('We create {} that does not exit'.format(params['CSV_PATH']), 'bad1')
         os.mkdir(params['CSV_PATH'])
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['FITS_PATH'] = params['OBJECTPATH'] + '/fits'
     # we check that the OBJECTPATH path exists
     if not os.path.isdir(params['FITS_PATH']):
@@ -361,6 +402,9 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
             misc.printc('We create {} that does not exit'.format(params['FITS_PATH']), 'bad1')
         os.mkdir(params['FITS_PATH'])
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     files = []
     for file in params['files']:
         files.append(params['RAWPATH'] + '/' + file)
@@ -377,20 +421,32 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
     if not params['fit_pca']:
         params['n_pca'] = 0
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     params['do_bkg'] = params['bkgfile'] != ''
     if params['do_bkg']:
         params['bkgfile'] = params['CALIBPATH'] + '/' + params['bkgfile']
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     if params['bkgfile'] != '':
         if params['CALIBPATH'] not in params['bkgfile']:
             params['bkgfile'] = params['CALIBPATH'] + '/' + params['bkgfile']
         params['bgnd'] = fits.getdata(params['bkgfile'])
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     if params['flatfile'] != '':
         if params['CALIBPATH'] not in params['flatfile']:
             params['flatfile'] = params['CALIBPATH'] + '/' + params['flatfile']
         params['flat'] = fits.getdata(params['flatfile'])
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     if params['pos_file'] != '':
         if params['CALIBPATH'] not in params['pos_file']:
             params['pos_file'] = params['CALIBPATH'] + '/' + params['pos_file']
@@ -429,6 +485,9 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
         raise ValueError('We have *both "zero point offset" and "quadratic term" set to True, this is conceptually '
                          'wrong!')
 
+
+    # TODO: you shouldn't use '/'  as it is OS dependent
+    # TODO: use os.path.join(1, 2, 3)
     outname = params['CSV_PATH'] + '/' + param_file.split('/')[-1]
     if not os.path.exists(outname):
         shutil.copyfile(param_file, outname)
