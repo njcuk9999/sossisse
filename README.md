@@ -72,8 +72,9 @@ Create the following folder structure :
 
 **/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/**
 
-Within the **/YourPath/Your_SOSSISSE_folder/SOSS/wasp-96/rawdata/** folder, you should place the raw data files that 
-can be dowloaded from **http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar**.
+Within the **/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/** folder, you should place the raw data files that 
+can be dowloaded from **http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar**. You will also need to put 
+reference files, in the relevant subfolders, that can be downloaded from **http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar**.
 
 All yaml files should be placed in (of symbolically liked to) the **/YourPath/Your_SOSSISSE_folder/** folder.
 
@@ -96,7 +97,7 @@ are in red while baseline (before 1st and after 4th) are coded in green.
 
 ![White light curve for the transit](resources/lightcurve.png)
 
-Figure 1. White light curve for the transit with color coding to highlight 'in' and 'out' of transit data. A rough fit 
+**Figure 1.** White light curve for the transit with color coding to highlight 'in' and 'out' of transit data. A rough fit 
 of the transit depth is also shown.
 
 #### 2D trace and residual image
@@ -111,7 +112,7 @@ information on the transit signal.
 
 ![Residual plot](resources/residuals.png)
 
-Figure 2. [top] Sample 2D image of the trace with a highlighted region where the trace is scaled in amplitude. The 
+** Figure 2.** [top] Sample 2D image of the trace with a highlighted region where the trace is scaled in amplitude. The 
 white 
 pixels correspond to NaN values (i.e. pixels that are not used in the analysis). [bottom] Same as Figure 2 but following the subtraction of the scaled trace model and residual low-level 
 structures.  This image encodes the planet spectroscopic signal. Noise levels vary from pixel to pixel and is taken 
@@ -128,7 +129,7 @@ are affected by periodic variations that are linked to the ~200s periodic error 
 
 ![Detrending parameter drifts](resources/drifts.png)
 
-Figure 3. Amplitude of linear drifts for each detrending parameter. The red points correspond to in-transit data.
+**Figure 3.** Amplitude of linear drifts for each detrending parameter. The red points correspond to in-transit data.
 
 #### Per-order spectral energy distribution
  This is done as a 'convenience' output as the main goal of 
@@ -141,7 +142,7 @@ SOSSISSE is to get a very accurate *differential* extraction of the planet spect
 ![SED-order 1](resources/sed_ord1.png)
 ![SED-order 2](resources/sed_ord2.png)
 
-Figure 4. Spectral energy distribution for each order.
+**Figure 4.** Spectral energy distribution for each order.
 
 ### Description of the code
 
@@ -369,3 +370,5 @@ spectrum_ylim_ppm:
 - 6000
 - 12000
 '''
+
+
