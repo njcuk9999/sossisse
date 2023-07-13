@@ -1,12 +1,10 @@
-from astropy.table import Table
-
-import numpy as np
-from etienne_tools import sigma, robust_polyfit
 import matplotlib.pyplot as plt
+import numpy as np
 
-
+from sossisse import math
 # sosssisse stuff
 from sossisse import science
+
 
 def plot_sossice(tbl, params):
     params = science.get_valid_oot(params)
@@ -16,7 +14,7 @@ def plot_sossice(tbl, params):
 
     # just for fun, a graph with stats on the trace rotation+scale
     rms_phot = science.get_rms_baseline(tbl['amplitude'], method='quadratic_sigma')
-    fig, ax = plt.subplots(nrows=nrows, ncols=1, sharex=True, figsize=[8, 12])
+    fig, ax = plt.subplots(nrows=nrows, ncols=1, sharex='all', figsize=[8, 12])
 
     alpha = np.min([np.sqrt(200 / len(tbl)), 1])
 
@@ -54,7 +52,7 @@ def plot_sossice(tbl, params):
         if i == 0:
             title = '{0} -- {1}\nrms : {3:.2f} ppm'.format(params['object'], params['suffix'], domain, rms_phot * 1e6)
         else:
-            title = 'rms : {:.4f}'.format(sigma(tbl[params['output_names'][i]]) * params['output_factor'][i])
+            title = 'rms : {:.4f}'.format(math.sigma(tbl[params['output_names'][i]]) * params['output_factor'][i])
 
         ylabel = '{} [{}]'.format(params['output_names'][i], params['output_units'][i])
         ax[i].set(xlabel=xlabel, ylabel=ylabel, title=title)
@@ -77,7 +75,7 @@ def plot_transit(tbl, params):
     index = np.arange(len(tbl))
 
     # 5-sigma
-    fit = robust_polyfit(index[oot], val[oot], params['transit_baseline_polyord'], 5)[0]
+    fit = math.robust_polyfit(index[oot], val[oot], params['transit_baseline_polyord'], 5)[0]
     val = val / np.polyval(fit, index)
 
     y0 = np.nanpercentile(val - errval, 0.5)
@@ -87,7 +85,7 @@ def plot_transit(tbl, params):
 
     mid_transit = np.abs(index - (params['it'][0] + params['it'][3]) / 2) < 0.3 * (params['it'][3] - params['it'][0])
 
-    fit_mid = robust_polyfit(index[mid_transit], val[mid_transit], 2, 5)[0]
+    fit_mid = math.robust_polyfit(index[mid_transit], val[mid_transit], 2, 5)[0]
 
     mid_transit_point = -.5 * fit_mid[1] / fit_mid[0]
     mid_transit_depth = np.polyval(fit_mid, mid_transit_point)
