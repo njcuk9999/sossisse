@@ -40,7 +40,10 @@ Note `{SOSSISSE_ROOT}` is the path to the cloned GitHub repository (i.e. `/path/
 
 ## Example data set
 
-Details on example data set here
+The sample dataset provided as a demonstration of the code is the transit of TRAPPIST-1b observed with the SOSS mode.
+The data is saved in two fits files (rateints data product) that sample 150 frames. The transit happens between 
+frames 90 and 110 (1st and 4th contact) with a depth of ~0.88%. The point-to-point RMS of the white light curve over 
+the SOSS domain is ~160 ppt.
 
 ## Description of code
 
