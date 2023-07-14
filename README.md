@@ -58,28 +58,56 @@ The hash key is created from a truncated checksum of the yaml file. As the link 
 yaml cannot be readily determined, the yaml file is copied within the output folder it created.
 
 To run the codes, one needs to define a path for the subfolders and the yaml. This path should be defined as a 
-system variable called *SOSSIOPATH* (SOSS-input-output path). With the *.zshrc* on Mac, this is done with the 
+system variable called `SOSSIOPATH` (SOSS-input-output path). 
+
+#### On Mac
+
+Within the `~/.zshrc` on Mac, this is done with the 
 following line added to the startup profile : 
 
 ```
 export SOSSIOPATH=/YourPath/Your_SOSSISSE_folder/
 ```
+
+#### On Linux
+
+Within the `~/.bashrc` on Linux, this is done with the
+following line added to the startup profile : 
+
+```
+export SOSSIOPATH=/YourPath/Your_SOSSISSE_folder/
+```
+
+#### On Windows
+
+For windows you can follow the guide [here](https://docs.oracle.com/en/database/oracle/machine-learning/oml4r/1.5.1/oread/creating-and-modifying-environment-variables-on-windows.html#GUID-DD6F9982-60D5-48F6-8270-A27EC53807D0)
+The environment variable name should be `SOSSIOPATH` and the value should be the path to the sossisse directory e.g. `C:\YourPath\Your_SOSSISSE_folder\`
+
+Note after this point we will refer to all paths using hte unix (Linux/Mac) notation, adjust accordingly for Windows.
+
+
+### Data structure
+
 Within that folder, one should define a subfolder for the 'mode' used (here 'SOSS') and a per-target folder that 
 will hold the ouputs from the analysis and includes a *rawdata* subfolder that contains the raw data.
 
 Create the following folder structure : 
 
-**/YourPath/Your_SOSSISSE_folder/SOSS/**
+```
+/YourPath/Your_SOSSISSE_folder/SOSS/
+/YourPath/Your_SOSSISSE_folder/SOSS/t1b/
+/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/
+```
 
-**/YourPath/Your_SOSSISSE_folder/SOSS/t1b/**
+where `t1b` is the name of the target (in this case `t1b` for Trappist-1b).
 
-**/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/**
+Within the `/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/` folder, you should place the raw data files.
 
-Within the **/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/** folder, you should place the raw data files that 
-can be dowloaded from **http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar**. You will also need to put 
-reference files, in the relevant subfolders, that can be downloaded from **http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar**.
+A demo dataset (Trappist-1b) can be dowloaded from http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar. 
 
-All yaml files should be placed in (of symbolically liked to) the **/YourPath/Your_SOSSISSE_folder/** folder.
+You will also need to put reference files, in the relevant subfolders, that can be downloaded from http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar.
+
+All yaml files should be placed in (or symbolically liked to) the `/YourPath/Your_SOSSISSE_folder/` folder.
 
 ### Running the code
 
@@ -89,6 +117,7 @@ The code is run in the python terminal with the following command :
 In [1] import sossisse
 In [2]: sossisse.wrapper('config_t1b.yaml')
 ```
+
 ### Understanding outputs
 
 
