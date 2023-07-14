@@ -18,11 +18,11 @@ git clone git@github.com:njcuk9999/lbl.git
 Using conda, create a new environment and activate it
 
 ```
-conda create --name lbl-env python=3.9
+conda create --name sossisse-env python=3.9
 ```
 
 ```
-conda activate lbl-env
+conda activate sossisse-env
 ```
 
 ### Step 3: Install sossisse
