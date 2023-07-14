@@ -106,8 +106,12 @@ Within the `/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/` folder, you should
 A demo dataset (Trappist-1b) can be dowloaded from http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar. 
 
 You will also need to put reference files, in the relevant subfolders, that can be downloaded from http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar.
+Place them for example in the following folder: `/YourPath/Your_SOSSISSE_folder/SOSS/calibrations/*.fits `
 
 All yaml files should be placed in (or symbolically liked to) the `/YourPath/Your_SOSSISSE_folder/` folder.
+You will find an example yaml file in the sossisse github directory: `sossisse/data/defaults.yaml`
+As well as in the demo dataset for Trappist-1.
+
 
 ### Running the code
 

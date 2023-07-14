@@ -3,21 +3,21 @@
 ########################################################################################################
 #
 # Folder structure :
-#  /YourPath/Your_SOSSISSE_folder/mode/object/rawdata/*.fits    -> that's where your input data should be
-#  /YourPath/Your_SOSSISSE_folder/mode/calibrations/*.fits     -> that's where you put calibration files relevant for the mode
-#  /YourPath/Your_SOSSISSE_folder/mode/object/temporary_*unique_id* /    -> that's where your temporary *FITS* files will be saved
-#  /YourPath/Your_SOSSISSE_folder/mode/object/plots_*unique_id* / -> plots for that run
-#  /YourPath/Your_SOSSISSE_folder/mode/object/csv_*unique_id* /-> csv files for that run
+#  / sossiopath / mode / object / rawdata / files    -> that's where your input data should be
+#  / sossiopath / mode / calibrations / *.fits     -> that's where you put calibration files relevant for the mode
+#  / sossiopath / mode / object / temporary_*unique_id* /    -> that's where your temporary *FITS* files will be saved
+#  / sossiopath / mode / object / plots_*unique_id* / -> plots for that run
+#  / sossiopath / mode / object / csv_*unique_id* /-> csv files for that run
 #
 # *unique_id* will be a long random string constructed from the checksum of the config file
 #
 # sosspath *must* be defined as a system constant "sossiopath"
 # Name of the object (must match the object directory name)
-object: "required"
+object: "t1b"
 # Instrument mode i.e. SOSS or PRISM
-mode: "required"
+mode: "SOSS"
 # A suffix to identify this setup (e.g. a specific visit)
-suffix: "none"
+suffix: "_demo_data_set"
 
 # list of files to be processed
 # in form:
@@ -25,18 +25,20 @@ suffix: "none"
 # - file1
 # - file2
 # - file3
-files: "required"
+files:
+  - jw02589001001_04101_00001-seg001_nis_rateints.fits
+  - jw02589001001_04101_00001-seg002_nis_rateints.fits
 
 # CALIBRATION FILES -- these should be in the / general_path / mode / calibrations folder
 #
 # background file --> leave as '' if the is no backgorund available for the mode
-bkgfile: ""
+bkgfile: "model_background256.fits"
 #
 # flat field file --> leave as '' if there is no flat field available for the mode
-flatfile: ""
+flatfile: "jwst_niriss_flat_0275.fits"
 #
 # trace position file
-pos_file: ""
+pos_file: "SOSS_ref_trace_table_SUBSTRIP256.fits"
 #
 # allow for temporary files to speed the process if you run the code more than once
 allow_temporary: true

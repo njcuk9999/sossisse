@@ -89,7 +89,7 @@ def robust_polyfit(x, y, degree, nsigcut):
     # while sigma is greater than sigma cut keep fitting
     while nsigmax > nsigcut:
         # calculate the polynomial fit (of the non-NaNs)
-        fit = np.poly_fit(x[keep], y[keep], degree)
+        fit = np.polyfit(x[keep], y[keep], degree)
         # calculate the residuals of the polynomial fit
         res = y - np.polyval(fit, x)
         # work out the new sigma values
