@@ -76,10 +76,9 @@ def lowpassfilter(input_vect, width=101):
     return lowpass
 
 
-def robust_polyfit(x, y, degree, nsigcut):
+def robust_polyfit(x, y, degree: int, nsigcut):
     x = np.array(x, dtype=float)
     y = np.array(y, dtype=float)
-    degree = np.array(degree, dtype=int)
 
     keep = np.isfinite(y)
     # set the nsigmax to infinite

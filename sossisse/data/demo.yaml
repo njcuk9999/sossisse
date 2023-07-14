@@ -70,10 +70,10 @@ valid_dq:
 # define the Nth frame for 1st contact [it1], 2nd contact [it2] ... through 4th contact
 
 it:
-- "Required"
-- "Required"
-- "Required"
-- "Required"
+- 90
+- 97
+- 103
+- 110
 
 # used to reject bits of domain from the analysis
 # you can reject frames 0-600 with the values:
@@ -102,7 +102,7 @@ it:
 ########################################################################################################
 
 # fit the dx -- along the dispersion
-fit_dx: false
+fit_dx: true
 
 # fit the dy -- along the cross-dispersion
 fit_dy: true
@@ -111,25 +111,16 @@ fit_dy: true
 before_after: false
 
 # fit the rotation in the linear reconstruction of the trace
-fit_rotation: false
+fit_rotation: true
 
 # fit the zero point offset in the linear model for the trace
 zero_point_offset: true
-
-# fit a flux^2 dependency. This is mostly meant as a *test* of the quality
-# of the non-linearity correction. Normally this term should be decorrelated
-# the the 'amplitude' term. Set to false for actual science analysis
-# should not be used at the same time as the zero point offset
-quadratic_term: false
 
 # fit the 2nd derivative in y, good to find glitches!
 ddy: true
 
 fit_pca: false
-n_pca: 2
-
-time_bin: false
-n_time_bin: 1 # we bin frames by this amount to speed everything in the computation
+n_pca: 0
 
 ########################################################################################################
 ## Inputs related to handling of the data within each frame
@@ -139,6 +130,7 @@ pixel_level_detrending: false
 
 trace_orders:
 - 1
+- 2
 
 # wavelength domain for the write light curve
 #wlc domain:
