@@ -100,7 +100,12 @@ def art(word, color1='MAGENTA', color2='red'):
     low_2 = color('║ ', color1) + color(low_2, color2) + color(' ║', color1)
     low_3 = color('║ ', color1) + color(low_3, color2) + color(' ║', color1)
 
-    w = os.get_terminal_size().columns
+    try:
+        # We get the width of the terminal
+        w = os.get_terminal_size().columns
+    except:
+        # If we can't get the width of the terminal, we set it to 80
+        w = 80
     dw = (w - len(low_1) // 2) // 2
     low_0 = ' ' * dw + low_0
     low_1 = ' ' * dw + low_1

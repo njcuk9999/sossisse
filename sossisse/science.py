@@ -542,6 +542,7 @@ def clean_1f(cube, err, params):
 
         else:
             med = np.nanmedian(cube2, axis=0)
+            med_diff = np.array(med)
 
         # we also keep track of the in vs out-of-transit 2D image. This is useful to find order-0
         # psfs
