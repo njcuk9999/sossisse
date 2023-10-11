@@ -50,6 +50,8 @@ def white_light_curve(param_file_or_params, force=False):
     # value of their 4 neighbours.
     cube = science.patch_isolated_bads(cube, params)
 
+    cube = science.remove_cosmic_rays(cube, params)
+
     params = science.get_trace_map(params)
 
     if params['pixel_level_detrending']:
@@ -502,22 +504,16 @@ def spectral_extraction(param_file_or_params, force=False):
 
     for trace_order in params['trace_orders']:
         # Used for scaling residuals
-
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        tbl = Table.read('{}/soss_stability{}.csv'.format(params['CSV_PATH'], params['tag']))
+        outname = os.path.join(params['CSV_PATH'], 'soss_stability{}.csv'.format(params['tag']))
+        tbl = Table.read(outname)
 
         # median trace after normalization
-
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        med = fits.getdata('{}/median{}.fits'.format(params['TEMP_PATH'], params['tag']))
+        outname = os.path.join(params['TEMP_PATH'], 'median{}.fits'.format(params['tag']))
+        med = fits.getdata(outname)
 
         # residual cube
-
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        residual = fits.getdata('{}/residual{}.fits'.format(params['TEMP_PATH'], params['tag']))
+        outname = os.path.join(params['TEMP_PATH'], 'residual{}.fits'.format(params['tag']))
+        residual = fits.getdata(outname)
         params['DATA_X_SIZE'] = residual.shape[2]
         params['DATA_Y_SIZE'] = residual.shape[1]
         params['DATA_Z_SIZE'] = residual.shape[0]
@@ -545,16 +541,16 @@ def spectral_extraction(param_file_or_params, force=False):
                                                                                                           trace_order))
         plt.tight_layout()
         for fig_type in params['figure_types']:
-            # TODO: you shouldn't use '/'  as it is OS dependent
-            # TODO: use os.path.join(1, 2, 3)
-            plt.savefig('{}/sed_{}_ord{}.{}'.format(params['PLOT_PATH'], params['object'], trace_order, fig_type))
+            outname = os.path.join(params['PLOT_PATH'], 'sed_{}_ord{}.{}'.format(params['object'],
+                                                                                 trace_order,
+                                                                                  fig_type))
+            plt.savefig(outname)
         if params['show_plots']:
             plt.show()
         plt.close()
 
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        outname = '{}/sed_{}_ord{}.csv'.format(params['CSV_PATH'], params['object'], trace_order)
+        outname = os.path.join(params['CSV_PATH'],
+                               'sed_{}_ord{}.csv'.format(params['object'], trace_order))
         tbl_sed = Table()
         tbl_sed['wavelength'] = wavegrid
         tbl_sed['flux'] = sp_sed / throughput
@@ -564,15 +560,12 @@ def spectral_extraction(param_file_or_params, force=False):
 
         # error cube
 
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        err = fits.getdata('{}/errormap{}.fits'.format(params['TEMP_PATH'], params['tag']))
+        filename = os.path.join(params['TEMP_PATH'], 'errormap{}.fits'.format(params['tag']))
+        err = fits.getdata(filename)
 
         # model trace to be compared
-
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        model = fits.getdata('{}/recon{}.fits'.format(params['TEMP_PATH'], params['tag']))
+        filename = os.path.join(params['TEMP_PATH'], 'recon{}.fits'.format(params['tag']))
+        model = fits.getdata(outname)
 
         if params['mask_order_0']:
             misc.printc('masking order 0', 'info')
@@ -647,18 +640,25 @@ def spectral_extraction(param_file_or_params, force=False):
                 sp[:, i] -= np.polyval(fit, np.arange(sp.shape[0]))
 
         if params['saveresults']:
-            # TODO: you shouldn't use '/'  as it is OS dependent
-            # TODO: use os.path.join(1, 2, 3)
-            outname = '{}/residual_no_grey_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
+            outname = os.path.join(params['FITS_PATH'],
+                                   'residual_no_grey_ord{}{}.fits'.format(trace_order, params['tag2']))
             misc.printc('We write {}'.format(outname), 'info')
-            fits.writeto(outname, sp, overwrite=True)
+
+            hdu_sp = fits.ImageHDU(sp, name="SPECTRUM")
+            hdu_err = fits.ImageHDU(sp_err, name="SPECTRUM_ERROR")
+            hdul = fits.HDUList(hdus=[fits.PrimaryHDU(), hdu_sp, hdu_err])
+            hdul.writeto(outname, overwrite=True)
+
             sp2 = sp + np.reshape(np.repeat(np.array(tbl['amplitude']), sp.shape[1]), sp.shape)
 
-            # TODO: you shouldn't use '/'  as it is OS dependent
-            # TODO: use os.path.join(1, 2, 3)
-            outname = '{}/residual_grey_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
+            outname = os.path.join(params['FITS_PATH'],
+                                      'residual_grey_ord{}{}.fits'.format(trace_order, params['tag2']))
             misc.printc('We write {}'.format(outname), 'info')
-            fits.writeto(outname, sp2, overwrite=True)
+
+            hdu_sp = fits.ImageHDU(sp2, name="SPECTRUM")
+            hdu_err = fits.ImageHDU(sp_err, name="SPECTRUM_ERROR")
+            hdul = fits.HDUList(hdus=[fits.PrimaryHDU(), hdu_sp, hdu_err])
+            hdul.writeto(outname, overwrite=True)
 
             # Save the extracted spectra in format that is readable by jwst/github/jwst-mtl/SOSS/example/sossisson_to_dms.py
             wavegrid_2d = np.tile(wavegrid, (sp.shape[0], 1))  # shape = (nints, npix)
@@ -667,10 +667,9 @@ def spectral_extraction(param_file_or_params, force=False):
             hdu_extsperr = fits.ImageHDU(sp_err, name="RELFLUX_ERROR")
             hdul = fits.HDUList(hdus=[fits.PrimaryHDU(), hdu_wave, hdu_extsp, hdu_extsperr])
 
-            # TODO: you shouldn't use '/'  as it is OS dependent
-            # TODO: use os.path.join(1, 2, 3)
-            hdul.writeto("{}/spectra_ord{}{}.fits".format(params['FITS_PATH'], trace_order, params['tag2']),
-                         overwrite=True)
+            outname = os.path.join(params['FITS_PATH'],
+                                   "spectra_ord{}{}.fits".format(trace_order, params['tag2']))
+            hdul.writeto(outname, overwrite=True)
 
         # do the same on the photometric time series
         v1 = np.array(tbl['amplitude'][~in_transit_reject])
@@ -705,9 +704,8 @@ def spectral_extraction(param_file_or_params, force=False):
         err_in[~np.isfinite(err_in)] = np.nan
         err_out[~np.isfinite(err_out)] = np.nan
 
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        outname = '{}/wavelength_ord{}{}.fits'.format(params['FITS_PATH'], trace_order, params['tag2'])
+        outname = os.path.join(params['FITS_PATH'],
+                                 'wavelength_ord{}{}.fits'.format(trace_order, params['tag2']))
         misc.printc('We write {}'.format(outname), 'info')
         fits.writeto(outname, wavegrid, overwrite=True)
 
@@ -722,9 +720,9 @@ def spectral_extraction(param_file_or_params, force=False):
                     alpha=0.25, label='in-transit, order {}'.format(trace_order))
 
         if params["saveresults"]:
-            # TODO: you shouldn't use '/'  as it is OS dependent
-            # TODO: use os.path.join(1, 2, 3)
-            np.savetxt("{}/tspec_ord{}{}.csv".format(params['CSV_PATH'], trace_order, params["tag2"]),
+            outname = os.path.join(params['CSV_PATH'],
+                                     'tspec_ord{}{}.csv'.format(trace_order, params['tag2']))
+            np.savetxt(outname,
                        np.array([wavegrid, (sp_in + transit_depth) * 1e6, err_in * 1e6]).T)
 
         if np.nanmin(wavegrid) != 0:
@@ -752,7 +750,8 @@ def spectral_extraction(param_file_or_params, force=False):
     ax.set(ylabel='ppm', xlabel='wavelength [$\mu$m]')
     ax.set(ylim=params['spectrum_ylim_ppm'])
     ax.legend()
-    plt.savefig('{}/sossisson_output{}.pdf'.format(params['PLOT_PATH'], params['tag2']))
+    outname = os.path.join(params['PLOT_PATH'], 'sossisson_output{}.pdf'.format(params['tag2']))
+    plt.savefig(outname)
     if params['show_plots']:
         plt.show()
     plt.close()

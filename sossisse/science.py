@@ -244,6 +244,28 @@ def get_effective_wavelength(params):
 
     return params
 
+def remove_cosmic_rays(cube, params):
+    # We remove cosmic rays by taking the median of the 1-sigma of the cube
+    # and we remove all pixels that are above 5 sigma
+
+    misc.printc('We remove cosmic rays', 'info')
+    misc.printc('We first get the median of the 1-sigma of the cube', 'info')
+
+    # We first get the median of the -1 to +1 sigma of the cube
+    with warnings.catch_warnings(record=True) as _:
+        # we don't care about the warnings
+        # we just want to get the percentiles
+        # we know that there are some nans
+        n1, p1 = np.nanpercentile(cube, [16, 84], axis = 0)
+    sigma = (p1 - n1) / 2
+    mean = (p1 + n1) / 2
+
+    for i in tqdm(range(cube.shape[0])):
+        tmp = cube[i, :, :]
+        nsig = np.abs(tmp - mean) / sigma
+        cube[i, nsig > 5] = np.nan
+
+    return cube
 
 def get_rms_baseline(v=None, method='linear_sigma'):
     if type(v) == type(None):

@@ -44,7 +44,10 @@ def sossart():
         '\n' + v + '\n' + color('└──────────────────────────────────┘', 'white')
 
     vlen = np.max([len(lenght_v) for lenght_v in v.split('\n')])
-    w = os.get_terminal_size().columns
+    try:
+        w = os.get_terminal_size().columns
+    except:
+        w = 80
     dw = (w - vlen // 2) // 2
 
     v = v.replace('\n', '\n' + ' ' * dw)

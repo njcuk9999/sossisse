@@ -135,10 +135,10 @@ def odd_ratio_mean(value, err, odd_ratio=1e-4, nmax=10):
 
         w = odd_good / err ** 2
 
-        guess = np.nansum(value * w) / np.nansum(w)
+        guess = np.sum(value * w) / np.sum(w)
         nite += 1
 
-    bulk_error = np.sqrt(1 / np.nansum(odd_good / err ** 2))
+    bulk_error = np.sqrt(1 / np.sum(odd_good / err ** 2))
 
     return guess, bulk_error
 
