@@ -10,7 +10,38 @@ from astropy.io import fits
 from astropy.table import Table
 from tqdm import tqdm
 
-from sossisse import misc
+from sossisse import misc, science
+
+
+def getdata(file, header = False,ext=0):
+
+    with fits.open(file) as hdul:
+        hdul.verify('fix')
+        data = hdul[ext].data
+        if header:
+            hdr = hdul[0].header
+
+    if header:
+        return data, hdr
+
+    return data
+
+def writeto(file, data, header = None, overwrite = True):
+
+    if os.path.exists(file):
+        if overwrite:
+            os.remove(file)
+        else:
+            raise ValueError('{} exists, we stop!'.format(file))
+
+    # create an hdul
+    with fits.open(file, mode='append') as hdul:
+        if header is not None:
+            hdu = fits.PrimaryHDU(data, header)
+        else:
+            hdu = fits.PrimaryHDU(data)
+
+        hdul.append(hdu)
 
 
 def yaml_to_html(params):
@@ -434,7 +465,7 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
     if params['bkgfile'] != '':
         if params['CALIBPATH'] not in params['bkgfile']:
             params['bkgfile'] = params['CALIBPATH'] + '/' + params['bkgfile']
-        params['bgnd'] = fits.getdata(params['bkgfile'])
+        params['bgnd'] = getdata(params['bkgfile'])
 
 
     # TODO: you shouldn't use '/'  as it is OS dependent
@@ -442,7 +473,7 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
     if params['flatfile'] != '':
         if params['CALIBPATH'] not in params['flatfile']:
             params['flatfile'] = params['CALIBPATH'] + '/' + params['flatfile']
-        params['flat'] = fits.getdata(params['flatfile'])
+        params['flat'] = getdata(params['flatfile'])
 
 
     # TODO: you shouldn't use '/'  as it is OS dependent
@@ -486,10 +517,21 @@ def load_yaml_params(param_file, force=False, do_time_link=False, silent=False):
                          'wrong!')
 
 
+    # we check that no keyword is empty, otherwise we remove it
+    keys = list(params.keys())
+    for key in keys:
+        if  type(params[key]) == type(None):
+            misc.printc('We remove {} from the yaml file -- empty key in file'.format(key), 'bad2')
+            del params[key]
+
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
     outname = params['CSV_PATH'] + '/' + param_file.split('/')[-1]
     if not os.path.exists(outname):
         shutil.copyfile(param_file, outname)
+
+
+    # update the params with the centering file if any
+    params = science.fancy_centering(params, force=False)
 
     return params

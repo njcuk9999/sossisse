@@ -3,12 +3,14 @@ import os
 import warnings
 from datetime import datetime
 
-import matplotlib.pyplot as plt
-import numpy as np
-from astropy.io import fits
-from astropy.table import Table
 from scipy.ndimage import binary_dilation
 from tqdm import tqdm
+
+from astropy.io import fits
+import numpy as np
+from astropy.table import Table
+import matplotlib.pyplot as plt
+import os
 
 from sossisse import math
 from sossisse import misc
@@ -41,6 +43,8 @@ def white_light_curve(param_file_or_params, force=False):
 
     params['force'] = force
 
+    params = science.fancy_centering(params, force=False)
+
     ################################################################################
     # load the image, error and data quality
     cube, err = science.load_data_with_dq(params)
@@ -51,6 +55,9 @@ def white_light_curve(param_file_or_params, force=False):
     cube = science.patch_isolated_bads(cube, params)
 
     cube = science.remove_cosmic_rays(cube, params)
+
+
+    ################################################################################
 
     params = science.get_trace_map(params)
 
@@ -66,19 +73,30 @@ def white_light_curve(param_file_or_params, force=False):
 
         width_current = np.array(params['trace_width_masking'])
         params['trace_width_masking'] = 20
-        dys = np.arange(-params['DATA_Y_SIZE'] // 10, params['DATA_Y_SIZE'] // 10 + 1)
-        dxs = np.arange(-params['DATA_Y_SIZE'] // 10, params['DATA_Y_SIZE'] // 10 + 1)
+        dys = np.arange(-params['DATA_Y_SIZE'] // 10, params['DATA_Y_SIZE'] // 10 + 1) + params['y_trace_offset']
+        dxs = np.arange(-params['DATA_X_SIZE'] // 5, params['DATA_X_SIZE'] // 5 + 1) + params['x_trace_offset']
         sums = np.zeros([len(dxs), len(dys)], dtype=float)
 
         best_dx = 0
         best_dy = 0
         best_sum = 0
+        params = science.get_trace_map(params, silent=True)
+
         for ix in tqdm(range(len(dxs)), leave=False):
             for iy in tqdm(range(len(dys)), leave=False):
+                if sums[ix,iy]!=0:
+                    continue
+
                 params['x_trace_offset'] = dxs[ix]
                 params['y_trace_offset'] = dys[iy]
-                params = science.get_trace_map(params, silent=True)
-                sums[ix, iy] = np.nansum(params['TRACEMAP'] * med)
+                mask = np.array(params['TRACEMAP'], dtype=float)
+
+                sums[ix, iy] = np.nansum(mask * med)
+
+                if sums[ix,iy]<0.5*best_sum:
+                    sums[ix:ix+5,iy:iy+5] = sums[ix,iy]
+                    continue
+
                 if sums[ix, iy] > best_sum:
                     best_sum = sums[ix, iy]
                     best_dx = dxs[ix]
@@ -92,34 +110,38 @@ def white_light_curve(param_file_or_params, force=False):
         misc.printc('Best dx : {} pix'.format(best_dx), 'number')
         misc.printc('Best dy : {} pix'.format(best_dy), 'number')
 
-        """
         loss_ppt = (1-sums/np.nanmax(sums))*1e3
-        nmax = 8
-        if len(loss_ppt) < nmax:
-            nmax = len(loss_ppt)
-        ylim = loss_ppt[np.argsort(loss_ppt)][nmax]
-        if ylim < loss_ppt[dys == 0]:
-            ylim = loss_ppt[dys == 0]*1.1
+        ylim = [0,np.max(loss_ppt)*1.1]
+
+        xmax = np.argmax(sums) // sums.shape[1]
 
         for i in range(len(dys)):
-            if loss_ppt[i]<ylim:
-                printc('\toffset dy = {:3}, err = {:.3f} ppt'.format(dys[i], loss_ppt[i]),'number')
-        printc('We scanned the y position of trace, optimum at dy = {}'.format(params['y_trace_offset']),'number')
+            misc.printc('\toffset dy = {:3}, err = {:.3f} ppt'.format(dys[i], loss_ppt[xmax,i]),'number')
+        misc.printc('We scanned the y position of trace, optimum at dy = {}'.format(params['y_trace_offset']),'number')
 
-        fig,ax = plt.subplots(nrows = 2, ncols =1, figsize = [8,8])
-        ax[0].plot(dys,loss_ppt)
-        ax[0].set(xlabel = 'offset of trace',ylabel = 'flux loss in ppt',ylim =[0,ylim*1.1])
+        fig,ax = plt.subplots(nrows = 3, ncols =1, figsize = [8,8])
+        ax[0].plot(dys,loss_ppt[xmax,:])
+        ax[0].set(xlabel = 'offset of trace',ylabel = 'flux loss in ppt')#,ylim =[0,ylim*1.1])
         mask = np.array(params['TRACEMAP'],dtype = float)
         mask[mask == 0] = np.nan
         ax[1].imshow(med*mask,aspect = 'auto')
+        ax[2].imshow(sums.T,aspect = 'auto', extent = [np.min(dxs),np.max(dxs),np.min(dys),np.max(dys)])
+        ax[2].plot(best_dx,-best_dy,'ro')
+        ax[2].set_title('flux in aperture')
+        ax[2].set_xlabel('dx')
+        ax[2].set_ylabel('dy')
         plt.tight_layout()
         for figtype in params['figure_types']:
             outname = '{}/trace_flux_loss_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
             plt.savefig(outname)
         if params['show_plots']:
             plt.show()
-        plt.close()
-        """
+    else:
+        if 'x_trace_offset' not in params.keys():
+            params['x_trace_offset'] = 0
+        if 'y_trace_offset' not in params.keys():
+            params['y_trace_offset'] = 0
+
 
     ################################################################################
     # Part of the code that does rotation/shift/amplitude
@@ -335,19 +357,19 @@ def white_light_curve(param_file_or_params, force=False):
     # TODO: use os.path.join(1, 2, 3)
     outname = '{}/errormap{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
-        fits.writeto(outname, err, overwrite=True)
+        soss_io.writeto(outname, err, overwrite=True)
 
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
     outname = '{}/residual{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
-        fits.writeto(outname, cube, overwrite=True)
+        soss_io.writeto(outname, cube, overwrite=True)
 
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
     outname = '{}/recon{}.fits'.format(params['TEMP_PATH'], params['tag'])
     if not os.path.isfile(outname):
-        fits.writeto(outname, all_recon, overwrite=True)
+        soss_io.writeto(outname, all_recon, overwrite=True)
 
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
@@ -495,6 +517,9 @@ def spectral_extraction(param_file_or_params, force=False):
     if type(param_file_or_params) == dict:
         params = param_file_or_params
 
+
+
+
     if force:
         misc.printc('We have force = True as an input, we re-create temporary files if they exist.', 'bad3')
         params['allow_temporary'] = False
@@ -509,11 +534,11 @@ def spectral_extraction(param_file_or_params, force=False):
 
         # median trace after normalization
         outname = os.path.join(params['TEMP_PATH'], 'median{}.fits'.format(params['tag']))
-        med = fits.getdata(outname)
+        med = soss_io.getdata(outname)
 
         # residual cube
         outname = os.path.join(params['TEMP_PATH'], 'residual{}.fits'.format(params['tag']))
-        residual = fits.getdata(outname)
+        residual = soss_io.getdata(outname)
         params['DATA_X_SIZE'] = residual.shape[2]
         params['DATA_Y_SIZE'] = residual.shape[1]
         params['DATA_Z_SIZE'] = residual.shape[0]
@@ -561,11 +586,11 @@ def spectral_extraction(param_file_or_params, force=False):
         # error cube
 
         filename = os.path.join(params['TEMP_PATH'], 'errormap{}.fits'.format(params['tag']))
-        err = fits.getdata(filename)
+        err = soss_io.getdata(filename)
 
         # model trace to be compared
         filename = os.path.join(params['TEMP_PATH'], 'recon{}.fits'.format(params['tag']))
-        model = fits.getdata(outname)
+        model = soss_io.getdata(filename)
 
         if params['mask_order_0']:
             misc.printc('masking order 0', 'info')
@@ -583,17 +608,22 @@ def spectral_extraction(param_file_or_params, force=False):
 
         # loop through observations and spectral bins
         for nth_obs in tqdm(range(residual.shape[0]), leave=False):
-            for spectral_bin in range(med.shape[1]):
+
+            tmp_model = np.array(model[nth_obs])
+            tmp_residual = np.array(residual[nth_obs])
+            tmp_err = np.array(err[nth_obs])
+
+            for spectral_bin in tqdm(range(med.shape[1]), leave=False):
                 # get a ribbon on the trace that extends over the input width
                 y1 = posmax[spectral_bin] - params['trace_width_extraction'] // 2
                 y2 = posmax[spectral_bin] + params['trace_width_extraction'] // 2
 
                 # model of the trace for that observation
-                v0 = model[nth_obs, y1:y2, spectral_bin]
+                v0 = tmp_model[y1:y2, spectral_bin]
                 # residual of the trace
-                v1 = residual[nth_obs, y1:y2, spectral_bin]
+                v1 = tmp_residual[y1:y2, spectral_bin]
                 # corresponding error
-                v2 = err[nth_obs, y1:y2, spectral_bin]
+                v2 = tmp_err[y1:y2, spectral_bin]
 
                 """
                 we find the ratio of residual to trace. The logic here is that
@@ -707,7 +737,7 @@ def spectral_extraction(param_file_or_params, force=False):
         outname = os.path.join(params['FITS_PATH'],
                                  'wavelength_ord{}{}.fits'.format(trace_order, params['tag2']))
         misc.printc('We write {}'.format(outname), 'info')
-        fits.writeto(outname, wavegrid, overwrite=True)
+        soss_io.writeto(outname, wavegrid, overwrite=True)
 
         if trace_order == 1:
             fmt1 = 'g.'
