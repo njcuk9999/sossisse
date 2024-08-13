@@ -10,7 +10,7 @@
 ### Step 1: Download the GitHub repository
 
 ```
-git clone git@github.com:njcuk9999/lbl.git
+git clone git@github.com:njcuk9999/sossisse.git
 ```
 
 ### Step 2: Install python 3.8 using conda
