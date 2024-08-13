@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+sossisse.general.py
+
+General functionality in here
+
+Created on 2022-09-20
+
+@author: cook
+"""
 import glob
 import os
 import warnings
@@ -10,12 +21,12 @@ from astropy.table import Table
 from scipy.ndimage import binary_dilation
 from tqdm import tqdm
 
-from sossisse import math
-from sossisse import misc
-from sossisse import plots
-from sossisse import science
+from sossisse.core import math
+from sossisse.core import misc
+from sossisse.general import plots, science, soss_io
+
+
 # within sossisse
-from sossisse import soss_io
 
 
 def white_light_curve(param_file_or_params, force=False):
@@ -288,7 +299,7 @@ def white_light_curve(param_file_or_params, force=False):
         cube[i] -= recon
         all_recon[i] = recon / amp_model[0]
 
-        tbl['rms_cube_recon'][i] = math.sigma(np.array(cube[i], dtype=float))
+        tbl['rms_cube_recon'][i] = math.estimate_sigma(np.array(cube[i], dtype=float))
     trace_corr /= np.nanmedian(trace_corr)
 
     tbl['amplitude_uncorrected'] = np.array(tbl['amplitude'])
@@ -472,7 +483,7 @@ def summary(obj, search_string='*'):
             misc.printc('File with photometry info: {}'.format(file_phot), 'info')
             tbl_phot = Table.read(file_phot)
             amp = tbl_phot['amplitude']
-            rms = math.sigma(amp - np.roll(amp, 1)) / np.sqrt(2) * 1e6
+            rms = math.estimate_sigma(amp - np.roll(amp, 1)) / np.sqrt(2) * 1e6
             tbl['RMS point to point [ppm]'][i] = '{:.3f}'.format(rms)
 
     return tbl

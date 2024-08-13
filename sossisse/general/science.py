@@ -14,7 +14,7 @@ from skimage import measure
 from tqdm import tqdm
 from wpca import EMPCA
 
-from sossisse import math, misc
+from sossisse.core import math, misc
 
 
 # sosssisse stuff
@@ -27,7 +27,7 @@ def per_pixel_baseline(cube, mask, params):
     poly_order = params['transit_baseline_polyord']
 
     mid_transit = int(np.nanmean(params['it']))
-    rms0 = math.sigma(cube[mid_transit] * mask)
+    rms0 = math.estimate_sigma(cube[mid_transit] * mask)
 
     for ix in tqdm(range(params['DATA_X_SIZE']), leave=False):
         cube_slice = np.array(cube[:, :, ix])
@@ -50,7 +50,7 @@ def per_pixel_baseline(cube, mask, params):
 
         cube[:, :, ix] = np.array(cube_slice)
 
-    rms1 = math.sigma(cube[mid_transit] * mask)
+    rms1 = math.estimate_sigma(cube[mid_transit] * mask)
     misc.printc('-- For sample mid-transit frame -- ', '')
     misc.printc('\t rms[before] : {:.3f}'.format(rms0), 'number')
     misc.printc('\t rms[after] : {:.3f}'.format(rms1), 'number')
@@ -169,7 +169,7 @@ def pixeldetrending(cube, params):
 
                 v2 = np.array(v)
 
-                amps = math.lin_mini(dv, sample)[0]
+                amps = math.linear_minimization(dv, sample)[0]
                 for ikey in range(len(keys) - 1):
                     v2 -= sample[:, ikey] * amps[ikey]
 
@@ -255,13 +255,13 @@ def get_rms_baseline(v=None, method='linear_sigma'):
 
     if method == 'linear_sigma':
         # difference to immediate neighbours
-        return math.sigma(v[1:-1] - (v[2:] + v[0:-2]) / 2) / np.sqrt(1 + 0.5)
+        return math.estimate_sigma(v[1:-1] - (v[2:] + v[0:-2]) / 2) / np.sqrt(1 + 0.5)
     if method == 'lowpass_sigma':
-        return math.sigma(v - math.lowpassfilter(v, width=15))
+        return math.estimate_sigma(v - math.lowpassfilter(v, width=15))
 
     if method == 'quadratic_sigma':
         v2 = -np.roll(v, -2) / 3 + np.roll(v, -1) + np.roll(v, 1) / 3
-        return math.sigma(v - v2) / np.sqrt(20 / 9.0)
+        return math.estimate_sigma(v - v2) / np.sqrt(20 / 9.0)
 
 
 def patch_isolated_bads(cube, params):

@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from sossisse import math
+from sossisse.core import math
 # sosssisse stuff
-from sossisse import science
+from sossisse.general import science
 
 
 def plot_sossice(tbl, params):
@@ -52,7 +52,7 @@ def plot_sossice(tbl, params):
         if i == 0:
             title = '{0} -- {1}\nrms : {3:.2f} ppm'.format(params['object'], params['suffix'], domain, rms_phot * 1e6)
         else:
-            title = 'rms : {:.4f}'.format(math.sigma(tbl[params['output_names'][i]]) * params['output_factor'][i])
+            title = 'rms : {:.4f}'.format(math.estimate_sigma(tbl[params['output_names'][i]]) * params['output_factor'][i])
 
         ylabel = '{} [{}]'.format(params['output_names'][i], params['output_units'][i])
         ax[i].set(xlabel=xlabel, ylabel=ylabel, title=title)

@@ -10,7 +10,7 @@ from astropy.io import fits
 from astropy.table import Table
 from tqdm import tqdm
 
-from sossisse import misc
+from sossisse.core import misc
 
 
 def yaml_to_html(params):

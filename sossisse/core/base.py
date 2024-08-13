@@ -1,30 +1,31 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-# CODE NAME HERE
+sossisse.base.py
 
-# CODE DESCRIPTION HERE
+base variables here
 
-Created on {DATE}
+Created on 2022-09-20
 
 @author: cook
+
+Rules: no sosssise imports
 """
 # =============================================================================
 # Define variables
 # =============================================================================
+__NAME__ = 'sossisse.core.base'
+__version__ = '0.1'
+__date__ = '2024-08-13'
+__authors__ = 'Etienne Artigau, Neil James Cook'
 
+
+# Define basic types (non nested)
+BASIC_TYPES = (int, float, bool, str)
 
 # =============================================================================
 # Define functions
 # =============================================================================
-
-
-# =============================================================================
-# Start of code
-# =============================================================================
-if __name__ == "__main__":
-    # print hello world
-    print('Hello World')
 
 # =============================================================================
 # End of code

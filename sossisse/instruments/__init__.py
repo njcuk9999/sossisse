@@ -5,26 +5,28 @@
 
 # CODE DESCRIPTION HERE
 
-Created on {DATE}
+Created on 2024-08-13 at 11:09
 
 @author: cook
 """
+from sossisse.instruments import default
+from sossisse.instruments import select
+
 # =============================================================================
 # Define variables
 # =============================================================================
+Instrument = default.Instrument
 
-
-# =============================================================================
-# Define functions
-# =============================================================================
-
+load_instrument = select.load_instrument
 
 # =============================================================================
 # Start of code
 # =============================================================================
+# Main code here
 if __name__ == "__main__":
-    # print hello world
-    print('Hello World')
+    # ----------------------------------------------------------------------
+    # print 'Hello World!'
+    print("Hello World!")
 
 # =============================================================================
 # End of code

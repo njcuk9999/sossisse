@@ -8,6 +8,8 @@
 Created on {DATE}
 
 @author: cook
+
+Rules: only import from sossisse.base
 """
 # =============================================================================
 # Define variables

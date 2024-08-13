@@ -57,35 +57,6 @@ hash key is not meant to be an explicit description of the parameter combination
 The hash key is created from a truncated checksum of the yaml file. As the link between the hash key, and the input 
 yaml cannot be readily determined, the yaml file is copied within the output folder it created.
 
-To run the codes, one needs to define a path for the subfolders and the yaml. This path should be defined as a 
-system variable called `SOSSIOPATH` (SOSS-input-output path). 
-
-#### On Mac
-
-Within the `~/.zshrc` on Mac, this is done with the 
-following line added to the startup profile : 
-
-```
-export SOSSIOPATH=/YourPath/Your_SOSSISSE_folder/
-```
-
-#### On Linux
-
-Within the `~/.bashrc` on Linux, this is done with the
-following line added to the startup profile : 
-
-```
-export SOSSIOPATH=/YourPath/Your_SOSSISSE_folder/
-```
-
-#### On Windows
-
-For windows you can follow the guide [here](https://docs.oracle.com/en/database/oracle/machine-learning/oml4r/1.5.1/oread/creating-and-modifying-environment-variables-on-windows.html#GUID-DD6F9982-60D5-48F6-8270-A27EC53807D0)
-The environment variable name should be `SOSSIOPATH` and the value should be the path to the sossisse directory e.g. `C:\YourPath\Your_SOSSISSE_folder\`
-
-Note after this point we will refer to all paths using hte unix (Linux/Mac) notation, adjust accordingly for Windows.
-
-
 ### Data structure
 
 Within that folder, one should define a subfolder for the 'mode' used (here 'SOSS') and a per-target folder that 
