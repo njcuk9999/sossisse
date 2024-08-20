@@ -37,21 +37,24 @@ CDICT['SOSSIOPATH'] = Const('SOSSIOPATH', value=None, dtype=str,
 CDICT['OBJECTNAME'] = Const('OBJECTNAME', value=None, dtype=str,
                             required=True)
 
-# Define the Instrument mode i.e.:
-#   - JWST SOSS
-#   - JWST NIRSPEC PRISM
+# Instrument mode i.e. JWST.NIRISS.SOSS or JWST.NIRISS.PRISM
 CDICT['INSTRUMENTMODE'] = Const('INSTRUMENTMODE', value=None, dtype=str,
                                 required=True)
 
 # A suffix to identify this setup (e.g. a specific visit)
 CDICT['SUFFIX'] = Const('SUFFIX', value='', dtype=str, required=False)
 
-
 # Define the parameter file that seeded this run
 CDICT['PARAM_FILE'] = Const('PARAM_FILE', value=None, dtype=str)
 
 # A unique identifier for this data set
 CDICT['SID'] = Const('SID', value=None, dtype=str)
+
+# Log level (DEBUG, INFO, WARNING, ERROR, NONE)
+CDICT['LOG_LEVEL'] = Const('LOG_LEVEL', value='INFO', dtype=str)
+
+# Special splash
+CDICT['SSPLASH'] = Const('SSPLASH', value=False, dtype=bool)
 
 # list of files to be processed
 # in form:
@@ -61,6 +64,9 @@ CDICT['SID'] = Const('SID', value=None, dtype=str)
 # - file3
 CDICT['FILES'] = Const('FILES', value=None, dtype=list, dtypei=str,
                        required=True)
+
+# The temporary in vs out file (should only be used by the code)
+CDICT['TEMP_INFILE'] = Const('TEMP_INFILE', value=None, dtype=str)
 
 # background file --> leave as None if the is no background available for
 #                     the mode
@@ -78,8 +84,41 @@ CDICT['POS_FILE'] = Const('POS_FILE', value=None, dtype=str)
 #    than once
 CDICT['ALLOW_TEMPORARY'] = Const('ALLOW_TEMPORARY', value=True, dtype=bool)
 
+# Use temporary files (False we overwrite the files for a fresh start even
+#   if they exist on disk)
+CDICT['USE_TEMPORARY'] = Const('USE_TEMPORARY', value=True, dtype=bool)
+
 # Save results at the end
 CDICT['SAVE_RESULTS'] = Const('SAVE_RESULTS', value=True, dtype=bool)
+
+
+# =============================================================================
+# Definition of paths (normally created at run time but can be overridden)
+# =============================================================================
+# all data for this instrument mode will be stored under this directory
+CDICT['MODEPATH'] = Const('MODEPATH', value=None, dtype=str)
+
+# the calibration path is where we store all calibration files
+CDICT['CALIBPATH'] = Const('CALIBPATH', value=None, dtype=str)
+
+# the raw path is where we store all the raw data
+CDICT['RAWPATH'] = Const('RAWPATH', value=None, dtype=str)
+
+# the object path is where we store all the object data
+CDICT['OBJECTPATH'] = Const('OBJECTPATH', value=None, dtype=str)
+
+# the temp path is where we store temporary versions of the raw data
+CDICT['TEMP_PATH'] = Const('TEMP_PATH', value=None, dtype=str)
+
+# the plot path
+CDICT['PLOT_PATH'] = Const('PLOT_PATH', value=None, dtype=str)
+
+# the csv path
+CDICT['CSV_PATH'] = Const('CSV_PATH', value=None, dtype=str)
+
+# the fits path
+CDICT['FITS_PATH'] = Const('FITS_PATH', value=None, dtype=str)
+
 
 # =============================================================================
 # Definition of inputs related to plots
@@ -150,6 +189,13 @@ CDICT['FIT_ROTATION'] = Const('FIT_ROTATION', value=True, dtype=bool)
 #  Formally zero_point_offset
 CDICT['FIT_ZERO_POINT_OFFSET'] = Const('FIT_ZERO_POINT_OFFSET', value=True,
                                        dtype=bool)
+
+# fit a flux^2 dependency. This is mostly meant as a test of the quality
+# of the non-linearity correction. Normally this term should be de-correlated
+# with the amplitude term. Set to false for actual science analysis
+# should not be used at the same time as the zero point offset
+# formally quadratic_term
+CDICT['FIT_QUAD_TERM'] = Const('FIT_QUAD_TERM', value=False, dtype=bool)
 
 # fit the 2nd derivative in y, good to find glitches!
 #  Formally ddy

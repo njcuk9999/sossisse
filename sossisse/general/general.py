@@ -25,36 +25,27 @@ from sossisse.core import math
 from sossisse.core import misc
 from sossisse.general import plots, science, soss_io
 
-
+from sossisse.instruments import Instrument
 # within sossisse
 
 
-def white_light_curve(param_file_or_params, force=False):
+def white_light_curve(inst: Instrument):
     # pass either the param file or the params themselves
 
     # check the sample parameter files for guidance on proper keywords
-    # set force = True to force a re-writing of the temporary files meant to speed to code
+    # set force = True to force a re-writing of the temporary files
+    # meant to speed to code
     misc.sossart()
-    # printc('Les spectres c''est comme les saucisses.','white')
-    # printc('C''est mieux de ne pas voir leur préparation')
 
-    params = None
-    if type(param_file_or_params) == str:
-        # load the params from the param files
-        params = soss_io.load_yaml_params(param_file_or_params, force=force, do_time_link=True)
-    if type(param_file_or_params) == dict:
-        params = param_file_or_params
+    # get parameters from instrumental parameters
+    objname = inst.params['OBJECTNAME']
+    # print the white light curve splash
+    print(misc.art('White light curve ' + objname, 'blue', 'CYAN'))
 
-    if params['object'] == 'required':
-        raise KeyError('The object in the yaml is "required" and should be defined')
-
-    print(misc.art('White light curve ' + params['object'], 'blue', 'CYAN'))
-
-    params['force'] = force
-
-    ################################################################################
+    # -------------------------------------------------------------------------
     # load the image, error and data quality
-    cube, err = science.load_data_with_dq(params)
+    cube, err = inst.load_data_with_dq()
+
 
     ################################################################################
     # for each slice of the cube, isolated bad pixels are interpolated with the

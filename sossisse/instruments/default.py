@@ -43,6 +43,8 @@ class Instrument:
         self.sources = {key: 'Unknown' for key in self.params}
         # set up the instrument
         self.param_override()
+        # variables to keep in memory and pass around with class
+        self.variables = dict()
 
     def param_override(self):
         """
@@ -50,6 +52,15 @@ class Instrument:
         :return:
         """
         pass
+
+
+    def load_data_with_dq(self):
+        pass
+
+
+
+
+
 
 
 # =============================================================================

@@ -1,30 +1,28 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-# CODE NAME HERE
+Only top level function should be defined here
 
-# CODE DESCRIPTION HERE
+i.e. those expected to be used in the notebooks
 
-Created on {DATE}
+2024-08-20 9:26:10
 
 @author: cook
 """
+from sossisse.core import const_funcs
+from sossisse.general import general
+
 # =============================================================================
 # Define variables
 # =============================================================================
+# top level function for dealing with getting parameters
+get_parameters = const_funcs.get_parameters
 
+# top level function for running the white light curve step
+white_light_curve = general.white_light_curve
 
-# =============================================================================
-# Define functions
-# =============================================================================
-
-
-# =============================================================================
-# Start of code
-# =============================================================================
-if __name__ == "__main__":
-    # print hello world
-    print('Hello World')
+# top level function for running the spectral extraction step
+spectral_extraction = general.spectral_extraction
 
 # =============================================================================
 # End of code

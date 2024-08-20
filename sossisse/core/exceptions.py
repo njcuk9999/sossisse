@@ -59,6 +59,18 @@ class SossisseFileException(SossisseException):
     def __str__(self) -> str:
         return 'SossisseConstantException: {0}'.format(self.message)
 
+
+class SossisseIOException(SossisseException):
+    """
+    Exception from a constant
+    """
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return 'SossisseIOException: {0}'.format(self.message)
+
 # =============================================================================
 # Start of code
 # =============================================================================

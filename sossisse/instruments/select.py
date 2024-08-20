@@ -33,9 +33,9 @@ INSTRUMENTS = dict()
 # add instrument classes here
 # -----------------------------------------------------------------------------
 # JWST SOSS
-INSTRUMENTS['JWST SOSS'] = jwst_niriss.JWST_SOSS
+INSTRUMENTS['JWST.NIRISS.SOSS'] = jwst_niriss.JWST_SOSS
 # JWST NIRSPEC PRISM
-INSTRUMENTS['JWST NIRSPEC PRISM'] = jwst_nirspec.JWST_NIRSPEC_PRISM
+INSTRUMENTS['JWST.NIRSPEC.PRISM'] = jwst_nirspec.JWST_NIRSPEC_PRISM
 
 
 

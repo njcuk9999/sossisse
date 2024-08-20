@@ -34,6 +34,7 @@ class Const:
     """
     Define a constant for use in loading SOSSICE variables
     """
+
     def __init__(self, name: str, value: Any = None, dtype: Type = None,
                  dtypei: Type = None, required: bool = False,
                  minimum: Union[int, float] = None,
@@ -93,7 +94,7 @@ class Const:
         # deal with required check
         # ---------------------------------------------------------------------
         # check if value is required make sure its not None
-        if self.required and self.value is None:
+        if self.required and value is None:
             emsg = 'Constant {0}: Value={1} is required'
             eargs = [name, value]
             # deal with having a source
@@ -102,12 +103,20 @@ class Const:
                 eargs.append(source)
             # raise the exception
             raise SossisseConstantException(emsg.format(*eargs))
+        elif value is None:
+            self.value = value
+            return True
         # ---------------------------------------------------------------------
         # deal with value as a list
         # ---------------------------------------------------------------------
         if isinstance(value, (list, dict)) and self.dtype in [list, dict]:
+            # we iterate differently for lists and dicts
+            if isinstance(value, dict):
+                items = list(value.keys())
+            else:
+                items = list(range(len(value)))
             # loop around items and check them
-            for item in value:
+            for item in items:
                 # update the name and value (for sub-test)
                 _name = f'{name}[{item}]'
                 _value = value[item]
@@ -131,6 +140,8 @@ class Const:
                         eargs.append(source)
                     # raise the exception
                     raise SossisseConstantException(emsg.format(*eargs))
+            # if we get here we have validated our constant
+            self.value = value
         # ---------------------------------------------------------------------
         # deal with int/float/bool/str
         # ---------------------------------------------------------------------

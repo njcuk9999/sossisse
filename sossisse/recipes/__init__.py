@@ -5,49 +5,31 @@
 
 # CODE DESCRIPTION HERE
 
-Created on 2024-08-13 at 11:29
+Created on 2024-08-20 at 11:57
 
 @author: cook
 """
-from sossisse.core import base
-from sossisse.instruments import default
+
+import numpy as np
+import matplotlib.pyplot as plt
+from astropy.io import fits
+from astropy.table import Table
+from astropy import units as u
+from tqdm import tqdm
+import warnings
 
 
 # =============================================================================
 # Define variables
 # =============================================================================
-__NAME__ = 'sossisse.instruments.jwst_nirspec'
-__version__ = base.__version__
-__date__ = base.__date__
-__authors__ = base.__authors__
 
+# -----------------------------------------------------------------------------
 
 # =============================================================================
 # Define functions
 # =============================================================================
-class JWST_NIRSPEC_PRISM(default.Instrument):
-    def __init__(self, params):
-        """
-        Construct the instrument class
-
-        :param params: dict, the parameters for the instrument
-        """
-        # get the default parameters
-        super(JWST_NIRSPEC_PRISM, self).__init__(params)
-        # set up the instrument
-        self.param_override()
-
-    def param_override(self):
-        """
-        Override the parameters for this instrument
-        :return:
-        """
-        # we do not mask order zero for NIRSPEC PRISM
-        self.params['MASK_ORDER_ZERO'] = False
-        # for NIRSPEC PRISM we shouldnot have recenter trace position
-        self.params['RECENTER_TRACE_POSITION'] = False
-
-        pass
+def function1():
+    return 0
 
 
 # =============================================================================

@@ -19,10 +19,14 @@
 
 # The data directory (required)
 SOSSIOPATH: /data/jwst/sossisse/data/demo/
+# Set the SOSSISSE ID (SID) for using the same directory as before
+SID: None
+# Log level (DEBUG, INFO, WARNING, ERROR, NONE)
+LOG_LEVEL: "INFO"
 # Name of the object (must match the object directory name)
 OBJECTNAME: "t1b"
-# Instrument mode i.e. SOSS or PRISM
-INSTRUMENTMODE: "JWST SOSS"
+# Instrument mode i.e. JWST.NIRISS.SOSS or JWST.NIRISS.PRISM
+INSTRUMENTMODE: "JWST.NIRISS.SOSS"
 # A suffix to identify this setup (e.g. a specific visit)
 SUFFIX: "_demo_data_set"
 
@@ -54,8 +58,13 @@ POS_FILE: "SOSS_ref_trace_table_SUBSTRIP256.fits"
 #    than once
 ALLOW_TEMPORARY: true
 
+# Use temporary files (False we overwrite the files for a fresh start even
+#   if they exist on disk)
+USE_TEMPORARY: true
+
 # Save results at the end
 SAVE_RESULTS: true
+
 
 ###############################################################################
 ##  Plot behavior
@@ -130,6 +139,12 @@ FIT_ROTATION: true
 
 # fit the zero point offset in the linear model for the trace
 FIT_ZERO_POINT_OFFSET: true
+
+# fit a flux^2 dependency. This is mostly meant as a test of the quality
+# of the non-linearity correction. Normally this term should be de-correlated
+# with the amplitude term. Set to false for actual science analysis
+# should not be used at the same time as the zero point offset
+FIT_QUAD_TERM: false
 
 # fit the 2nd derivative in y, good to find glitches!
 FIT_DDY: true

@@ -10,11 +10,14 @@ Created on 2024-08-13 at 11:23
 Rule: import onlys from sossisse.core.base
 """
 import os
+import random
 import string
 from datetime import datetime
-from hashlib import blake2b
+import time
+from typing import Tuple
 
 import numpy as np
+from astropy.time import Time
 
 from sossisse.core import base
 
@@ -27,6 +30,17 @@ __date__ = base.__date__
 __authors__ = base.__authors__
 # get all chars
 CHARS = string.ascii_uppercase + string.digits
+# set the log level
+LOG_LEVEL = 'INFO'
+# log levels
+LOG_LEVELS = dict()
+LOG_LEVELS['DEBUG'] = 0
+LOG_LEVELS['SETUP'] = 0.5
+LOG_LEVELS['INFO'] = 1
+LOG_LEVELS['WARNING'] = 2
+LOG_LEVELS['ERROR'] = 3
+LOG_LEVELS['ALERT'] = 4
+LOG_LEVELS['NUMBER'] = 1
 
 
 # =============================================================================
@@ -53,43 +67,85 @@ def sossart():
 
     :return: None: prints to screen
     """
-    # Etienne needs his sausage picture
-    v = """   ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀  ⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠿⣿⠷⠶⠖⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣾⣿⣶⣄⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⣿⣿⣧⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣶⣶⣤⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣾⣿⣿⣿⣿⣿⣿⣿⠏⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠻⠿⢿⣿⣿⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⣿⣷⣶⣤⣾⣿⣿⡿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠀⢀⣠⡀⠲⢿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⣴⣿⣿⣿⣶⣤⣄⣿⣿⣿⣿⡿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠀⠻⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠠⢤⣴⡆⠈⠙⠛⠛⠛⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-    ⠀⠀⠀⠈⠀⠀⠀                       """
-    # we split this up to add color and a border
-    v = v.split('\n')
-    # add the color
-    for i in range(len(v)):
-        v[i] = color(v[i], 'red')
-    # add the border
-    for i in range(len(v)):
-        v[i] = color('│', 'white') + v[i] + color('│', 'white')
-    # join it all back up
-    v = '\n'.join(v)
-    # add a top and bottom border
-    v = '\n\n' + color('┌──────────────────────────────────┐', 'white') + \
-        '\n' + v + '\n' + color('└──────────────────────────────────┘', 'white')
-    # add space around the picture
-    vlen = np.max([len(lenght_v) for lenght_v in v.split('\n')])
-    w = os.get_terminal_size().columns
-    dw = (w - vlen // 2) // 2
-    # add the white space
-    v = v.replace('\n', '\n' + ' ' * dw)
+    if os.getlogin() in ['eartigau', 'spirou']:
+        # Etienne needs his sausage picture
+        v = """                                                                                    
+                                                        ,.  @@@@ ,@@.               
+                                                       #@(/(///((/((@               
+                                                        %&/(*((*((#@                
+                                                       /@@@#((((#@@@                
+                                                    @@(/********(//((%@.            
+                                                  @(/*****//(///(////(((@           
+                                                &&//***((////////////((((@*         
+                                               &@(/***(////////////////(((@.        
+                                               @///*///////////////////(((#@        
+                                              (@(((/(/////////////////(((((@        
+                                              @%(//////////////////////((((@.       
+                                              @%(//////////////////////((((@,       
+                                              @#(/////////////////////(((((@        
+                                              @(/(/////////////////////((((@        
+                                              @#/////////////////////(/(((#@        
+                                              @///////////////////////((((@,        
+                                             ,@(//////////////////////(((#@         
+                                             @/////////////////////(/((((@.         
+                                           .@//(////////////////////((((%@          
+                                          @&(/(////////////////////((@@@@           
+                                        ,@////////////////////////(((((@(           
+                                      .@(////////////////////////(((((%@            
+                                    #@((////////////////////////(((((#@             
+                                  @&(/**/(////////////////////((%&(((@              
+                              .@&//****/(/////////////////////(((((@@               
+                           @@#(*****////////////////////////((((((&@                
+                        @@(/*****/(//////////////////////(/((((((@,                 
+                     ,@((*****/(////////////////////////(((((((@@                   
+                    @#/****////////////////////////////(((((@@@                     
+                   @(/***/(////////////////////////(/((((((@@                       
+           *@/(#@@@@(//*///////////////////////(//(((((((@%                         
+            (@(/**/@//(/**(//////////////////(/(((&#((@@                            
+            (@/(///@%//(((////////////////((((((((#@&                               
+              @@//((%@(/(////////////((((&((((#@@.                                  
+              @&/((%@  @@#(/(///(((((((((&@@/                                       
+               @@@@          &@@@@@@&.                                              
+                                                                                    """
+        # we split this up to add color and a border
+        v = v.split('\n')
+        llen = len(v[0])
+        # add the color
+        for i in range(len(v)):
+            v[i] = color(v[i], 'red')
+        # add the border
+        for i in range(len(v)):
+            v[i] = color('│', 'white') + v[i] + color('│', 'white')
+        # join it all back up
+        v = '\n'.join(v)
+        # add a top and bottom border
+        bordertop = '┌' + '─' * llen + '┐'
+        borderbottom = '└' + '─' * llen + '┘'
+        v = ('\n\n' + color(bordertop, 'white') +
+             '\n' + v + '\n' + color(borderbottom, 'white'))
+        # add space around the picture
+        vlen = np.max([len(lenght_v) for lenght_v in v.split('\n')])
+        try:
+            w = os.get_terminal_size().columns
+        except OSError:
+            w = 80
+        dw = (w - vlen // 2) // 2
+        # add the white space
+        v = v.replace('\n', '\n' + ' ' * dw)
+
+
+    v = art('SOSSISSE', color1='white')
     # print to screen
     print(v)
+    # add spaces
+    try:
+        w = os.get_terminal_size().columns
+    except OSError:
+        w = 80
+    # version string
+    vstring = f'SOSSISSE: v{__version__} - {__date__}'
+    # print date and version
+    printc(vstring, 'ALERT', print_time=False)
 
 
 def art(word: str, color1: str = 'magenta', color2: str = 'red'):
@@ -153,7 +209,10 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     low_2 = color('║ ', color1) + color(low_2, color2) + color(' ║', color1)
     low_3 = color('║ ', color1) + color(low_3, color2) + color(' ║', color1)
     # add spaces
-    w = os.get_terminal_size().columns
+    try:
+        w = os.get_terminal_size().columns
+    except OSError:
+        w = 80
     dw = (w - len(low_1) // 2) // 2
     low_0 = ' ' * dw + low_0
     low_1 = ' ' * dw + low_1
@@ -175,61 +234,76 @@ def printc(message: str, msg_type: str, print_time: bool = True):
 
     :return: None, prints to screen
     """
-    msg_color = "white"
-
-    if msg_type == 'info':
-        msg_color = 'green'
-
-    if msg_type == 'bad1':
+    # formally bad1
+    if msg_type.lower() in 'warning':
         msg_color = 'yellow'
-
-    if msg_type == 'bad2':
+    # formally bad2
+    elif msg_type.lower() in 'error':
         msg_color = 'red'
-
-    if msg_type == 'bad3':
+    # formally bad3
+    elif msg_type.lower() == 'alert':
         msg_color = 'magenta'
 
-    if msg_type == 'number':
+    elif msg_type.lower() == 'number':
         msg_color = 'blue'
-
+    else:
+        msg_color = 'green'
+    # get the time message
     if print_time:
         time = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│'
     else:
         time = ''
-    print(color(time + message, msg_color))
+    # at this point we set everything else at the info level
+    if msg_type.upper() not in LOG_LEVELS:
+        msg_type = 'INFO'
+    # print if the log level is high enough
+    if LOG_LEVELS[msg_type.upper()] >= LOG_LEVELS[LOG_LEVEL.upper()]:
+        print(color(time + message, msg_color))
 
 
 def sossice_unique_id(param_file: str) -> str:
     """
-    Generate a uniuqe
-    :param param_file:
-    :return:
+    Assign a process id based on the time now and return it and the
+    time now
+
+    :return: the process id and the human time at creation
+    :rtype: Tuple[str, str]
     """
-    # read yaml file as string
-    with open(param_file, 'r') as f:
-        param_file_str = f.read()
-    # get the unique id line
-    return generate_hash(param_file_str, size=5)
+    # set function name
+    # _ = display_func('assign_pid', __NAME__)
+    # get unix char code
+    unixtime, humantime, rval = unix_char_code()
+    # write pid
+    pid = 'PID-{0:020d}-{1}'.format(int(unixtime), rval)
+    # return pid and human time
+    return pid
 
 
-def generate_hash(string_text: str, size: int = 10) -> str:
+def unix_char_code() -> Tuple[float, str, str]:
     """
-    Generate a hash code based on the 'string_text' of length 'size'
+    Get the time now (using astropy.Time) and return the unix time
+    human time and a random code of 4 characters
 
-    :param string_text: str, the string to generate hash code from
-    :param size: int, the size of the hash to create
-
-    :return: str, the generated hash code
+    :return: tuple, 1. the unix time now, 2. the human time now, 3. a random
+             set of 4 characters
     """
-    # need to encode string
-    encoded = string_text.encode('utf')
-    # we want a hash of 10 characters
-    digest = blake2b(encoded, digest_size=size)
-    # create hash
-    hashstr = digest.hexdigest()
-    # return hash
-    return str(hashstr)
-
+    # set function name
+    # _ = display_func('unix_char_code', __NAME__)
+    # we need a random seed
+    np.random.seed(random.randint(1, 2 ** 30))
+    # generate a random number (in case time is too similar)
+    #  -- happens a lot in multiprocessing
+    rint = np.random.randint(1000, 9999, 1)[0] / 1e7
+    # wait a fraction of time (between 1us and 1ms)
+    time.sleep(float(rint))
+    # get the time now from astropy
+    timenow = Time.now()
+    # get unix and human time from astropy time now
+    unixtime = timenow.unix * 1e7
+    humantime = timenow.iso
+    # generate random four characters to make sure pid is unique
+    rval = ''.join(np.random.choice(list(CHARS), size=4))
+    return unixtime, humantime, rval
 
 # =============================================================================
 # Start of code
