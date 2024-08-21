@@ -65,9 +65,6 @@ CDICT['SSPLASH'] = Const('SSPLASH', value=False, dtype=bool)
 CDICT['FILES'] = Const('FILES', value=None, dtype=list, dtypei=str,
                        required=True)
 
-# The temporary in vs out file (should only be used by the code)
-CDICT['TEMP_INFILE'] = Const('TEMP_INFILE', value=None, dtype=str)
-
 # background file --> leave as None if the is no background available for
 #                     the mode
 CDICT['BKGFILE'] = Const('BKGFILE', value=None, dtype=str)
@@ -207,6 +204,14 @@ CDICT['FIT_PCA'] = Const('FIT_PCA', value=False, dtype=bool)
 # Number of PCA components to use
 #  Formally n_pca
 CDICT['FIT_N_PCA'] = Const('N_PCA', value=0, dtype=int, minimum=0)
+
+# Bin the input data cube in time
+# formally time_bin
+CDICT['DATA_BIN_TIME'] = Const('DATA_BIN_TIME', value=False, dtype=bool)
+
+# Number of frames in each bin
+CDICT['DATA_BIN_NUMBER'] = Const('DATA_BIN_NUMBER', value=1, dtype=int,
+                                 minimum=1)
 
 # =============================================================================
 # Definition of inputs related to handling of the data within each frame

@@ -149,8 +149,17 @@ FIT_QUAD_TERM: false
 # fit the 2nd derivative in y, good to find glitches!
 FIT_DDY: true
 
+# fit with a PCA
 FIT_PCA: false
+
+# Number of PCA components to use
 FIT_N_PCA: 0
+
+# Bin the input data cube in time
+DATA_BIN_TIME: false
+
+# Number of frames in each bin
+DATA_BIN_SIZE: 1
 
 ###############################################################################
 ## Inputs related to handling of the data within each frame
@@ -200,10 +209,10 @@ DEGREE_1F_CORR: 0
 TRACE_WIDTH_EXTRACTION: 40
 
 # used for masking and WLC
-trace_width_masking: 40
+TRACE_WIDTH_MASKING: 40
 
 # do remove trend from out-of-transit
-remove_trend: true
+REMOVE_TREND: true
 
 # define how the "white" transit depth is computed/assigned
 #   "compute": Compute transit depth using median OOT relative flux from WLC,

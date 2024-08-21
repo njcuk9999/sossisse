@@ -176,10 +176,6 @@ def run_time_params(params: Dict[str, Any],
     # -------------------------------------------------------------------------
     # deal with only creating directory - do not do this step
     if not only_create:
-        # construct the temporary in vs out file
-        tmp_file = os.path.join(params['TEMP_PATH'], 'temporary_in_vs_out.fits')
-        params['TEMP_IN_FILE'] = tmp_file
-        sources['TEMP_IN_FILE'] = func_name
         # find the background file
         absbkgfile = str(os.path.join(params['CALIBPATH'], params['BKGFILE']))
         params['BKGFILE'] = io.get_file(absbkgfile, 'background')
