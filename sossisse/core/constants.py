@@ -166,6 +166,9 @@ CDICT['REJECT_DOMAIN'] = Const('REJECT_DOMAIN', value=[], dtype=list,
 CDICT['CDS_IDS'] = Const('CDS_IDS', value=[], dtype=list, dtypei=int,
                          minimum=0)
 
+# If input is a CDS file define the read out noise
+CDICT['CDS_RON'] = Const('CDS_RON', value=None, dtype=float, minimum=0.0)
+
 # =============================================================================
 # Definition of inputs to the linear model
 # =============================================================================
@@ -225,8 +228,9 @@ CDICT['TRACE_ORDERS'] = Const('TRACE_ORDERS', value=[1, 2], dtype=list,
                               dtypei=int, minimum=1)
 
 # wavelength domain for the white light curve
-CDICT['WLC_DOMAIN'] = Const('WLC_DOMAIN', value=[1.2, 1.6], dtype=list,
-                            dtypei=float)
+#   For SOSS if this is defined we only get order 1
+CDICT['WLC_DOMAIN'] = Const('WLC_DOMAIN', value=None, dtype=list,
+                            dtypei=float, length=2)
 
 # median of out-of-transit values for reference trace construction.
 # If set to false, then we have the median of the entire timeseries
@@ -289,10 +293,15 @@ CDICT['RESOLUTION_BIN'] = Const('RESOLUTION_BIN', value=20, dtype=int,
 
 # define the area around which we will optimize the background
 #   this should be a length 4 list (x start, x end, y start, y end)
-CDICT['SOSS_BACKGROUND_GLITCH_BOX'] = Const('SOSS_BACKGROUND_GLITCH_BOX',
-                                            value=[650, 750, 200, 240],
-                                            dtype=list, dtypei=int,
-                                            length=4)
+CDICT['BACKGROUND_GLITCH_BOX'] = Const('BACKGROUND_GLITCH_BOX',
+                                       value=[650, 750, 200, 240],
+                                       dtype=list, dtypei=int,
+                                       length=4)
+
+# define the area around which the background will be optimized
+#    should be a list (start, end, step)
+CDICT['BACKGROUND_SHIFTS'] = Const('BACKGROUND_SHIFTS', value=[-5, 5, 0.2],
+                                   dtype=list, dtypei=float, length=3)
 
 # =============================================================================
 # Start of code

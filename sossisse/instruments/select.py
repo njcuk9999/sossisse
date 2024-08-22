@@ -32,11 +32,12 @@ INSTRUMENTS = dict()
 # -----------------------------------------------------------------------------
 # add instrument classes here
 # -----------------------------------------------------------------------------
-# JWST SOSS
-INSTRUMENTS['JWST.NIRISS.SOSS'] = jwst_niriss.JWST_SOSS
+# JWST NIRISS SOSS
+INSTRUMENTS['JWST.NIRISS.SOSS'] = jwst_niriss.JWST_NIRISS_SOSS
+# JWST NIRISS FGS
+INSTRUMENTS['JWST.NIRISS.FGS'] = jwst_niriss.JWST_NIRISS_FGS
 # JWST NIRSPEC PRISM
 INSTRUMENTS['JWST.NIRSPEC.PRISM'] = jwst_nirspec.JWST_NIRSPEC_PRISM
-
 
 
 # =============================================================================

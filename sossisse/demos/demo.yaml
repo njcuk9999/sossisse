@@ -53,7 +53,10 @@ FLATFILE: "jwst_niriss_flat_0275.fits"
 
 # trace position file
 POS_FILE: "SOSS_ref_trace_table_SUBSTRIP256.fits"
-#
+
+# wavelength calibration file (Not required for SOSS)
+WAVE_FILE: None
+
 # allow for temporary files to speed the process if you run the code more
 #    than once
 ALLOW_TEMPORARY: true
@@ -172,7 +175,7 @@ trace_orders:
 - 1
 - 2
 
-# wavelength domain for the write light curve
+# wavelength domain for the white light curve
 #WLC_DOMAIN:
 #- 1.2
 #- 1.6
@@ -228,7 +231,7 @@ RESOLUTION_BIN: 20
 
 # define the area around which we will optimize the background
 #   this should be a length 4 list (x start, x end, y start, y end)
-SOSS_BACKGROUND_GLITCH_BOX:
+BACKGROUND_GLITCH_BOX:
 - 650
 - 750
 - 200

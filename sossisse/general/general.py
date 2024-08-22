@@ -26,7 +26,6 @@ from sossisse.core import misc
 from sossisse.general import plots, science, soss_io
 
 from sossisse.instruments import Instrument
-# within sossisse
 
 
 def white_light_curve(inst: Instrument):
@@ -45,14 +44,17 @@ def white_light_curve(inst: Instrument):
     # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err = inst.load_data_with_dq()
-
-
-    ################################################################################
+    # -------------------------------------------------------------------------
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
-    cube = science.patch_isolated_bads(cube, params)
+    cube = inst.patch_isolated_bads(cube)
+    # -------------------------------------------------------------------------
+    # get the trace map
+    tracemap = inst.get_trace_map()
 
-    params = science.get_trace_map(params)
+    # TODO: **************************************************************
+    # TODO: Got to here
+    # TODO: **************************************************************
 
     if params['pixel_level_detrending']:
         cube = science.pixeldetrending(cube, params)

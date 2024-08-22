@@ -71,6 +71,20 @@ class SossisseIOException(SossisseException):
     def __str__(self) -> str:
         return 'SossisseIOException: {0}'.format(self.message)
 
+
+class SossisseInstException(SossisseException):
+    """
+    Exception from a constant
+    """
+    def __init__(self, message, classname: str):
+        super().__init__(message)
+        self.classname = classname
+        self.message = message
+
+    def __str__(self) -> str:
+        return 'SossisseInstException[{0}]: {1}'.format(self.classname,
+                                                        self.message)
+
 # =============================================================================
 # Start of code
 # =============================================================================

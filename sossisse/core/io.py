@@ -54,7 +54,8 @@ def create_directory(path: str):
         raise SossisseIOException(emsg.format(*eargs))
 
 
-def get_file(path: Union[str, None], name: str) -> Union[str, None]:
+def get_file(path: Union[str, None], name: str,
+             required: bool = True) -> Union[str, None]:
     """
     Get a file from a path
 
@@ -66,7 +67,9 @@ def get_file(path: Union[str, None], name: str) -> Union[str, None]:
     # check if user has defined file
     if str(path).upper() in ['', 'NULL', 'NONE']:
         return None
-
+    # check if path is required
+    if not required:
+        return path
     # check if path already exists
     if os.path.exists(path):
         msg = 'File for "{0}" exists: {1}. Will use {0} file.'
