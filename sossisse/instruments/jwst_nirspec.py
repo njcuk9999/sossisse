@@ -56,7 +56,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         super().param_override()
         # we do not mask order zero for NIRSPEC PRISM
         self.params['MASK_ORDER_ZERO'] = False
-        # for NIRSPEC PRISM we shouldnot have recenter trace position
+        # for NIRSPEC PRISM we shouldn't have recenter trace position
         self.params['RECENTER_TRACE_POSITION'] = False
 
     def get_trace_positions(self) -> np.ndarray:

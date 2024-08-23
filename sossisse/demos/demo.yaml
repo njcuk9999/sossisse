@@ -20,6 +20,8 @@
 # The data directory (required)
 SOSSIOPATH: /data/jwst/sossisse/data/demo/
 # Set the SOSSISSE ID (SID) for using the same directory as before
+#    if left as None the code will work out whether this yaml is found before
+#    or a new one
 SID: None
 # Log level (DEBUG, INFO, WARNING, ERROR, NONE)
 LOG_LEVEL: "INFO"
@@ -54,7 +56,7 @@ FLATFILE: "jwst_niriss_flat_0275.fits"
 # trace position file
 POS_FILE: "SOSS_ref_trace_table_SUBSTRIP256.fits"
 
-# wavelength calibration file (Not required for SOSS)
+# wavelength calibration file
 WAVE_FILE: None
 
 # allow for temporary files to speed the process if you run the code more
@@ -95,6 +97,7 @@ PLOT_SPECTRUIM_YLIM:
 ###############################################################################
 ## Inputs related to the position within data cube timeseries
 ###############################################################################
+# DQ flags that we should use (list)
 VALID_DQ:
 - 0
 - 2
@@ -116,7 +119,7 @@ NTH_FRAME:
 # if you want to reject two bits of domain, 0-600 and 3000-3200
 # just use
 # REJECT_DOMAIN:
-# - [0, 600
+# - [0, 600]
 # - [3000, 3200]
 
 # If PRISM data or saturated, you can perform a CDS between these two readouts
@@ -167,7 +170,7 @@ DATA_BIN_SIZE: 1
 ###############################################################################
 ## Inputs related to handling of the data within each frame
 ###############################################################################
-# Define whether to use pixel level detrending
+# Define whether to use pixel level de-trending
 PIXEL_LEVEL_DETRENDING: false
 
 # Define which orders to use
@@ -199,7 +202,7 @@ RECENTER_TRACE_POSITION: true
 # out of transit polynomial level correction
 TRANSIT_BASELINE_POLYORD: 2
 
-# out-of-trace
+# out-of-trace baseline polynomial order
 TRACE_BASELINE_POLYORD: 2
 
 # degree of the polynomial for the 1/f correction
@@ -207,8 +210,7 @@ TRACE_BASELINE_POLYORD: 2
 # degree_1f_corr = 1 -> slope ... and so on
 DEGREE_1F_CORR: 0
 
-# set trace_width_masking to 0 to use the full image
-# use in SOSSICE
+# Trace extraction width. Set to 0 to use the full image
 TRACE_WIDTH_EXTRACTION: 40
 
 # used for masking and WLC

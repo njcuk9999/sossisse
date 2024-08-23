@@ -39,7 +39,9 @@ class Const:
                  dtypei: Type = None, required: bool = False,
                  minimum: Union[int, float] = None,
                  maximum: Union[int, float] = None,
-                 options: List[Any] = None, length: int = None):
+                 options: List[Any] = None, length: int = None,
+                 comment: str = None, active: bool = False,
+                 modes: str = None):
         """
         Construct the constant class
 
@@ -52,6 +54,11 @@ class Const:
         :param maximum: int/float, the maximum value for the constant
         :param options: list, the options for the constant
         :param length: int, the length of the constant (for list only)
+        :param comment: str, a comment for the constant (for yaml creation)
+                        if not given, constant is never in parameter file
+        :param active: bool, whether the constant is active (for yaml creation)
+                       if False not included in yaml file
+        :param modes: str or None, if set only included in yamls for this mode
         """
         self.name: str = name
         self.value: Any = value
@@ -62,6 +69,9 @@ class Const:
         self.maximum: Union[int, float] = maximum
         self.options: List[Any] = options
         self.length: int = length
+        self.comment: str = comment
+        self.active: bool = active
+        self.modes: str = modes
 
     def verify(self, name: str = None, value: Any = None, dtype: Type = None,
                dtypei: Type = None, source: str = None) -> bool:

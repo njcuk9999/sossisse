@@ -14,7 +14,7 @@ import random
 import string
 from datetime import datetime
 import time
-from typing import Tuple
+from typing import Any, List, Tuple
 
 import numpy as np
 from astropy.time import Time
@@ -304,6 +304,86 @@ def unix_char_code() -> Tuple[float, str, str]:
     # generate random four characters to make sure pid is unique
     rval = ''.join(np.random.choice(list(CHARS), size=4))
     return unixtime, humantime, rval
+
+
+def get_input(parameter, dtype: str = 'str', comment: str = None,
+              options: List[Any] = None):
+    """
+    Ask the user for an input
+
+    :param parameter:
+    :param dtype: str, the dtype (str, int, float, bool, path, dir)
+    :param options: if set user input must be one of these
+
+    :return:
+    """
+    if comment is None:
+        param_name = parameter
+    else:
+        param_name = f'{comment} [{parameter}]'
+    # loop around until we get a valid input
+    while True:
+        prompt = f'\nPlease input {param_name}\n\tDtype: {dtype}'
+        # add options if they are given
+        if options is not None:
+            prompt += (f'\n\tOptions: {options}')
+            for option in options:
+                prompt += f'\n\t - {option}'
+        # get user input
+        user_input = input(prompt + '\n')
+        # ----------------------------------------------------------------------
+        if dtype == 'str':
+            value = str(user_input)
+        elif dtype == 'int':
+            try:
+                value = int(user_input)
+            except ValueError:
+                print(f'Error: Input must be an integer')
+                continue
+        elif dtype == 'float':
+            try:
+                value = float(user_input)
+            except ValueError:
+                print(f'Error: Input must be a float')
+                continue
+        elif dtype == 'bool':
+            if user_input.lower() in ['true', 't', 'yes', 'y', '1']:
+                value = True
+            elif user_input.lower() in ['false', 'f', 'no', 'n', '0']:
+                value = False
+            else:
+                print(f'Error: Input must be a boolean')
+                continue
+        elif dtype == 'path':
+            if os.path.exists(user_input):
+                value = user_input
+            else:
+                print(f'Error: Path does not exist')
+                continue
+        elif dtype == 'dir':
+            # clean up name
+            user_input = user_input.strip(' ')
+            user_input = user_input.replace('~', os.path.expanduser('~'))
+            # get directory
+            directory = os.path.dirname(user_input)
+
+            if os.path.exists(directory):
+                value = user_input
+            else:
+                print(f'Error: {directory} does not exist, please change '
+                      f'or create.')
+                continue
+        else:
+            value = user_input
+        # ----------------------------------------------------------------------
+        # check options
+        if options is not None:
+            if value not in options:
+                print(f'Error: Input must be one of {options}')
+                continue
+        # ----------------------------------------------------------------------
+        return value
+
 
 # =============================================================================
 # Start of code

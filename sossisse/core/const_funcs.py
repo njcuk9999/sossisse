@@ -12,6 +12,8 @@ import os
 from typing import Any, Dict, Tuple
 
 import yaml
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 from sossisse.core import base
 from sossisse.core import base_classes
@@ -140,10 +142,10 @@ def run_time_params(params: Dict[str, Any],
     io.create_directory(params['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
-    if params['CSV_PATH'] is None:
-        params['CSV_PATH'] = os.path.join(params['OBJECTPATH'], 'csv')
-        sources['CSV_PATH'] = func_name
-    io.create_directory(params['CSV_PATH'])
+    if params['OTHER_PATH'] is None:
+        params['OTHER_PATH'] = os.path.join(params['OBJECTPATH'], 'other')
+        sources['OTHER_PATH'] = func_name
+    io.create_directory(params['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the fits paths
     if params['FITS_PATH'] is None:
@@ -247,6 +249,8 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
             # push into params
             params[key] = const.value
             sources[key] = source
+        # now we create the yaml
+        param_file = create_yaml(params)
     # otherwise we should display an error that we require a param file
     elif param_file is None:
         emsg = ('No parameter file defined - must be defined in '
@@ -303,11 +307,11 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # get run time parameters (set in the code)
     params, sources = run_time_params(params, sources, only_create=only_create)
     # -------------------------------------------------------------------------
-    # copy parameter file to csv path
+    # copy parameter file to other path
     # -------------------------------------------------------------------------
     if not only_create:
         param_file_basename = os.path.basename(param_file)
-        param_file_csv = str(os.path.join(params['CSV_PATH'],
+        param_file_csv = str(os.path.join(params['OTHER_PATH'],
                                           param_file_basename))
         io.copy_file(param_file, param_file_csv)
     # -------------------------------------------------------------------------
@@ -316,6 +320,78 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     instrument.sources = sources
     # return the parameters
     return instrument
+
+
+def create_yaml(params: Dict[str, Any]) -> str:
+    """
+    Create a yaml file from input parameters
+
+    :param params: Dict[str, Any], the input parameters
+    :return:
+    """
+    # get the output path
+    outpath = os.path.join(params['SOSSIOPATH'], 'sossisse_params.yaml')
+    # -------------------------------------------------------------------------
+    # create a commented map instance
+    data = CommentedMap()
+    # add the start comment
+    data.yaml_set_start_comment(constants.TITLE)
+    # loop around constants and add to the data
+    for key in CDICT:
+        # get comment
+        comment = CDICT[key].comment
+        # if there is no comment don't add
+        if comment is None:
+            continue
+        # remove new lines at start/end of comment
+        if not comment.startswith('\n\n'):
+            comment = comment.strip('\n')
+        # add the default value to the comment (if given)
+        if CDICT[key].value is not None:
+            comment += '\n\tDefault value: {0}'.format(str(CDICT[key].value))
+        # ---------------------------------------------------------------------
+        # get active
+        active = CDICT[key].active or params['ALL_CONSTANTS']
+        # if the constant is not active skip
+        if not active:
+            continue
+        # ---------------------------------------------------------------------
+        # get modes
+        modes = CDICT[key].modes
+        # deal with no mode
+        if modes is None:
+            in_mode = True
+        else:
+            in_mode = params['INSTRUMENTMODE'] in modes
+            # all constants overrides in_mode
+            in_mode &= params['ALL_CONSTANTS']
+        # if we are not in the correct mode skip
+        if not in_mode:
+            continue
+        # ---------------------------------------------------------------------
+        # get the constant
+        const = CDICT[key]
+        # push into params
+        data[key] = const.value
+        # add the comment
+        ckwargs = dict(key=key, before=comment, indent=0)
+        data.yaml_set_comment_before_after_key(**ckwargs)
+    # ---------------------------------------------------------------------
+    # print message
+    msg = '\tWriting yaml file: {0}'
+    margs = [outpath]
+    misc.printc(msg.format(*margs), msg_type='info')
+    # initialize YAML object
+    yaml_inst = YAML()
+    # remove the yaml if it already exists
+    if os.path.exists(outpath):
+        os.remove(outpath)
+    # write files
+    with open(outpath, 'w') as y_file:
+        yaml_inst.dump(data, y_file)
+    # -------------------------------------------------------------------------
+    # return the yaml file path
+    return outpath
 
 
 # =============================================================================

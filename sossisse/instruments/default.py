@@ -203,10 +203,24 @@ class Instrument:
         # get definitions of first and last from params['CDS_IDS']
         first = self.params['CDS_IDS'][0]
         last = self.params['CDS_IDS'][1]
+        # deal with wrong order
+        if first > last:
+            first, last = last, first
+        # deal with first and last being the same
+        if first == last:
+            emsg = 'CDS_IDS: First and last frame cannot be the same'
+            raise exceptions.SossisseConstantException(emsg)
+        # get the CDS readout noise
+        cds_ron = self.params['CDS_RON']
+        # deal with no cds_ron given
+        if cds_ron is None:
+            emsg = ('FILE(s) found to be CDS: CDS_RON must be set in the '
+                    'parameters')
+            raise exceptions.SossisseConstantException(emsg)
         # get the difference between the first and last frames
-        tmp_data = data[:, first, :, :] - data[:, last, :, :]
+        tmp_data = data[:, last, :, :] - data[:, first, :, :]
         # work out the err and dq values from the cds
-        tmp_err = np.sqrt(np.abs(tmp_data) + self.params['CDS_RON'])
+        tmp_err = np.sqrt(np.abs(tmp_data) + cds_ron)
         tmp_dq = ~np.isfinite(tmp_data)
         # return the data, err, dq
         return tmp_data, tmp_err, tmp_dq
