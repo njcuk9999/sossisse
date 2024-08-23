@@ -250,7 +250,7 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
             params[key] = const.value
             sources[key] = source
         # now we create the yaml
-        param_file = create_yaml(params)
+        param_file = create_yaml(params, log=True)
     # otherwise we should display an error that we require a param file
     elif param_file is None:
         emsg = ('No parameter file defined - must be defined in '
@@ -315,6 +315,9 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
                                           param_file_basename))
         io.copy_file(param_file, param_file_csv)
     # -------------------------------------------------------------------------
+    # re-create the yaml
+    _ = create_yaml(params, log=False)
+    # -------------------------------------------------------------------------
     # now we load the instrument specific parameters
     instrument = load_instrument(params)
     instrument.sources = sources
@@ -322,7 +325,7 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     return instrument
 
 
-def create_yaml(params: Dict[str, Any]) -> str:
+def create_yaml(params: Dict[str, Any], log: bool = True) -> str:
     """
     Create a yaml file from input parameters
 
@@ -372,15 +375,19 @@ def create_yaml(params: Dict[str, Any]) -> str:
         # get the constant
         const = CDICT[key]
         # push into params
-        data[key] = const.value
+        if key in params:
+            data[key] = params[key]
+        else:
+            data[key] = const.value
         # add the comment
         ckwargs = dict(key=key, before=comment, indent=0)
         data.yaml_set_comment_before_after_key(**ckwargs)
     # ---------------------------------------------------------------------
     # print message
-    msg = '\tWriting yaml file: {0}'
-    margs = [outpath]
-    misc.printc(msg.format(*margs), msg_type='info')
+    if log:
+        msg = '\tWriting yaml file: {0}'
+        margs = [outpath]
+        misc.printc(msg.format(*margs), msg_type='info')
     # initialize YAML object
     yaml_inst = YAML()
     # remove the yaml if it already exists

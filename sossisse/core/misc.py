@@ -263,20 +263,18 @@ def printc(message: str, msg_type: str, print_time: bool = True):
 
 def sossice_unique_id(param_file: str) -> str:
     """
-    Assign a process id based on the time now and return it and the
+    Assign a sossisse id based on the time now and return it and the
     time now
 
     :return: the process id and the human time at creation
     :rtype: Tuple[str, str]
     """
-    # set function name
-    # _ = display_func('assign_pid', __NAME__)
     # get unix char code
     unixtime, humantime, rval = unix_char_code()
-    # write pid
-    pid = 'PID-{0:020d}-{1}'.format(int(unixtime), rval)
-    # return pid and human time
-    return pid
+    # write sid
+    sid = 'SID-{0:020d}-{1}'.format(int(unixtime), rval)
+    # return sid
+    return sid
 
 
 def unix_char_code() -> Tuple[float, str, str]:
@@ -301,7 +299,7 @@ def unix_char_code() -> Tuple[float, str, str]:
     # get unix and human time from astropy time now
     unixtime = timenow.unix * 1e7
     humantime = timenow.iso
-    # generate random four characters to make sure pid is unique
+    # generate random four characters to make sure sid is unique
     rval = ''.join(np.random.choice(list(CHARS), size=4))
     return unixtime, humantime, rval
 
@@ -333,7 +331,7 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
         user_input = input(prompt + '\n')
         # ----------------------------------------------------------------------
         if dtype == 'str':
-            value = str(user_input)
+            value = str(user_input).strip()
         elif dtype == 'int':
             try:
                 value = int(user_input)

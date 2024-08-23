@@ -82,7 +82,7 @@ CDICT['SOSSIOPATH'] = Const('SOSSIOPATH', value=None, dtype=str,
 comment = """
 Set the SOSSISSE ID (SID) for using the same directory as before
     if left as None the code will work out whether this yaml is found before
-    or a new one
+    or whether we need to create a new SID
 """
 CDICT['SID'] = Const('SID', value=None, dtype=str, comment=comment, active=True)
 # -----------------------------------------------------------------------------

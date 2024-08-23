@@ -30,6 +30,8 @@ INSTRUMENTMODES = select.INSTRUMENTS.keys()
 # Define functions
 # =============================================================================
 def main(param_file: str = None, **kwargs):
+    # get log level
+    misc.LOG_LEVEL = 'SETUP'
     # print message
     misc.printc('*' * 80, msg_type='setup')
     misc.printc('SOSSISSE SETUP', msg_type='setup')
@@ -75,8 +77,15 @@ def main(param_file: str = None, **kwargs):
     msg += '*' * 80 + '\n'
     msg += 'What to do next:\n'
     msg += '*' * 80 + '\n'
-    msg += '1. Edit the yaml file (at the very least add "FILES")'
-    msg += '2. Check every other value in the yaml file before running.'
+    msg += '\n1. Open the yaml file: {0}'.format(inst.params['PARAM_FILE'])
+    msg += '\n2. Copy files to the correct directories:'
+    msg += '\n\t - calibrations: {0}'.format(inst.params['CALIBPATH'])
+    msg += '\n\t - raw data: {0}'.format(inst.params['RAWPATH'])
+    msg += '\n3. Update the yaml parameters, for example:'
+    msg += '\n\t - FILES (raw data dir)'
+    msg += '\n\t - BKGFILE (calib dir, optional)'
+    msg += '\n\t - FLATFILE (calib dir, optional)'
+    msg += '\n3. Check every other value in the yaml file before running.'
     # print message
     misc.printc(msg, msg_type='setup')
     # return locals
