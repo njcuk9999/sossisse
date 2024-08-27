@@ -195,6 +195,21 @@ Save results at the end
 CDICT['SAVE_RESULTS'] = Const('SAVE_RESULTS', value=True, dtype=bool, 
                               comment=comment, active=True)
 
+# -----------------------------------------------------------------------------
+# Switch for turning on/off the white light curve step
+comment = """
+Switch for turning on/off the white light curve step
+"""
+CDICT['WHITE_LIGHT_CURVE'] = Const('WHITE_LIGHT_CURVE', value=True, dtype=bool,
+                                   comment=comment, active=True)
+
+# -----------------------------------------------------------------------------
+# Switch for turning on/off the spectral extraction step
+comment = """
+Switch for turning on/off the spectral extraction step
+"""
+CDICT['SPECTRAL_EXTRACTION'] = Const('SPECTRAL_EXTRACTION', value=True,
+                                     dtype=bool, comment=comment, active=True)
 
 # =============================================================================
 # Definition of paths (normally created at run time but can be overridden)
@@ -327,14 +342,16 @@ CDICT['VALID_DQ'] = Const('VALID_DQ', value=None, dtype=list, dtypei=int,
 comment = """
 define the Nth frame for 1st contact [it1],
      2nd contact [it2] ... through 4th contact
-     e.g. NTH_FRAME:
+     e.g. CONTACT_FRAMES:
         - 90
         - 97
         - 103
         - 110
 """
-CDICT['NTH_FRAME'] = Const('NTH_FRAME', value=None, dtype=list, dtypei=int,
-                           minimum=0, length=4, comment=comment, active=True)
+CDICT['CONTACT_FRAMES'] = Const('CONTACT_FRAMES', value=[90, 97, 103, 110],
+                                dtype=list, dtypei=int,
+                                minimum=0, length=4, comment=comment,
+                                active=True)
 # -----------------------------------------------------------------------------
 # used to reject bits of domain from the analysis
 # you can reject frames 0-600 with the values
@@ -482,15 +499,6 @@ comment = """\n\n
 =============================================================================
 Definition of inputs related to handling of the data within each frame
 =============================================================================
-Define whether to use pixel level de-trending
-"""
-CDICT['PIXEL_LEVEL_DETRENDING'] = Const('PIXEL_LEVEL_DETRENDING', value=False,
-                                        dtype=bool, comment=comment, 
-                                        active=True)
-
-# -----------------------------------------------------------------------------
-# Define which orders to use
-comment = """
 Define which orders to use
    e.g. TRACE_ORDERS:
         - 1

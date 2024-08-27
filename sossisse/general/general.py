@@ -51,17 +51,20 @@ def white_light_curve(inst: Instrument):
     # -------------------------------------------------------------------------
     # get the trace map
     tracemap = inst.get_trace_map()
+    # -------------------------------------------------------------------------
+    # if you want to subtract a higher order polynomial to the 1/f noise, change
+    # the value of fit_order
+    cube, med, med_diff, diff_in_out, params = inst.clean_1f(cube, err)
 
     # TODO: **************************************************************
     # TODO: Got to here
     # TODO: **************************************************************
 
-    if params['pixel_level_detrending']:
-        cube = science.pixeldetrending(cube, params)
+
 
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    cube, med, med_diff, diff_in_out, params = science.clean_1f(cube, err, params)
+    cube, med, med_diff, diff_in_out, params = science.clean_1f(cube, err)
 
     if params['recenter_trace_position']:
         misc.printc('Scan to optimize position of trace', 'info')

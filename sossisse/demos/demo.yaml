@@ -104,7 +104,7 @@ VALID_DQ:
 
 # define the Nth frame for 1st contact [it1],
 #      2nd contact [it2] ... through 4th contact
-NTH_FRAME:
+CONTACT_FRAMES:
 - 90
 - 97
 - 103

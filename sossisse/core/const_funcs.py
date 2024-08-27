@@ -190,7 +190,6 @@ def run_time_params(params: Dict[str, Any],
         absposfile = str(os.path.join(params['CALIBPATH'], params['POS_FILE']))
         params['POS_FILE'] = io.get_file(absposfile, 'trace', required=False)
         sources['POS_FILE'] = func_name
-
     # return the updated parameters
     return params, sources
 
