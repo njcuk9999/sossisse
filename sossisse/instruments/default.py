@@ -27,6 +27,7 @@ from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
 from sossisse.core import math as mp
+from sossisse.general import plots
 
 # =============================================================================
 # Define variables
@@ -74,7 +75,7 @@ class Instrument:
         self._variables['MEIDAN_IMAGE_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
         self._variables['TEMP_BEFORE_AFTER_CLEAN1F'] = None
-        self._variables['TEMP_PCAS'] = None
+        self._variables['TEMP_PCA_FILE'] = None
         self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
         # true/false flags
         self._variables['DO_BACKGROUND'] = None
@@ -102,7 +103,7 @@ class Instrument:
         self.vsources['MEIDAN_IMAGE_FILE'] = f'{self.name}.clean_1f()'
         self.vsources['CLEAN_CUBE_FILE'] = f'{self.name}.clean_1f()'
         self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = f'{self.name}.clean_1f()'
-        self.vsources['TEMP_PCAS'] = f'{self.name}.clean_1f()'
+        self.vsources['TEMP_PCA_FILE'] = f'{self.name}.clean_1f()'
         self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = f'{self.name}.clean_1f()'
         # true/false flags
         self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
@@ -809,12 +810,18 @@ class Instrument:
         # return the cube
         return cube
 
-    def get_trace_positions(self) -> np.ndarray:
+    def get_trace_positions(self, log: bool = True) -> np.ndarray:
+        """
+        Get the trace positions in a combined map
+        (True where the trace is, False otherwise)
+
+        :return: np.ndarray, the trace position map
+        """
+        _ = self, log
         raise NotImplementedError('get_trace_pos() must be implemented in '
                                   'child Instrument class')
 
-
-    def get_trace_map(self) -> np.ndarray:
+    def get_trace_map(self, log: bool = True) -> np.ndarray:
         # set function name
         func_name = f'{__NAME__}.get_trace_map()'
         # get x and y size from cube
@@ -835,9 +842,10 @@ class Instrument:
             # get the low and high values
             wavelow, wavehigh = self.params['WLC_DOMAIN']
             # print that we are cutting
-            msg = 'We cut the domain of the WLC to {0:.2f} - {1:.2f} um'
-            margs = [wavelow, wavehigh]
-            misc.printc(msg.format(*margs), 'number')
+            if log:
+                msg = 'We cut the domain of the WLC to {0:.2f} - {1:.2f} um'
+                margs = [wavelow, wavehigh]
+                misc.printc(msg.format(*margs), 'number')
             # get the wavegrid
             wavegrid = self.get_wavegrid()
             # mask the trace map
@@ -854,6 +862,11 @@ class Instrument:
                       ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get the trace position
+
+        :param map2d: bool, if True return a 2D map of the trace
+        :param order_num: int, the order number to use
+        :param round_pos: bool, if True round the positions to integers
+        :param log: bool, if True print log messages
 
         :return:
         """
@@ -928,12 +941,15 @@ class Instrument:
             return posmax, throughput
 
     def get_wavegrid(self, source: str = 'pos',
-                     order_num: Union[int, None] = None):
+                     order_num: Union[int, None] = None,
+                     return_xpix: bool = False
+                     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get the wave grid for the instrument
 
         :param source: str, the source of the wave grid
         :param order_num: int, the order number to use (if source is pos)
+        :param return_xpix: bool, if True return xpix as well as wave
 
         :return: np.ndarray, the wave grid
         """
@@ -970,8 +986,13 @@ class Instrument:
             wavevector = spl_wave(np.arange(xsize))
             # deal with zeros
             wavevector[wavevector == 0] = np.nan
+            # get xpix
+            xpix = np.arange(xsize)
         # return the wave grid
-        return wavevector
+        if return_xpix:
+            return xpix, wavevector
+        else:
+            return wavevector
 
     def clean_1f(self, cube: np.ndarray,
                  err: np.ndarray,
@@ -997,7 +1018,6 @@ class Instrument:
         use_temp = self.params['USE_TEMPORARY']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
-        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # ---------------------------------------------------------------------
         # construct temporary file names
         median_image_file = 'median{0}.fits'.format(tag1)
@@ -1011,8 +1031,6 @@ class Instrument:
                                                 tmp_before_after_clean1f)
         tmp_pcas = 'temporary_pcas.fits'.format(tag1)
         tmp_pcas = os.path.join(self.params['TEMP_PATH'], tmp_pcas)
-
-
         temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
         tmp_transit_invsout = os.path.join(self.params['TEMP_PATH'],
                                            temp_transit_invsout)
@@ -1021,7 +1039,7 @@ class Instrument:
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
         self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
         self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F', tmp_before_after_clean1f)
-        self.set_variable('TEMP_PCAS', tmp_pcas)
+        self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
@@ -1303,6 +1321,18 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
+        # ---------------------------------------------------------------------
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['ALLOW_TEMPORARY']
+        # update meta data
+        self.update_meta_data()
+        # get tag1
+        tag1 = self.get_variable('TAG1', func_name)
+        # make sure we have a pca file
+        tmp_pcas = 'temporary_pcas.fits'.format(tag1)
+        tmp_pcas = os.path.join(self.params['TEMP_PATH'], tmp_pcas)
+        self.set_variable('TEMP_PCA_FILE', tmp_pcas)
+        # ---------------------------------------------------------------------
         # get whether to fit pca and the number of fit components
         flag_fit_pca = self.params['FIT_PCA']
         n_comp = self.params['FIT_N_PCA']
@@ -1315,6 +1345,7 @@ class Instrument:
         # validate out-of-transit domain
         self.get_valid_oot()
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
         # only fit the pca to the flux in the trace (nan everything else)
         nanmask = np.ones_like(tracemap, dtype=float)
         nanmask[~tracemap] = np.nan
@@ -1323,6 +1354,7 @@ class Instrument:
         # subtract off the median
         for iframe in tqdm(range(cube3ini.shape[0]), leave=False):
             cube3ini[iframe] -= med
+        # ---------------------------------------------------------------------
         # copy the normalized cube
         cube3 = np.array(cube3ini)
         # get the valid error domain
@@ -1340,9 +1372,11 @@ class Instrument:
         # set the bad weights to zero
         weights[badpix] = 0
         cube3[badpix] = 0
+        # ---------------------------------------------------------------------
         # find out the regions that are valid at least 95% of the time
         with warnings.catch_warnings(record=True) as _:
             valid = np.where(np.nanmean(weights != 0, axis=0) > 0.95)[0]
+        # ---------------------------------------------------------------------
         # compute the principle components
         with warnings.catch_warnings(record=True) as _:
             # set up the pca class
@@ -1353,10 +1387,116 @@ class Instrument:
             variance_ratio = np.array(pca_class.explained_variance_ratio_)
             # normalize by the ratio of the first component
             variance_ratio /= variance_ratio[0]
+        # ---------------------------------------------------------------------
+        # get the amplitudes
+        amps = np.zeros((n_comp, cube3.shape[0]))
+        # loop around frames
+        for iframe in range(cube3.shape[0]):
+            # get the error squared
+            err3_2 = err3[iframe, valid] ** 2
+            # loop around components
+            for icomp in range(n_comp):
+                # get the component value
+                comp_val = pca_fit.components_[icomp]
+                # get the amplitude of this component
+                part1 = np.nansum(comp_val * cube3[iframe, valid] / err3_2)
+                part2 = np.nansum(1 / err3_2)
+                amps[icomp, iframe] = part1 / part2
+        # ---------------------------------------------------------------------
+        # calculate the pca values
+        pcas = np.zeros((n_comp, nbypix, nbxpix), dtype=float)
+        # reset cube3 to its initial value
+        cube3 = np.array(cube3ini)
+        # set all nan pixels to zero
+        cube3[~np.isfinite(cube3)] = 0
+        # loop around components
+        for icomp in range(n_comp):
+            # add the contribution from each frame
+            for iframe in range(cube3.shape[0]):
+                pcas[icomp] += amps[icomp, iframe] * cube3[iframe]
+            # TODO: Etienne explain this
+            # trick to avoid getting slices of a 3D cube
+            tmp = np.array(pcas[icomp, :, :])
+            for icol in range(nbxpix):
+                tmp[:, icol] -= np.nanmedian(tmp[:, icol])
+            # normalize the tmp component
+            # TODO: Etienne explain this
+            part1 = np.nansum(tmp ** 2 * nanmask)
+            part2 = np.nansum(med ** 2 * nanmask)
+            tmp /= np.sqrt(part1 / part2)
+            # update the pcas ith the tmp array
+            pcas[icomp, :, :] = tmp
+        # ---------------------------------------------------------------------
+        # deal with plotting
+        plots.pca_plot(self.params, n_comp, pcas, variance_ratio)
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then save them
+        if allow_temp:
+            tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
+            # write the pca
+            misc.printc('\tWriting: {0}'.format(tmp_pcas), 'info')
+            fits.writeto(tmp_pcas, pcas, overwrite=True)
+        # ---------------------------------------------------------------------
+        # return the pcas
+        return pcas
 
-        #
 
-        # get the components
+    def recenter_trace_position(self, tracemap: np.ndarray,
+                                med: np.ndarray) -> np.ndarray:
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.recenter_trace_position()'
+        # deal with not wanting to recenter trace position
+        if not self.params['RECENTER_TRACE_POSITION']:
+            return tracemap
+        # ---------------------------------------------------------------------
+        # get some parameters from instrument
+        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
+        # ---------------------------------------------------------------------
+        # print what we are doing
+        msg = 'Scan to optimize position of trace'
+        misc.printc(msg, 'info')
+        # save the current width (we will reset it later
+        width_current = float(self.params['TRACE_WIDTH_MASKING'])
+        width_source = self.sources['TRACE_WIDTH_MASKING']
+        # force a trace width masking
+        self.params['TRACE_WIDTH_MASKING'] = 20
+        self.sources['TRACE_WIDTH_MASKING'] = func_name
+
+        # get a range of dys and dxs to scan over for best trace position
+        dys = np.arange(-nbypix // 10, nbypix // 10 + 1)
+        dxs = np.arange(-nbypix // 10, nbypix // 10 + 1)
+        sums = np.zeros([len(dxs), len(dys)], dtype=float)
+        # storage for best dx and dy
+        best_dx = 0
+        best_dy = 0
+        best_sum = 0
+        # loop around dxs and dys
+        for ix in tqdm(range(len(dxs)), leave=False):
+            for iy in tqdm(range(len(dys)), leave=False):
+                # update the x and y positions
+                self.params['X_TRACE_OFFSET'] = dxs[ix]
+                self.params['Y_TRACE_OFFSET'] = dys[iy]
+                # re-gen the trace map (without logging) using new x/y trace
+                #  offset
+                params = self.get_trace_map(log=False)
+                sums[ix, iy] = np.nansum(params['TRACEMAP'] * med)
+                if sums[ix, iy] > best_sum:
+                    best_sum = sums[ix, iy]
+                    best_dx = dxs[ix]
+                    best_dy = dys[iy]
+        # print the best dx and dy
+        misc.printc('Best dx : {} pix'.format(best_dx), 'number')
+        misc.printc('Best dy : {} pix'.format(best_dy), 'number')
+        # update the trace offsets with the best values found
+        self.params['X_TRACE_OFFSET'] = best_dx
+        self.sources['X_TRACE_OFFSET'] = func_name
+        self.params['Y_TRACE_OFFSET'] = best_dy
+        self.sources['Y_TRACE_OFFSET'] = func_name
+        # reset the trace width masking to the user defined value
+        self.params['TRACE_WIDTH_MASKING'] = width_current
+        self.sources['TRACE_WIDTH_MASKING'] = width_source
+        # return the updated trace map
+        return self.get_trace_map()
 
 
 

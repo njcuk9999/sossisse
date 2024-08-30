@@ -80,7 +80,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
 
             # for SOSS we cut down the flat field to the correct size
             # if it is a full frame flat
-            if flat.shape == (2024, 2048):
+            # Question: Is this only for substrip256?
+            if flat.shape == (2048, 2048):
                 # cut down the flat field
                 flat = flat[-256:]
             # check the shape of the flat field
@@ -94,7 +95,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             # return the flat field
             return flat
 
-    def get_trace_positions(self) -> np.ndarray:
+    def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
@@ -112,7 +113,6 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             tracemap = tracemap1 | tracemap2
         # return the trace positions
         return tracemap
-
 
 
 class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):

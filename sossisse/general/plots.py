@@ -1,9 +1,93 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+# CODE NAME HERE
+
+# CODE DESCRIPTION HERE
+
+Created on 2024-08-13 at 11:23
+
+@author: cook
+"""
+import os
+from typing import Any, Dict
+
 import matplotlib.pyplot as plt
 import numpy as np
 
+from sossisse.core import base
 from sossisse.core import math
-# sosssisse stuff
+from sossisse.core import misc
 from sossisse.general import science
+
+
+# =============================================================================
+# Define variables
+# =============================================================================
+__NAME__ = 'sossisse.general.plots'
+__version__ = base.__version__
+__date__ = base.__date__
+__authors__ = base.__authors__
+
+
+# =============================================================================
+# Define functions used by plots
+# =============================================================================
+def save_show_plot(params: Dict[str, Any], outname: str):
+    """
+    Save and show the plot
+    :param params: dict, the parameters for the instrument
+    :return:
+    """
+    # loop around figure types
+    for figtype in params['FIGURE_TYPES']:
+        # construct the basename with extension
+        basename = f'{outname}.{figtype}'
+        # contstruct the full path
+        abspath = os.path.join(params['PLOT_PATH'], basename)
+        # say that we are plotting graph
+        msg = f'Plotting graph: {abspath}'
+        misc.printc(msg, msg_type='info')
+        # save the figure
+        plt.savefig(abspath)
+    # if we want to show the plot do it now
+    if params['SHOW_PLOTS']:
+        # show the plot
+        plt.show()
+    # finally close the plot
+    plt.close()
+
+
+
+# =============================================================================
+# Define plot functions
+# =============================================================================
+def pca_plot(params: Dict[str, Any], n_comp: int, pcas: np.ndarray,
+             variance_ratio: np.ndarray):
+    # set up figure
+    fig, frames = plt.subplots(nrows=n_comp, ncols=1, sharex='all',
+                               sharey='all', figsize=[8, 4 * n_comp])
+    # deal with single component (frames is a single axis)
+    if n_comp == 1:
+        frames = [frames]
+    # loop around components
+    for icomp in range(n_comp):
+        i_pca = pcas[icomp]
+        # plot the component
+        frames[icomp].imshow(i_pca, aspect='auto',
+                             vmin=np.nanpercentile(i_pca, 0.5),
+                             vmax=np.nanpercentile(i_pca, 99.5),
+                             origin='lower')
+        # set the title of the plot
+        title = f'PCA {icomp + 1}, variance {variance_ratio[icomp]:.4f}'
+        frames[icomp].set(title=title)
+
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'file_temporary_pcas')
+
+
 
 
 def plot_sossice(tbl, params):

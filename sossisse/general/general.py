@@ -35,12 +35,10 @@ def white_light_curve(inst: Instrument):
     # set force = True to force a re-writing of the temporary files
     # meant to speed to code
     misc.sossart()
-
     # get parameters from instrumental parameters
     objname = inst.params['OBJECTNAME']
     # print the white light curve splash
     print(misc.art('White light curve ' + objname, 'blue', 'CYAN'))
-
     # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err = inst.load_data_with_dq()
@@ -54,77 +52,14 @@ def white_light_curve(inst: Instrument):
     # -------------------------------------------------------------------------
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    cube, med, med_diff, diff_in_out, params = inst.clean_1f(cube, err)
+    out_c1f = inst.clean_1f(cube, err, tracemap)
+    cube, med, med_diff, transit_invsout, pcas = out_c1f
+    # -------------------------------------------------------------------------
+    # recenter the trace position
+    tracemap = inst.recenter_trace_position(tracemap, med)
 
-    # TODO: **************************************************************
-    # TODO: Got to here
-    # TODO: **************************************************************
 
 
-
-    # if you want to subtract a higher order polynomial to the 1/f noise, change
-    # the value of fit_order
-    cube, med, med_diff, diff_in_out, params = science.clean_1f(cube, err)
-
-    if params['recenter_trace_position']:
-        misc.printc('Scan to optimize position of trace', 'info')
-
-        width_current = np.array(params['trace_width_masking'])
-        params['trace_width_masking'] = 20
-        dys = np.arange(-params['DATA_Y_SIZE'] // 10, params['DATA_Y_SIZE'] // 10 + 1)
-        dxs = np.arange(-params['DATA_Y_SIZE'] // 10, params['DATA_Y_SIZE'] // 10 + 1)
-        sums = np.zeros([len(dxs), len(dys)], dtype=float)
-
-        best_dx = 0
-        best_dy = 0
-        best_sum = 0
-        for ix in tqdm(range(len(dxs)), leave=False):
-            for iy in tqdm(range(len(dys)), leave=False):
-                params['x_trace_offset'] = dxs[ix]
-                params['y_trace_offset'] = dys[iy]
-                params = science.get_trace_map(params, silent=True)
-                sums[ix, iy] = np.nansum(params['TRACEMAP'] * med)
-                if sums[ix, iy] > best_sum:
-                    best_sum = sums[ix, iy]
-                    best_dx = dxs[ix]
-                    best_dy = dys[iy]
-
-        params['x_trace_offset'] = best_dx
-        params['y_trace_offset'] = best_dy
-        params['trace_width_masking'] = width_current
-
-        params = science.get_trace_map(params)  # refresh trace map
-        misc.printc('Best dx : {} pix'.format(best_dx), 'number')
-        misc.printc('Best dy : {} pix'.format(best_dy), 'number')
-
-        """
-        loss_ppt = (1-sums/np.nanmax(sums))*1e3
-        nmax = 8
-        if len(loss_ppt) < nmax:
-            nmax = len(loss_ppt)
-        ylim = loss_ppt[np.argsort(loss_ppt)][nmax]
-        if ylim < loss_ppt[dys == 0]:
-            ylim = loss_ppt[dys == 0]*1.1
-
-        for i in range(len(dys)):
-            if loss_ppt[i]<ylim:
-                printc('\toffset dy = {:3}, err = {:.3f} ppt'.format(dys[i], loss_ppt[i]),'number')
-        printc('We scanned the y position of trace, optimum at dy = {}'.format(params['y_trace_offset']),'number')
-
-        fig,ax = plt.subplots(nrows = 2, ncols =1, figsize = [8,8])
-        ax[0].plot(dys,loss_ppt)
-        ax[0].set(xlabel = 'offset of trace',ylabel = 'flux loss in ppt',ylim =[0,ylim*1.1])
-        mask = np.array(params['TRACEMAP'],dtype = float)
-        mask[mask == 0] = np.nan
-        ax[1].imshow(med*mask,aspect = 'auto')
-        plt.tight_layout()
-        for figtype in params['figure_types']:
-            outname = '{}/trace_flux_loss_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
-            plt.savefig(outname)
-        if params['show_plots']:
-            plt.show()
-        plt.close()
-        """
 
     ################################################################################
     # Part of the code that does rotation/shift/amplitude
