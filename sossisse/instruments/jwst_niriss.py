@@ -13,10 +13,16 @@ from typing import Tuple
 
 import numpy as np
 from astropy.io import fits
+from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from scipy.ndimage import binary_dilation
+from skimage import measure
+from tqdm import tqdm
 
 from sossisse.core import base
 from sossisse.core import exceptions
+from sossisse.core import math as mp
 from sossisse.instruments import default
+from sossisse.general import plots
 
 # =============================================================================
 # Define variables
@@ -113,6 +119,112 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             tracemap = tracemap1 | tracemap2
         # return the trace positions
         return tracemap
+
+    def get_mask_order0(self, mask_trace_pos: np.ndarray, tracemap: np.ndarray
+                        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get the mask for order 0 - this is a dummy function that returns
+        the default values and overriden by JWST.NIRISS.SOSS
+
+        :param mask_trace_pos: np.ndarray, the mask trace positions
+        :param tracemap: np.ndarray, the trace map
+
+        :return: tuple, 1. the updated mask trace positions, 2. the x order 0
+                        positions, 3. the y order 0 positions
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.get_mask_order0()'
+        # get in vs out filename
+        in_vs_out_file = self.get_variable('TEMP_TRANSIT_IN_VS_OUT', func_name)
+        # get the size of the data
+        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        # get the diff file
+        diff = self.load_data(in_vs_out_file)
+        # get the trace position for order zero
+        posmax, throughput = self.get_trace_pos(order_num=1, round_pos=False)
+        # remove the mean from the posmax
+        posmax -= np.nanmean(posmax)
+        # copy the diff array
+        diff2 = np.array(diff)
+        # ---------------------------------------------------------------------
+        # xpixel values
+        ypix = np.arange(diff.shape[0])
+        # loop around the array and spline the diff - posmax onto diff2
+        for ix in range(diff.shape[1]):
+            # get the valid values
+            valid = np.isfinite(diff[:, ix])
+            # if there are less than 50% good pixels skip
+            if np.mean(valid) < 0.5:
+                continue
+            # get the spline
+            spline = ius(ypix[valid] - posmax[ix], diff[:, ix][valid],
+                         k=3, ext=1)
+            # update the diff2
+            diff2[:, ix] = spline(ypix - posmax[ix])
+        # ---------------------------------------------------------------------
+        # apply a low pass filter to the diff2
+        for iy in range(diff.shape[1]):
+            diff2[iy] = mp.lowpassfilter(diff2[iy])
+        # ---------------------------------------------------------------------
+        # spline the values again
+        for ix in range(diff.shape[1]):
+            # get the spline
+            spline = ius(ypix + posmax[ix], diff2[:, ix], k=3, ext=1)
+            # update the diff2
+            diff2[:, ix] = spline(ypix)
+        # ---------------------------------------------------------------------
+        # remove the diff2 from diff
+        diff -= diff2
+        # ---------------------------------------------------------------------
+        # take of the median of each row
+        for ix in range(nbxpix):
+            diff[:, ix] -= np.nanmedian(diff[:, ix])
+        # ---------------------------------------------------------------------
+        # work out the sigma away from median
+        nsig = np.array(diff)
+        # loop around each row and remove the low pass
+        for iy in tqdm(range(diff.shape[0])):
+            nsig[iy] /= mp.lowpassfilter(np.abs(diff[iy]))
+        # ---------------------------------------------------------------------
+        # we look for a consistent set of >1 sigma pixels
+        sig_mask = nsig > 1
+
+        sig_mask2 = np.zeros_like(sig_mask)
+        # apply a clustering algorithm to the mask
+        all_labels = measure.label(sig_mask, connectivity=2)
+        # get a list of unique labels
+        unique_labels = list(set(all_labels))
+        # loop around cluster (labels) and find clusters with at least
+        #   100 points
+        for ulabel in tqdm(unique_labels, leave=False):
+            # find all points that are in this cluster (label)
+            good = all_labels == ulabel
+            # filter out if the first element is False
+            #  (quicker than calculating the sum)
+            if not sig_mask[good][0]:
+                continue
+            # if clusters that have more than 100 points
+            if np.sum(good) > 100:
+                sig_mask2[good] = True
+        # ---------------------------------------------------------------------
+        # get a circular mask for a bianry dilation
+        circle = np.sqrt(np.nansum(np.indices([7, 7]) - 3.0) ** 2, axis=0)
+        # apply the circular mask to a binary dilation of the sig_mask2
+        sig_mask = binary_dilation(sig_mask2, circle < 3.5)
+        # ---------------------------------------------------------------------
+        # binary dilate the mask with a box
+        box = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+        bdilate = binary_dilation(sig_mask, structure=box)
+        # ---------------------------------------------------------------------
+        # find the positions where the mask is True (with a box of 3 pixels)
+        ypos, xpos = np.where(bdilate)
+        # ---------------------------------------------------------------------
+        # plot this relation
+        plots.mask_order0_plot(self.params, diff, sig_mask)
+        # ---------------------------------------------------------------------
+        # return the mask trace positions, x positions and y positions
+        return sig_mask, xpos, ypos
+
 
 
 class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):

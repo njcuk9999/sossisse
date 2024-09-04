@@ -57,215 +57,36 @@ def white_light_curve(inst: Instrument):
     # -------------------------------------------------------------------------
     # recenter the trace position
     tracemap = inst.recenter_trace_position(tracemap, med)
-
-
-
-
-    ################################################################################
+    # -------------------------------------------------------------------------
     # Part of the code that does rotation/shift/amplitude
-    ################################################################################
-    dx, dy, rotxy, ddy, med_clean = science.get_gradients(med, params)
+    # -------------------------------------------------------------------------
+    # get the gradients
+    dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
+    # set up the mask for trace position
+    mask_out = inst.get_mask_trace_pos(med, tracemap)
+    mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos = mask_out
+    # setup the linear reconstruction vector based on the input parameters
+    lvector = inst.setup_linear_reconstruction(med, dx, dy, rotxy, ddy,
+                                               pcas, med_diff)
 
-    mask_trace_pos = np.ones_like(med, dtype=int)
+    # -------------------------------------------------------------------------
+    # find the best linear combination of scale/dx/dy/rotation from lvector
+    # amps is a vector with the amplitude of all 4 fitted terms
+    # amps[0] -> amplitude of trace
+    # amps[1] -> dx normalized on reference trace
+    # amps[2] -> dy normalized on reference trace
+    # amps[3] -> rotation (in radians) normalized on reference trace
+    # amps[4] -> 2nd derivative in y [if option activated]
+    # -------------------------------------------------------------------------
+    loutputs, lrecon = inst.apply_amp_recon(cube, err, med, mask_trace_pos,
+                                            lvector, x_trace_pos, y_trace_pos,
+                                            x_order0, y_order0)
+    # -------------------------------------------------------------------------
+    # normalize the trace but a normalization factor
+    loutputs = inst.normalize_sum_trace(loutputs)
 
-    if params['trace_width_masking'] != 0:
-        mask_trace_pos[~params['TRACEMAP']] = 0
-        y_trace_pos, x_trace_pos = np.where(binary_dilation(mask_trace_pos, [[0, 1, 0], [1, 1, 1], [0, 1,
-                                                                                                    0]]) != mask_trace_pos)
 
-    if params['mask_order_0']:
-        # adding the masking of order 0
-        mask_order0, x_order0, y_order0 = science.get_mask_order0(params)
-        mask_trace_pos[mask_order0] = 0
-    else:
-        # if we don't have a mask, we set dummy values for the plot later in the code
-        x_order0 = [np.nan]
-        y_order0 = [np.nan]
-
-    # vectors for the linear reconstruction
-    v = med.ravel()
-
-    if params['fit_dx']:
-        v = np.append(v, dx.ravel())
-        params['output_names'] = np.append(params['output_names'], 'dx')
-        params['output_units'] = np.append(params['output_units'], 'mpix')
-        params['output_factor'] = np.append(params['output_factor'], 1e3)
-
-    if params['fit_dy']:
-        v = np.append(v, dy.ravel())
-        params['output_names'] = np.append(params['output_names'], 'dy')
-        params['output_units'] = np.append(params['output_units'], 'mpix')
-        params['output_factor'] = np.append(params['output_factor'], 1e3)
-
-    if params['fit_rotation']:
-        v = np.append(v, rotxy.ravel())
-        params['output_names'] = np.append(params['output_names'], 'theta')
-        params['output_units'] = np.append(params['output_units'], 'arcsec')
-        params['output_factor'] = np.append(params['output_factor'], 1296000 / (np.pi * 2))
-
-    if params['zero_point_offset']:
-        v = np.append(v, np.ones_like(dx.ravel()))
-        params['output_names'] = np.append(params['output_names'], 'zero point')
-        params['output_units'] = np.append(params['output_units'], 'flux')
-        params['output_factor'] = np.append(params['output_factor'], 1)
-
-    if params['ddy']:
-        v = np.append(v, ddy.ravel())
-        params['output_names'] = np.append(params['output_names'], 'ddy')
-        params['output_units'] = np.append(params['output_units'], 'mpix$^2$')
-        params['output_factor'] = np.append(params['output_factor'], 1e6)
-
-    if params['before_after']:
-        v = np.append(v, med_diff.ravel())
-        params['output_names'] = np.append(params['output_names'], 'before-after')
-        params['output_units'] = np.append(params['output_units'], 'ppm')
-        params['output_factor'] = np.append(params['output_factor'], 1e6)
-
-    if params['fit_pca']:
-        for ipca in range(params['n_pca']):
-            v = np.append(v, params['PCA_components'][ipca].ravel())
-            params['output_names'] = np.append(params['output_names'], 'PCA{}'.format(ipca + 1))
-            params['output_units'] = np.append(params['output_units'], 'ppm')
-            params['output_factor'] = np.append(params['output_factor'], '1.0')
-
-    if params['quadratic_term']:
-        v = np.append(v, med_diff.ravel() ** 2)
-        params['output_names'] = np.append(params['output_names'], 'flux^2')
-        params['output_units'] = np.append(params['output_units'], 'flux^2')
-        params['output_factor'] = np.append(params['output_factor'], 1.0)
-
-    v = v.reshape([len(v) // len(med.ravel()), len(med.ravel())])
-
-    # vectors to keep track of the rotation/amplitudes/dx/dy
-    all_recon = np.zeros_like(cube)
-
-    # adding place-holders for the output table
-    tbl = Table()
-    for i in range(len(params['output_names'])):
-        tbl[params['output_names'][i]] = np.zeros(cube.shape[0])
-        tbl[params['output_names'][i] + '_error'] = np.zeros(cube.shape[0])
-
-    #
-    tbl['rms_cube_recon'] = np.zeros(cube.shape[0])
-    tbl['sum_trace'] = np.zeros(cube.shape[0])
-    tbl['sum_trace_error'] = np.zeros(cube.shape[0])
-
-    tbl['amplitude_no_model'] = np.zeros(cube.shape[0])
-    tbl['amplitude_no_model error'] = np.zeros(cube.shape[0])
-
-    # i = 6976
-
-    trace_corr = np.zeros(params['DATA_Z_SIZE'], dtype=float)
-    for i in tqdm(range(cube.shape[0]), leave=False):
-        # find the best combination of scale/dx/dy/rotation
-        # amps is a vector with the amplitude of all 4 fitted terms
-        # amps[0] -> amplitude of trace
-        # amps[1] -> dx normalized on reference trace
-        # amps[2] -> dy normalized on reference trace
-        # amps[3] -> rotation (in radians) normalized on reference trace
-        # amps[4] -> 2nd derivative in y [if option activated]
-
-        mask = np.array(np.isfinite(cube[i]), dtype=float)
-        # mask = np.array(cube_mask[i] , dtype=float)
-
-        mask[mask != 1] = np.nan
-        mask[mask_trace_pos == 0] = np.nan
-
-        with warnings.catch_warnings(record=True) as _:
-            tbl['sum_trace'][i] = np.nansum(cube[i] * mask)
-            tbl['sum_trace_error'][i] = np.sqrt(np.nansum(err[i] ** 2 * mask))
-
-        with warnings.catch_warnings(record=True) as _:
-            amp0 = math.odd_ratio_mean(cube[i].ravel() / med.ravel() * mask.ravel(), err[i].ravel() / med.ravel())
-            tbl['amplitude_no_model'][i] = amp0[0]
-            tbl['amplitude_no_model error'][i] = amp0[1]
-
-        # recon = recon.reshape(med.shape)
-        # >5 sigma clipping of linear system
-        bad = np.abs((cube[i] - med * amp0[0]) / err[i]) > 5
-        mask[bad] = np.nan
-        amp_model, err_model, recon = math.lin_mini_errors(cube[i] * mask, err[i], v)
-
-        if params['zero_point_offset']:
-            recon -= amp_model[params['output_names'] == 'zero point']
-
-        trace_corr[i] = np.nansum(recon * mask / err[i] ** 2) / np.nansum(med * amp_model[0] * mask / err[i] ** 2)
-
-        if i == 0:
-            fig, ax = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
-            ax[0].imshow(cube[i], vmin=np.nanpercentile(cube[i], 1), vmax=np.nanpercentile(cube[i], 95), aspect='auto',
-                         origin='lower')
-            ax[0].set(title='Sample Image')
-            tmp = cube[i] - recon
-            ax[1].imshow(tmp, vmin=np.nanpercentile(tmp, 5), vmax=np.nanpercentile(tmp, 95),
-                         aspect='auto',
-                         origin='lower')
-
-            ax[0].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2)
-            ax[1].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2, label='trace mask')
-            if len(x_order0) > 2:
-                ax[0].plot(x_order0, y_order0, 'r.', alpha=0.1)
-                ax[1].plot(x_order0, y_order0, 'r.', alpha=0.1, label='order 0')
-            ax[1].legend()
-            ax[1].set(title='Residual')
-            ax[0].get_xaxis().set_visible(False)
-            ax[0].get_yaxis().set_visible(False)
-            ax[1].get_xaxis().set_visible(False)
-            ax[1].get_yaxis().set_visible(False)
-
-            plt.tight_layout()
-            for figtype in params['figure_types']:
-                # TODO: you shouldn't use '/'  as it is OS dependent
-                # TODO: use os.path.join(1, 2, 3)
-                outname = '{}/sample_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
-                plt.savefig(outname)
-            if params['show_plots']:
-                plt.show()
-            plt.close()
-
-        for j in range(len(amp_model)):
-            tbl[params['output_names'][j]][i] = amp_model[j]
-            tbl[params['output_names'][j] + '_error'][i] = err_model[j]
-
-        cube[i] -= recon
-        all_recon[i] = recon / amp_model[0]
-
-        tbl['rms_cube_recon'][i] = math.estimate_sigma(np.array(cube[i], dtype=float))
-    trace_corr /= np.nanmedian(trace_corr)
-
-    tbl['amplitude_uncorrected'] = np.array(tbl['amplitude'])
-    tbl['aperture_correction'] = trace_corr
-    tbl['amplitude'] = tbl['amplitude'] * trace_corr
-    yerr = tbl['amplitude_error']
-    fig, ax = plt.subplots(nrows=2, ncols=1, sharex='all', figsize=[10, 10])
-    ax[0].errorbar(np.arange(len(tbl)), tbl['amplitude_uncorrected'], yerr=yerr, fmt='r.', alpha=0.3,
-                   label='uncorrected')
-    ax[0].set(title='amplitude')
-    ax[0].errorbar(np.arange(len(tbl)) + 0.5, tbl['amplitude'], yerr=yerr, fmt='g.', alpha=0.3, label='corrected')
-    ax[0].legend()
-    tmp = 1e3 * (trace_corr - 1)
-    ax[1].plot(tmp, 'r.', alpha=0.3)
-    p12 = np.nanpercentile(tmp, [1, 99])
-    ylim = [p12[0] - 0.3 * (p12[1] - p12[0]), p12[1] + 0.3 * (p12[1] - p12[0])]
-    ax[1].set(title='Apperture correction', ylabel='corr [ppt]', ylim=ylim)
-    plt.tight_layout()
-    for figtype in params['figure_types']:
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        outname = '{}/apperture_correction{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype)
-        plt.savefig(outname)
-    if params['show_plots']:
-        plt.show()
-    plt.close()
-
-    # normalizing the sub of trace
-    if 'oot_domain' not in params.keys():
-        params = science.get_valid_oot(params)
-
-    with warnings.catch_warnings(record=True) as _:
-        norm_factor = np.nanmedian(tbl[params['oot_domain']]['sum_trace'])
-    tbl['sum_trace'] /= norm_factor
-    tbl['sum_trace_error'] /= norm_factor
+    # TODO: Got to here
 
     if ['per_pixel_baseline_correction']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')

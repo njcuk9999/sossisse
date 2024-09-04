@@ -20,6 +20,8 @@ from astropy.table import Table
 from tqdm import tqdm
 from scipy.ndimage import shift
 from scipy.signal import convolve2d
+from scipy.signal import medfilt2d
+from scipy.ndimage import binary_dilation
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
 from wpca import EMPCA
 
@@ -84,6 +86,9 @@ class Instrument:
         self._variables['TAG1'] = None
         self._variables['TAG2'] = None
         self._variables['META'] = None
+        self._variables['OUTPUT_NAMES'] = None
+        self._variables['OUTPUT_UNITS'] = None
+        self._variables['OUTPUT_FACTOR'] = None
         # simple vectors
         self._variables['OOT_DOMAIN'] = None
         self._variables['OOT_DOMAIN_BEFORE'] = None
@@ -112,6 +117,9 @@ class Instrument:
         self.vsources['TAG1'] = f'{self.name}.update_meta_data()'
         self.vsources['TAG2'] = f'{self.name}.update_meta_data()'
         self.vsources['META'] = f'{self.name}.update_meta_data()'
+        self.vsources['OUTPUT_NAMES'] = f'{self.name}.setup_linear_reconstruction()'
+        self.vsources['OUTPUT_UNITS'] = f'{self.name}.setup_linear_reconstruction()'
+        self.vsources['OUTPUT_FACTOR'] = f'{self.name}.setup_linear_reconstruction()'
         # simple vectors
         self.vsources['OOT_DOMAIN'] = f'{self.name}.get_valid_oot()'
         self.vsources['OOT_DOMAIN_BEFORE'] = f'{self.name}.get_valid_oot()'
@@ -1440,7 +1448,6 @@ class Instrument:
         # return the pcas
         return pcas
 
-
     def recenter_trace_position(self, tracemap: np.ndarray,
                                 med: np.ndarray) -> np.ndarray:
         # set function name
@@ -1498,6 +1505,394 @@ class Instrument:
         # return the updated trace map
         return self.get_trace_map()
 
+    def get_gradients(self, med: np.ndarray) -> List[np.ndarray]:
+        """
+        Get the gradients of the median image
+
+        :param med: np.ndarray, the median image
+
+        :return: tuple, 1. the x gradient, 2. the y gradient, 3. the rotation
+                    pattern, 4. the second derivative, 5. the median image
+        """
+        # print progress
+        msg = 'We find the gradients'
+        misc.printc(msg, 'info')
+        # ---------------------------------------------------------------------
+        # copy the med array into a new array
+        med2 = np.array(med)
+        # iterate four times and replace bad pixels with the median filter
+        # of the data of the 5 pixels around them (in the x direction)
+        for _ in range(4):
+            # get median filter
+            med_filter = medfilt2d(med2, kernel_size=[1, 5])
+            # mask bad pixels
+            bad = ~np.isfinite(med2)
+            # update the med2 array
+            med2[bad] = med_filter[bad]
+        # ---------------------------------------------------------------------
+        # find gradients along the x and y direction
+        dx, dy = np.gradient(med2)
+        # find the second derivative
+        ddy = np.gradient(dy, axis=0)
+        # ---------------------------------------------------------------------
+        # find the rotation pattern as per the coupling between the two axes
+        # ---------------------------------------------------------------------
+        # get the indices
+        yy, xx = np.indices(med2.shape, dtype=float)
+        # we assume a pivot relative to the center of the array
+        xx -= med2.shape[1] / 2.0
+        yy -= med2.shape[0] / 2.0
+        # infinitesimal motion in rotation scaled to 1 radian
+        rotxy = xx * dy - yy * dx
+        # make sure dx and dy are floats
+        dx, dy = np.array(dx, dtype=float), np.array(dy, dtype=float)
+        # make sure rotation and ddy are floats
+        rotxy, ddy = np.array(rotxy, dtype=float), np.array(ddy, dtype=float)
+        # ---------------------------------------------------------------------
+        plots.gradient_plot(self.params, dx, dy, rotxy)
+        # ---------------------------------------------------------------------
+        # return these values
+        return [dx, dy, rotxy, ddy, med2]
+
+    def get_mask_trace_pos(self, med: np.ndarray, tracemap: np.ndarray
+                           ) -> List[np.ndarray]:
+        """
+        Get the mask trace positions
+
+        :param med: np.ndarray, the median image
+        :param tracemap: np.ndarray, the trace map
+
+        :return: list, 1. the mask trace positions, 2. the x order 0 positions,
+                       3. the y order 0 positions, 4. the x trace positions,
+                       5. the y trace positions
+        """
+        # set up the mask trace (all true to start)
+        mask_trace_pos = np.ones_like(med, dtype=int)
+        # ---------------------------------------------------------------------
+        if self.params['TRACE_WIDTH_MASKING'] != 0:
+            mask_trace_pos[~tracemap] = 0
+            # define a box for binary dilation
+            box = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+            # binary dilate the mask trace positions (expand them)
+            bdilate = binary_dilation(mask_trace_pos, structure=box)
+            # get the x and y trace positions from the binary dilation and mask
+            y_trace_pos, x_trace_pos = np.where(bdilate != mask_trace_pos)
+        else:
+            y_trace_pos, x_trace_pos = np.array([np.nan]), np.array([np.nan])
+        # ---------------------------------------------------------------------
+        # deal with masking order zero
+        if self.params['MASK_ORDER_0']:
+            # adding the masking of order 0
+            mask_order0, x_order0, y_order0 = self.get_mask_order0(mask_trace_pos)
+            mask_trace_pos[mask_order0] = 0
+        else:
+            # if we don't have a mask, we set dummy values for the plot later in the code
+            x_order0 = [np.nan]
+            y_order0 = [np.nan]
+        # return the mask trace positions
+        return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
+
+    def get_mask_order0(self, mask_trace_pos: np.ndarray, tracemap: np.ndarray
+                        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get the mask for order 0 - this is a dummy function that returns
+        the default values and overriden by JWST.NIRISS.SOSS
+
+        :param mask_trace_pos: np.ndarray, the mask trace positions
+        :param tracemap: np.ndarray, the trace map
+
+        :return: tuple, 1. the updated mask trace positions, 2. the x order 0
+                        positions, 3. the y order 0 positions
+        """
+        # default option does not use tracemap
+        _ = tracemap
+        # default option is not to mask order 0 (overridden by SOSS)
+        empty_x = np.array([np.nan])
+        empty_y = np.array([np.nan])
+        # return the default values
+        return mask_trace_pos, empty_x, empty_y
+
+    def setup_linear_reconstruction(self, med: np.ndarray, dx: np.ndarray,
+                                    dy: np.ndarray, rotxy: np.ndarray,
+                                    ddy: np.ndarray, pca: np.ndarray,
+                                    med_diff: np.ndarray) -> np.ndarray:
+        """
+        Setup the linear reconstruction vector and output column names
+
+        Size of the vector is (M X N) where N is the dx.ravel() and M is the
+        options which are switched on
+
+        M = 1  (amplitude) by default in all cases
+
+        then we add the following depending on the user input
+        - FIT_DX [M += 1]
+        - FIT_DY [M += 1]
+        - FIT_ROTATION [M += 1]
+        - FIT_ZERO_POINT_OFFSET [M += 1]
+        - FIT_DDY [M += 1]
+        - FIT_BEFORE_AFTER [M += 1]
+        - FIT_PCA [M += n_comp]
+        - FIT_QUAD_TERM [M += 1]
+
+        :param med: np.ndarray, the median image
+        :param dx: np.ndarray, the x gradient
+        :param dy: np.ndarray, the y gradient
+        :param rotxy: np.ndarray, the rotation pattern
+        :param ddy: np.ndarray, the second derivative
+        :param pca: np.ndarray, the pca components
+        :param med_diff: np.ndarray, the median difference
+
+        :return: np.ndarray, the starting linear reconstruction vector
+                 depending on which parameters are switched on
+                 (M x N) where N is the dx.ravel() and M is the options which
+                 are switched on
+        """
+        # vector is the median ravelled
+        vector = [med.ravel()]
+        # output parameters
+        output_names, output_units, output_factor = [], [], []
+        # add the amplitude
+        output_names.append('amplitude')
+        output_units.append('flux')
+        output_factor.append(1.0)
+        # ---------------------------------------------------------------------
+        # deal with fit dx
+        if self.params['FIT_DX']:
+            vector.append(dx.ravel())
+            output_names.append('dx')
+            output_units.append('mpix')
+            output_factor.append(1e3)
+        # ---------------------------------------------------------------------
+        # deal with fix dy
+        if self.params['FIT_DY']:
+            vector.append(dy.ravel())
+            output_names.append('dy')
+            output_units.append('mpix')
+            output_factor.append(1e3)
+        # ---------------------------------------------------------------------
+        # deal with fit rotation
+        if self.params['FIT_ROTATION']:
+            vector.append(rotxy.ravel())
+            output_names.append('theta')
+            output_units.append('mpix')
+            output_factor.append(129600 / (2 * np.pi))
+        # ---------------------------------------------------------------------
+        # deal with zero point offset fit
+        if self.params['FIT_ZERO_POINT_OFFSET']:
+            vector.append(np.ones_like(dx.ravel()))
+            output_names.append('zeropoint')
+            output_units.append('flux')
+            output_factor.append(1.0)
+        # ---------------------------------------------------------------------
+        # deal with fit second derivative
+        if self.params['FIT_DDY']:
+            vector.append(ddy.ravel())
+            output_names.append('ddy')
+            output_units.append('mpix$^2$')
+            output_factor.append(1e6)
+        # ---------------------------------------------------------------------
+        # deal with fit before / after
+        if self.params['FIT_BEFORE_AFTER']:
+            vector.append(np.zeros_like(med).ravel())
+            output_names.append('before_after')
+            output_units.append('ppm')
+            output_factor.append(1e6)
+        # ---------------------------------------------------------------------
+        # deal with fit pca
+        if self.params['FIT_PCA'] and pca is not None:
+            n_comp = self.params['FIT_N_PCA']
+            for icomp in range(n_comp):
+                vector.append(pca[icomp].ravel())
+                output_names.append(f'PCA{icomp+1}')
+                output_units.append('ppm')
+                output_factor.append('1.0')
+        # ---------------------------------------------------------------------
+        # deal with quadratic term
+        if self.params['FIT_QUAD_TERM']:
+            vector.append(med_diff.ravel() ** 2)
+            output_names.append('flux^2')
+            output_units.append('flux$^2$')
+            output_factor.append(1.0)
+        # ---------------------------------------------------------------------
+        # convert vector to numpy array
+        vector = np.array(vector)
+        # ---------------------------------------------------------------------
+        # push into variables
+        self.set_variable('OUTPUT_NAMES', output_names)
+        self.set_variable('OUTPUT_UNITS', output_units)
+        self.set_variable('OUTPUT_FACTOR', output_factor)
+        # return the vector
+        return vector
+
+    def apply_amp_recon(self, cube: np.ndarray, err: np.ndarray,
+                        med: np.ndarray, mask_trace_pos: np.ndarray,
+                        lvector: np.ndarray,
+                        x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
+                        x_order0: np.ndarray, y_order0: np.ndarray
+                        ) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+        """
+        Apply the amplitude reconstruction to the cube
+
+        outputs:
+
+        1. 'amplitude' -> the amplitude of the trace
+        2. 'dx' -> amplitude of the dx of the trace (if FIT_DX)
+        3. 'dy' -> amplitude of the dy of the trace (if FIT_DY)
+        4. 'theta' -> amplitude of the rotation of the trace (if FIT_ROTATION)
+        5. 'zeropoint' -> amplitude of the zero point offset (if FIT_ZERO_POINT_OFFSET)
+        6. 'ddy' -> amplitude of the second derivative of the trace (if FIT_DDY)
+        7. 'before_after' -> amplitude of the before/after trace (if FIT_BEFORE_AFTER)
+        8+Q. 'PCAQ' -> amplitude of the first PCA component (if FIT_PCA)
+                       note there are Q components
+        9. 'flux^2' -> amplitude of the flux squared (if FIT_QUAD_TERM)
+
+        :param cube: np.ndarray, the cube
+        :param err: np.ndarray, the error cube
+        :param med: np.ndarray, the median image
+        :param mask_trace_pos: np.ndarray, the mask trace positions
+        :param lvector: np.ndarray, the linear reconstruction vector
+        :param x_trace_pos: np.ndarray, the x trace positions
+        :param y_trace_pos: np.ndarray, the y trace positions
+        :param x_order0: np.ndarray, the x order 0 positions
+        :param y_order0: np.ndarray, the y order 0 positions
+
+        :return: tuple, 1. dict, the outputs (see above), 2. the recon cube
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.apply_amp_recon()'
+        # get parameters
+        nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        output_names = self.get_variable('OUTPUT_NAMES', func_name)
+        zpoint = self.params['FIT_ZERO_POINT_OFFSET']
+        # vectors to keep track of the rotation/amplitudes/dx/dy
+        all_recon = np.zeros_like(cube)
+        # ---------------------------------------------------------------------
+        # storage to append to (one value for each frame of the cube)
+        outputs = dict()
+        for output_name in output_names:
+            outputs[output_name] = np.zeros(cube.shape[0])
+            outputs[output_name + '_error'] = np.zeros(cube.shape[0])
+        # add rms cube of the reconstruction
+        outputs['rms_cube_recon'] = np.zeros(cube.shape[0])
+        # add the sum of the trace
+        outputs['sum_trace'] = np.zeros(cube.shape[0])
+        # add the sum of the trace error
+        outputs['sum_trace_error'] = np.zeros(cube.shape[0])
+        # add the amplitude without the model
+        outputs['amplitude_no_model'] = np.zeros(cube.shape[0])
+        # add the amplitude without the model error
+        outputs['amplitude_no_model error'] = np.zeros(cube.shape[0])
+        # ---------------------------------------------------------------------
+        # storage a trace correction array
+        trace_corr = np.zeros(nframes, dtype=float)
+        # loop around the frames
+        for iframe in tqdm(range(cube.shape[0]), leave=False):
+            # find the best combination of scale/dx/dy/rotation
+            # amps is a vector with the amplitude of all fitted terms
+            # -----------------------------------------------------------------
+            # set up a mask of valid pixels
+            valid = np.isfinite(cube[iframe], dtype=float)
+            valid[valid != 1] = np.nan
+            valid[mask_trace_pos == 0] = np.nan
+            # -----------------------------------------------------------------
+            # calculate the sum of the trace
+            with warnings.catch_warnings(record=True) as _:
+                # work out the sum and error on the sum of the trace
+                sum_trace = np.nansum(cube[iframe] * valid)
+                err_sum_trace = np.sqrt(np.nansum(err[iframe]**2 * valid))
+                # push into outputs
+                outputs['sum_trace'][iframe] = sum_trace
+                outputs['sum_trace_error'][iframe] = err_sum_trace
+            # -----------------------------------------------------------------
+            # calculate the amplitude when there is no model applied
+            with warnings.catch_warnings(record=True) as _:
+                # normalize cube by median
+                tmp_slice = valid * (cube[iframe] / med.ravel())
+                tmp_slice_err = valid * (err[iframe] / med.ravel())
+                # get the odd ratio mean
+                amp0 = mp.odd_ratio_mean(tmp_slice, tmp_slice_err)
+                # push into outputs
+                outputs['amplitude_no_model'][iframe] = amp0[0]
+                outputs['amplitude_no_model error'][iframe] = amp0[1]
+            # -----------------------------------------------------------------
+            # >5 sigma clipping of linear system
+            bad = np.abs((cube[iframe] - med * amp0[0]) / err[iframe]) > 5
+            valid[bad] = np.nan
+            # setup inputs to lin mini errors
+            largs = [cube[iframe] * valid, err[iframe], lvector]
+            amp_model, err_model, recon = mp.lin_mini_errors(*largs)
+            # -----------------------------------------------------------------
+            # deal with zero point offset (subtract it off the recon)
+            if zpoint:
+                recon -= amp_model[output_names == 'zero point']
+            # -----------------------------------------------------------------
+            # calculate the trace correction
+            part1 = np.nansum(recon * valid / err[iframe]**2)
+            part2 = np.nansum(med * amp_model[0] * valid / err[iframe]**2)
+            trace_corr[iframe] = part1 / part2
+            # -----------------------------------------------------------------
+            # plot the trace correction sample plot
+            if iframe == 0:
+                plots.trace_correction_sample(self.params, iframe,
+                                              cube, recon,
+                                              x_trace_pos, y_trace_pos,
+                                              x_order0, y_order0)
+            # -----------------------------------------------------------------
+            # push amplitudes into outputs
+            for amp_it in range(len(amp_model)):
+                # get the amp name
+                amp_name = output_names[amp_it]
+                amp_err_name = output_names[amp_it] + '_error'
+                # put into storage
+                outputs[amp_name][iframe] = amp_model[amp_it]
+                outputs[amp_err_name][iframe] = err_model[amp_it]
+            # -----------------------------------------------------------------
+            # update the cube
+            cube[iframe] -= recon
+            # update the recons (relative to the no model amplitude)
+            all_recon[iframe] = recon / amp_model[0]
+            # -----------------------------------------------------------------
+            # force cube to floats
+            tmp_slice = np.array(cube[iframe], dtype=float)
+            # calculate the rms of the recon cube
+            outputs['rms_cube_recon'][iframe] = mp.estimate_sigma(tmp_slice)
+        # ---------------------------------------------------------------------
+        # normalize the trace correction by the median
+        trace_corr /= np.nanmedian(trace_corr)
+        # push into outputs
+        outputs['amplitude_uncorrected'] = np.array(outputs['amplitude'])
+        outputs['aperture_correction'] = trace_corr
+        # update the amplitudes by the trace correction
+        outputs['amplitude'] = outputs['amplitude'] * trace_corr
+        # ---------------------------------------------------------------------
+        # plot the aperture correction plot
+        plots.aperture_correction_plot(self.params, outputs, trace_corr)
+        # ---------------------------------------------------------------------
+        # return the outputs
+        return outputs, all_recon
+
+    def normalize_sum_trace(self, loutputs: Dict[str, np.ndarray]
+                            ) -> Dict[str, np.ndarray]:
+        """
+        Normalize the sum trace by the median of the sum trace
+
+        :param loutputs: dict, the outputs
+
+        :return: dict, the normalized outputs
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.normalize_sum_trace()'
+        # validate out-of-transit domain
+        self.get_valid_oot()
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # get the normalization factor
+        with warnings.catch_warnings(record=True) as _:
+            norm_factor = np.nanmedian(loutputs[oot_domain]['sum_trace'])
+        # apply the normalization factor
+        loutputs['sum_trace'] /= norm_factor
+        loutputs['sum_trace_error'] /= norm_factor
+        # return the outputs
+        return loutputs
 
 
 # =============================================================================

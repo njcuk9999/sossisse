@@ -64,12 +64,24 @@ def save_show_plot(params: Dict[str, Any], outname: str):
 # =============================================================================
 def pca_plot(params: Dict[str, Any], n_comp: int, pcas: np.ndarray,
              variance_ratio: np.ndarray):
+    """
+    Plot the PCA components
+
+    :param params: Dict[str, Any], the parameters for the instrument
+    :param n_comp: int, the number of PCA components we have
+    :param pcas: np.ndarray, the PCA components
+    :param variance_ratio: np.ndarray, ratio of variance normaliszed to the
+                           first component
+
+    :return: None, plots graph
+    """
     # set up figure
     fig, frames = plt.subplots(nrows=n_comp, ncols=1, sharex='all',
                                sharey='all', figsize=[8, 4 * n_comp])
     # deal with single component (frames is a single axis)
     if n_comp == 1:
         frames = [frames]
+    # -------------------------------------------------------------------------
     # loop around components
     for icomp in range(n_comp):
         i_pca = pcas[icomp]
@@ -81,15 +93,163 @@ def pca_plot(params: Dict[str, Any], n_comp: int, pcas: np.ndarray,
         # set the title of the plot
         title = f'PCA {icomp + 1}, variance {variance_ratio[icomp]:.4f}'
         frames[icomp].set(title=title)
-
+    # -------------------------------------------------------------------------
+    # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(params, 'file_temporary_pcas')
 
 
+def gradient_plot(params: Dict[str, Any], dx: np.ndarray, dy: np.ndarray,
+                  rotxy: np.ndarray):
+    """
+    Plot the gradients
+
+    :param params: Dict[str, Any], the parameters for the instrument
+    :param dx: np.ndarray, the gradient in x
+    :param dy: np.ndarray, the gradient in y
+    :param rotxy: np.ndarray, the rotation between x and y
+
+    :return: None, plots graph
+    """
+    # set up figure
+    fig, frames = plt.subplots(nrows=3, ncols=1, sharex='all', sharey='all')
+    # -------------------------------------------------------------------------
+    # work out the rms of dx
+    rms = np.nanpercentile(dx, [5, 95])
+    rms = rms[1] - rms[0]
+    # -------------------------------------------------------------------------
+    # plot dx
+    frames[0].imshow(dx, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    rms = np.nanpercentile(dy, [5, 95])
+    # work out the rms of dy
+    rms = rms[1] - rms[0]
+    # -------------------------------------------------------------------------
+    # plot dy
+    frames[1].imshow(dy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    # work out the rms of rotxy
+    rms = np.nanpercentile(rotxy, [5, 95])
+    rms = rms[1] - rms[0]
+    # -------------------------------------------------------------------------
+    # plot rotxy
+    frames[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'derivatives{0}'.format(params['tag']))
 
 
+def mask_order0_plot(params: Dict[str, Any], diff: np.ndarray,
+                     sigmask: np.ndarray):
+    # set up figure
+    fig, frames = plt.subplots(nrows=2, ncols=1)
+    # -------------------------------------------------------------------------
+    # plot the diff
+    frames[0].imshow(diff, aspect='auto', origin='lower',
+                     vmin=np.nanpercentile(diff, 2),
+                     vmax=np.nanpercentile(diff, 80),
+                     interpolation='none')
+    # -------------------------------------------------------------------------
+    # plot the sigmask
+    frames[1].imshow(sigmask, aspect='auto', origin='lower',
+                     interpolation='none')
+    # set titles
+    frames[0].set(title='median residual in-out')
+    frames[1].set(title='mask')
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'masking_order0_{0}'.format(params['tag']))
+
+
+def trace_correction_sample(params: Dict[str, Any], iframe: int, 
+                            cube: np.ndarray, recon: np.ndarray,
+                            x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
+                            x_order0: np.ndarray, y_order0: np.ndarray):
+    # setup the figure
+    fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
+    # plot the cube
+    frames[0].imshow(cube[iframe], aspect='auto', origin='lower',
+                     vmin=np.nanpercentile(cube[iframe], 1), 
+                     vmax=np.nanpercentile(cube[iframe], 95))
+    frames[0].set(title='Sample Image')
+    # -------------------------------------------------------------------------
+    # remove the recon temporarily for the plot
+    tmp = cube[iframe] - recon
+    # plot the cube minus the recon
+    frames[1].imshow(tmp, aspect='auto', origin='lower',
+                     vmin=np.nanpercentile(tmp, 5), 
+                     vmax=np.nanpercentile(tmp, 95))
+    # -------------------------------------------------------------------------
+    # plot the trace positions
+    frames[0].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2)
+    frames[1].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2, 
+                   label='trace mask')
+    # -------------------------------------------------------------------------
+    # plot the order0 positions (if given)
+    if len(x_order0) > 2:
+        frames[0].plot(x_order0, y_order0, 'r.', alpha=0.1)
+        frames[1].plot(x_order0, y_order0, 'r.', alpha=0.1, label='order 0')
+    # -------------------------------------------------------------------------
+    # setup the legend and title
+    frames[1].legend()
+    frames[1].set(title='Residual')
+    # -------------------------------------------------------------------------
+    # remove the x and y axis labels
+    frames[0].get_xaxis().set_visible(False)
+    frames[0].get_yaxis().set_visible(False)
+    frames[1].get_xaxis().set_visible(False)
+    frames[1].get_yaxis().set_visible(False)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'sample_frame{0}_{1}'.format(iframe, params['tag']))
+    
+
+def aperture_correction_plot(params: Dict[str, Any],
+                             outputs: Dict[str, Any], trace_corr: np.ndarray):
+    # get values from outputs
+    xpix = np.arange(len(outputs['amplitude_uncorrected']))
+    amp_uncorr = outputs['amplitude_uncorrected']
+    amp_corr = outputs['amplitude']
+    yerr = outputs['amplitude_error']
+    # scale the trace correction
+    tmp_trace_corr = 1e3 * (trace_corr - 1)
+    # get the limits of the trace correction
+    p12 = np.nanpercentile(tmp_trace_corr, [1, 99])
+    # -------------------------------------------------------------------------
+    # setup the figure
+    fig, frames = plt.subplots(nrows=2, ncols=1, sharex='all', figsize=[10, 10])
+    # -------------------------------------------------------------------------
+    # plot the uncorrected amplitude
+    frames[0].errorbar(xpix, amp_uncorr, yerr=yerr, fmt='r.',
+                       alpha=0.3, label='uncorrected')
+    # -------------------------------------------------------------------------
+    # plot the corrected amplitude
+    frames[0].errorbar(xpix + 0.5, amp_corr, yerr=yerr,
+                       fmt='g.', alpha=0.3, label='corrected')
+    # -------------------------------------------------------------------------
+    # setup the title and legend
+    frames[0].set(title='amplitude')
+    frames[0].legend()
+    # -------------------------------------------------------------------------
+    # plot the trace correction
+    frames[1].plot(tmp_trace_corr, 'r.', alpha=0.3)
+    # convert the trace limits in to y limits on the graph
+    ylim = [p12[0] - 0.3 * (p12[1] - p12[0]), p12[1] + 0.3 * (p12[1] - p12[0])]
+    # set the title, labels and limits
+    frames[1].set(title='Apperture correction', ylabel='corr [ppt]', ylim=ylim)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'apperture_correction{0}'.format(params['tag']))
+
+
+# TODO: re-write
 def plot_sossice(tbl, params):
     params = science.get_valid_oot(params)
     params['output_factor'] = np.array(params['output_factor'], dtype=float)
@@ -152,6 +312,7 @@ def plot_sossice(tbl, params):
     plt.close()
 
 
+# TODO: re-write
 def plot_transit(tbl, params):
     params = science.get_valid_oot(params)
     val = tbl['amplitude']

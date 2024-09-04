@@ -174,7 +174,7 @@ DATA_BIN_SIZE: 1
 PIXEL_LEVEL_DETRENDING: false
 
 # Define which orders to use
-trace_orders:
+TRACE_ORDERS:
 - 1
 - 2
 
