@@ -146,14 +146,13 @@ def white_light_curve(inst: Instrument):
     # plot the stability plot
     plots.plot_stability(inst.params, l_table)
     # -------------------------------------------------------------------------
+    # plot the transit plot
+    plots.plot_transit(inst.params, l_table)
 
 
     # TODO: -------------------------------------------------------------------
     # TODO: Got to here
     # TODO: -------------------------------------------------------------------
-    # plot the transit plot
-    plots.plot_transit(inst.params, l_table)
-
     science.get_effective_wavelength(params)
 
     soss_io.yaml_to_html(params)

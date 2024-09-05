@@ -10,7 +10,7 @@ Created on 2024-08-13 at 11:23
 @author: cook
 """
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,8 +20,6 @@ from sossisse.core import base
 from sossisse.core import math
 from sossisse.core import misc
 from sossisse.core import math as mp
-from sossisse.general import science
-
 
 # =============================================================================
 # Define variables
@@ -39,6 +37,8 @@ def save_show_plot(params: Dict[str, Any], outname: str):
     """
     Save and show the plot
     :param params: dict, the parameters for the instrument
+    :param outname: str, the output name for the plot
+
     :return:
     """
     # loop around figure types
@@ -59,6 +59,24 @@ def save_show_plot(params: Dict[str, Any], outname: str):
     # finally close the plot
     plt.close()
 
+
+def cal_y_limits(value: np.ndarray, errvalue: np.ndarray) -> List[float]:
+    """
+    Calculate the y limits for a plot
+
+    :param value: np.ndarray, the value array
+    :param errvalue: np.ndarray, the error value array
+
+    :return: list of floats, the y limits [min, max]
+    """
+    # calculate the ylimit based on the 0.5th and 99.5th percentiles
+    y0 = np.nanpercentile(value - errvalue, 0.5)
+    y1 = np.nanpercentile(value + errvalue, 99.5)
+    diff_y = y1 - y0
+    # we set the limits an extra 8th of the difference above and below
+    ylim = [y0 - diff_y / 8, y1 + diff_y / 8]
+    # return the y limits
+    return ylim
 
 
 # =============================================================================
@@ -166,7 +184,7 @@ def mask_order0_plot(params: Dict[str, Any], diff: np.ndarray,
     save_show_plot(params, 'masking_order0_{0}'.format(params['tag']))
 
 
-def trace_correction_sample(params: Dict[str, Any], iframe: int, 
+def trace_correction_sample(params: Dict[str, Any], iframe: int,
                             cube: np.ndarray, recon: np.ndarray,
                             x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
                             x_order0: np.ndarray, y_order0: np.ndarray):
@@ -174,7 +192,7 @@ def trace_correction_sample(params: Dict[str, Any], iframe: int,
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
     # plot the cube
     frames[0].imshow(cube[iframe], aspect='auto', origin='lower',
-                     vmin=np.nanpercentile(cube[iframe], 1), 
+                     vmin=np.nanpercentile(cube[iframe], 1),
                      vmax=np.nanpercentile(cube[iframe], 95))
     frames[0].set(title='Sample Image')
     # -------------------------------------------------------------------------
@@ -182,12 +200,12 @@ def trace_correction_sample(params: Dict[str, Any], iframe: int,
     tmp = cube[iframe] - recon
     # plot the cube minus the recon
     frames[1].imshow(tmp, aspect='auto', origin='lower',
-                     vmin=np.nanpercentile(tmp, 5), 
+                     vmin=np.nanpercentile(tmp, 5),
                      vmax=np.nanpercentile(tmp, 95))
     # -------------------------------------------------------------------------
     # plot the trace positions
     frames[0].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2)
-    frames[1].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2, 
+    frames[1].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2,
                    label='trace mask')
     # -------------------------------------------------------------------------
     # plot the order0 positions (if given)
@@ -209,7 +227,7 @@ def trace_correction_sample(params: Dict[str, Any], iframe: int,
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(params, 'sample_frame{0}_{1}'.format(iframe, params['tag']))
-    
+
 
 def aperture_correction_plot(params: Dict[str, Any],
                              outputs: Dict[str, Any], trace_corr: np.ndarray):
@@ -251,9 +269,7 @@ def aperture_correction_plot(params: Dict[str, Any],
     save_show_plot(params, 'apperture_correction{0}'.format(params['tag']))
 
 
-# TODO: re-write
 def plot_stability(inst: Any, table: Table):
-
     # set function name
     func_name = f'{__NAME__}.plot_stability()'
     # validate out-of-transit domain
@@ -288,7 +304,7 @@ def plot_stability(inst: Any, table: Table):
     index = np.arange(npoints)
     # -------------------------------------------------------------------------
     # get the domain text
-    if  inst.params['WLC_DOMAIN'] is not None:
+    if inst.params['WLC_DOMAIN'] is not None:
         dargs = [inst.params['WLC_DOMAIN'][0], inst.params['WLC_DOMAIN'][1],
                  inst.params['SID']]
         domain = '({0:.2f} - {1:.2f}µm)\nunique ID {2}\n'.format(*dargs)
@@ -307,18 +323,18 @@ def plot_stability(inst: Any, table: Table):
         # ---------------------------------------------------------------------
         # get the value and error value from the table and scale it accordingly
         value = table[name_it] * factor_it
-        errval = table[name_it + '_error'] * factor_it
+        errvalue = table[name_it + '_error'] * factor_it
         # ---------------------------------------------------------------------
         # deal with having out of transit points
         if has_oot:
             # plot the out of transit points
             frames[it].errorbar(index[oot_domain], value[oot_domain],
-                                yerr=errval[oot_domain],
+                                yerr=errvalue[oot_domain],
                                 fmt='.', color='green', alpha=alpha,
                                 label='out-of-transit')
             # plot the in transit points
             frames[it].errorbar(index[~oot_domain], value[~oot_domain],
-                                yerr=errval[~oot_domain],
+                                yerr=errvalue[~oot_domain],
                                 fmt='.', color='red', alpha=alpha,
                                 label='in-transit')
             # only plot the legend for the first plot frame
@@ -327,17 +343,13 @@ def plot_stability(inst: Any, table: Table):
         # otherwise we just plot everything
         else:
             # plot all points
-            frames[it].errorbar(index, value, yerr=errval,
+            frames[it].errorbar(index, value, yerr=errvalue,
                                 fmt='g.', alpha=0.4)
         # ---------------------------------------------------------------------
         # axis labels, title and grid
         # ---------------------------------------------------------------------
-        # calculate the ylimit based on the 0.5th and 99.5th percentiles
-        y0 = np.nanpercentile(value - errval, 0.5)
-        y1 = np.nanpercentile(value + errval, 99.5)
-        diff_y = y1 - y0
-        # we set the limits an extra 8th of the difference above and below
-        ylim = [y0 - diff_y / 8, y1 + diff_y / 8]
+        # get the y limits
+        ylim = cal_y_limits(value, errvalue)
         # get the rms for this output
         rms_it = mp.estimate_sigma(table[name_it] * factor_it)
         # ---------------------------------------------------------------------
@@ -362,52 +374,89 @@ def plot_stability(inst: Any, table: Table):
     save_show_plot(inst.params, 'stability{0}'.format(inst.params['tag']))
 
 
-
-# TODO: re-write
-def plot_transit(tbl, params):
-    params = science.get_valid_oot(params)
-    val = tbl['amplitude']
-    errval = tbl['amplitude_error']
-
-    oot = params['oot_domain']
-    index = np.arange(len(tbl))
-
-    # 5-sigma
-    fit = math.robust_polyfit(index[oot], val[oot], params['transit_baseline_polyord'], 5)[0]
-    val = val / np.polyval(fit, index)
-
-    y0 = np.nanpercentile(val - errval, 0.5)
-    y1 = np.nanpercentile(val + errval, 99.5)
-    dy = y1 - y0
-    ylim = [y0 - dy / 2, y1 + dy / 2]
-
-    mid_transit = np.abs(index - (params['it'][0] + params['it'][3]) / 2) < 0.3 * (params['it'][3] - params['it'][0])
-
-    fit_mid = math.robust_polyfit(index[mid_transit], val[mid_transit], 2, 5)[0]
-
-    mid_transit_point = -.5 * fit_mid[1] / fit_mid[0]
+def plot_transit(inst: Any, table: Table):
+    # set function name
+    func_name = f'{__NAME__}.plot_transit()'
+    # validate out-of-transit domain
+    inst.get_valid_oot()
+    has_oot = inst.get_variable('HAS_OOT', func_name)
+    oot_domain = inst.get_variable('OOT_DOMAIN', func_name)
+    # get the polynomial degree for the transit baseline
+    poly_order = inst.params['TRANSIT_BASELINE_POLYORD']
+    # -------------------------------------------------------------------------
+    # get the contact points
+    cframes = inst.get_variable('CONTACT_FRAMES', func_name)
+    # get the number of points
+    npoints = len(table['amplitude'])
+    # -------------------------------------------------------------------------
+    # get the amplitude and error values
+    value = table['amplitude']
+    errvalue = table['amplitude_error']
+    # get the index of the pixels
+    index = np.arange(npoints)
+    # -------------------------------------------------------------------------
+    # deal with no out-of-transit defined
+    if not has_oot:
+        oot_domain = np.ones_like(index, dtype=bool)
+    # -------------------------------------------------------------------------
+    # 5-sigma robust poly fit of the continuum
+    ampfit, _ = mp.robust_polyfit(index[oot_domain], value[oot_domain],
+                                  degree=poly_order, nsigcut=5)
+    # remove this fit from the amplitude
+    value = value / np.polyval(ampfit, index)
+    # -------------------------------------------------------------------------
+    # deal with no out-of-transit defined (can't workout mid-transit)
+    if not has_oot:
+        mid_transit = np.ones_like(len(index))
+    else:
+        # calculate the mid-transit frames
+        norm_index = index - (cframes[0] + cframes[3]) / 2
+        mid_transit = np.abs(norm_index) < 0.3 * (cframes[3] - cframes[0])
+    # -------------------------------------------------------------------------
+    # fit the mid transit frames
+    fit_mid, _ = math.robust_polyfit(index[mid_transit], value[mid_transit],
+                                     degree=2, nsigcut=5)
+    # calculate the mid-transit point and depth
+    mid_transit_point = -0.5 * fit_mid[1] / fit_mid[0]
     mid_transit_depth = np.polyval(fit_mid, mid_transit_point)
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frame = plt.subplots(nrows=1, ncols=1, figsize=[8, 4])
+    # -------------------------------------------------------------------------
+    # plot the transit + fit (if we have out-of-transit defined)
+    if has_oot:
+        frame.errorbar(index[oot_domain], value[oot_domain],
+                       yerr=errvalue[oot_domain],
+                       fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
+        frame.errorbar(index[~oot_domain], value[~oot_domain],
+                       yerr=errvalue[~oot_domain],
+                       fmt='.', color='red', alpha=0.4, label='it', zorder=2)
+        # plot the transit fit
+        frame.plot(index[mid_transit], np.polyval(fit_mid, index[mid_transit]),
+                   'k--', zorder=10)
+        # add a legend
+        frame.legend()
+    # otherwise just plot the transit
+    else:
+        frame.errorbar(index, value, yerr=errvalue,
+                       fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
 
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=[8, 4])
-    ax.set(ylim=ylim)
-    ax.errorbar(index[oot], val[oot], yerr=errval[oot],
-                fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
-    ax.errorbar(index[~oot], val[~oot], yerr=errval[~oot],
-                fmt='.', color='red', alpha=0.4, label='it', zorder=2)
+    # ---------------------------------------------------------------------
+    # axis labels, title and grid
+    # ---------------------------------------------------------------------
+    # get the y limits
+    ylim = cal_y_limits(value, errvalue)
+    # get the title for the plot
+    title = f'{inst.params["OBJECTNAME"]} -- {inst.params["SUFFIX"]}\n'
+    title += f'{mid_transit_depth * 1e6:.0f} ppm'
 
-    ax.plot(index[mid_transit], np.polyval(fit_mid, index[mid_transit]), 'k--', zorder=10)
-    ax.set(title='{0} -- {1}\nMid-transit depth : {2:.0f} ppm'.format(params['object'],
-                                                                      params['suffix'], (1 - mid_transit_depth) * 1e6))
-    ax.set(xlabel='Nth frame')
-    ax.set(ylabel='Baseline-corrected flux')
-    ax.grid(linestyle='--', color='grey', zorder=-99)
-    ax.legend()
-
+    # set the axis
+    frame.set(xlabel='Nth frame', ylabel='Baseline-corrected flux', ylim=ylim,
+              title=title)
+    # set up the grid
+    frame.grid(linestyle='--', color='grey', zorder=-99)
+    # force a tight layout
     plt.tight_layout()
-    for figtype in params['figure_types']:
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        plt.savefig('{}/transit_{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype))
-    if params['show_plots']:
-        plt.show()
-    plt.close()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'transit_{0}'.format(inst.params['tag']))
