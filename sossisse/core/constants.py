@@ -564,6 +564,14 @@ CDICT['RECENTER_TRACE_POSITION'] = Const('RECENTER_TRACE_POSITION', value=True,
                                          modes='JWST.NIRISS.SOSS,'
                                                'JWST.NIRISS.FGS')
 # -----------------------------------------------------------------------------
+# Whether to fit a per pixel baseline correction
+comment = """
+Whether to fit a per pixel baseline correction
+"""
+CDICT['PER_PIXEL_BASELINE_CORRECTION'] = Const('PER_PIXEL_BASELINE_CORRECTION',
+                                               value=False, dtype=bool,
+                                               comment=comment, active=True)
+# -----------------------------------------------------------------------------
 # out of transit polynomial level correction
 comment = """
 out of transit polynomial level correction

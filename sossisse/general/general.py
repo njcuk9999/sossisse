@@ -18,22 +18,40 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
-from scipy.ndimage import binary_dilation
 from tqdm import tqdm
+
+from sossisse.core import base
 
 from sossisse.core import math
 from sossisse.core import misc
-from sossisse.general import plots, science, soss_io
-
+from sossisse.core import io
 from sossisse.instruments import Instrument
 
+# TODO: remove
+from sossisse.general import plots, science, soss_io
 
+# =============================================================================
+# Define variables
+# =============================================================================
+__NAME__ = 'sossisse.core.misc'
+__version__ = base.__version__
+__date__ = base.__date__
+__authors__ = base.__authors__
+
+
+# =============================================================================
+# Define functions
+# =============================================================================
 def white_light_curve(inst: Instrument):
-    # pass either the param file or the params themselves
+    """
+    White light curve functionality
 
-    # check the sample parameter files for guidance on proper keywords
-    # set force = True to force a re-writing of the temporary files
-    # meant to speed to code
+    :param inst: Instrument, the instrument object
+    :return:
+    """
+    # set the function name
+    func_name = f'{__NAME__}.white_light_curve'
+    # print the splash
     misc.sossart()
     # get parameters from instrumental parameters
     objname = inst.params['OBJECTNAME']
@@ -78,50 +96,63 @@ def white_light_curve(inst: Instrument):
     # amps[3] -> rotation (in radians) normalized on reference trace
     # amps[4] -> 2nd derivative in y [if option activated]
     # -------------------------------------------------------------------------
-    loutputs, lrecon = inst.apply_amp_recon(cube, err, med, mask_trace_pos,
-                                            lvector, x_trace_pos, y_trace_pos,
-                                            x_order0, y_order0)
+    l_table, lrecon = inst.apply_amp_recon(cube, err, med, mask_trace_pos,
+                                           lvector, x_trace_pos, y_trace_pos,
+                                           x_order0, y_order0)
     # -------------------------------------------------------------------------
     # normalize the trace but a normalization factor
-    loutputs = inst.normalize_sum_trace(loutputs)
+    l_table = inst.normalize_sum_trace(l_table)
 
-
-    # TODO: Got to here
-
-    if ['per_pixel_baseline_correction']:
+    # -------------------------------------------------------------------------
+    # per pixel baseline
+    if inst.params['PER_PIXEL_BASELINE_CORRECTION']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
-        cube = science.per_pixel_baseline(cube, mask, params)
+        cube = inst.per_pixel_baseline(cube, mask)
 
-    # TODO: you shouldn't use '/'  as it is OS dependent
-    # TODO: use os.path.join(1, 2, 3)
-    outname = '{}/errormap{}.fits'.format(params['TEMP_PATH'], params['tag'])
-    if not os.path.isfile(outname):
-        fits.writeto(outname, err, overwrite=True)
+    # -------------------------------------------------------------------------
+    # write files
+    # -------------------------------------------------------------------------
+    # get the meta data
+    meta_data = inst.get_variable('META', func_name)
+    # -------------------------------------------------------------------------
+    # write the error map
+    errfile = os.path.join(inst.params['TEMP_PATH'],
+                           'errormap{}.fits'.format(inst.params['tag']))
+    io.save_fitsimage(errfile, err, meta=meta_data)
+    # -------------------------------------------------------------------------
+    # write the residual map
+    resfile = os.path.join(inst.params['TEMP_PATH'],
+                           'residual{}.fits'.format(inst.params['tag']))
+    io.save_fitsimage(resfile, cube, meta=meta_data)
+    # -------------------------------------------------------------------------
+    # write the recon
+    reconfile = os.path.join(inst.params['TEMP_PATH'],
+                                'recon{}.fits'.format(inst.params['tag']))
+    io.save_fitsimage(reconfile, lrecon, meta=meta_data)
+    # -------------------------------------------------------------------------
+    # write the table to the csv path
+    ltbl_file = os.path.join(inst.params['CSV_PATH'],
+                             'stability{}.csv'.format(inst.params['tag']))
+    io.save_table(ltbl_file, l_table, fmt='csv')
+    # -------------------------------------------------------------------------
+    # print the rms baseline for all methods
+    for method in inst.get_rms_baseline():
+        # calculate the rms for this method
+        rms_method = inst.get_rms_baseline(l_table['amplitude'], method=method)
+        # print this
+        msg = '{0}, rms = {1:.1f}ppm'.format(method, rms_method * 1e6)
+        misc.printc(msg, 'number')
+    # -------------------------------------------------------------------------
+    # plot the stability plot
+    plots.plot_stability(inst.params, l_table)
+    # -------------------------------------------------------------------------
 
-    # TODO: you shouldn't use '/'  as it is OS dependent
-    # TODO: use os.path.join(1, 2, 3)
-    outname = '{}/residual{}.fits'.format(params['TEMP_PATH'], params['tag'])
-    if not os.path.isfile(outname):
-        fits.writeto(outname, cube, overwrite=True)
 
-    # TODO: you shouldn't use '/'  as it is OS dependent
-    # TODO: use os.path.join(1, 2, 3)
-    outname = '{}/recon{}.fits'.format(params['TEMP_PATH'], params['tag'])
-    if not os.path.isfile(outname):
-        fits.writeto(outname, all_recon, overwrite=True)
-
-    # TODO: you shouldn't use '/'  as it is OS dependent
-    # TODO: use os.path.join(1, 2, 3)
-    tbl.write('{}/soss_stability{}.csv'.format(params['CSV_PATH'], params['tag']), overwrite=True)
-    tbl.write('{}/soss_stability{}.csv'.format(params['PLOT_PATH'], params['tag']), overwrite=True)
-
-    # gives the list of methods if you don't know the one to use
-    for method in science.get_rms_baseline():
-        rms1 = science.get_rms_baseline(tbl['amplitude'], method=method)
-        misc.printc('{0}, rms = {1:.1f}ppm'.format(method, rms1 * 1e6), 'number')
-
-    plots.plot_sossice(tbl, params)
-    plots.plot_transit(tbl, params)
+    # TODO: -------------------------------------------------------------------
+    # TODO: Got to here
+    # TODO: -------------------------------------------------------------------
+    # plot the transit plot
+    plots.plot_transit(inst.params, l_table)
 
     science.get_effective_wavelength(params)
 

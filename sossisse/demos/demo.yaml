@@ -13,9 +13,6 @@
 #  /sossiopath/mode/object/plots_*unique_id* / -> plots for that run
 #  /sossiopath/mode/object/csv_*unique_id* /-> csv files for that run
 #
-# *unique_id* will be a long random string constructed from the checksum of
-#    the config file
-#
 
 # The data directory (required)
 SOSSIOPATH: /data/jwst/sossisse/data/demo/
@@ -198,6 +195,9 @@ MASK_ORDER_ZERO: true
 
 # Whether to recenter the trace position
 RECENTER_TRACE_POSITION: true
+
+# Whether to fit a per pixel baseline correction
+PER_PIXEL_BASELINE_CORRECTION: true
 
 # out of transit polynomial level correction
 TRANSIT_BASELINE_POLYORD: 2

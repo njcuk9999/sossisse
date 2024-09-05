@@ -17,18 +17,19 @@ from typing import Any, Dict, List, Tuple, Union
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
-from tqdm import tqdm
+from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from scipy.ndimage import binary_dilation
 from scipy.ndimage import shift
 from scipy.signal import convolve2d
 from scipy.signal import medfilt2d
-from scipy.ndimage import binary_dilation
-from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from tqdm import tqdm
 from wpca import EMPCA
 
 from sossisse.core import base
 from sossisse.core import exceptions
-from sossisse.core import misc
+from sossisse.core import io
 from sossisse.core import math as mp
+from sossisse.core import misc
 from sossisse.general import plots
 
 # =============================================================================
@@ -82,6 +83,7 @@ class Instrument:
         # true/false flags
         self._variables['DO_BACKGROUND'] = None
         self._variables['FLAG_CDS'] = None
+        self._variables['HAS_OOT'] = None
         # meta data
         self._variables['TAG1'] = None
         self._variables['TAG2'] = None
@@ -113,6 +115,7 @@ class Instrument:
         # true/false flags
         self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
         self.vsources['FLAG_CDS'] = f'{self.name}.load_data_with_dq()'
+        self.vsources['HAS_OOT'] = f'{self.name}.get_valid_oot()'
         # meta data
         self.vsources['TAG1'] = f'{self.name}.update_meta_data()'
         self.vsources['TAG2'] = f'{self.name}.update_meta_data()'
@@ -310,13 +313,8 @@ class Instrument:
         :return: data, the loaded data
         """
         _ = self
-        # try to get data from filename
-        try:
-            data = fits.getdata(filename, ext, extname)
-        except Exception as e:
-            emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
-            eargs = [filename, type(e), str(e)]
-            raise exceptions.SossisseFileException(emsg.format(*eargs))
+        # default is to just load the fits file
+        data = io.load_fits(filename, ext, extname)
         # return the data
         return data
 
@@ -330,12 +328,8 @@ class Instrument:
         :return: data, the loaded data
         """
         _ = self
-        try:
-            data = Table.read(filename, ext)
-        except Exception as e:
-            emsg = 'Error loading table from file: {0}\n\t{1}: {2}'
-            eargs = [filename, type(e), str(e)]
-            raise exceptions.SossisseFileException(emsg.format(*eargs))
+        # default is to just load the table file
+        data = io.load_table(filename, ext)
         # return the data
         return data
 
@@ -1099,6 +1093,7 @@ class Instrument:
         misc.printc('First median of cube to create trace esimate', 'info')
         # validate out-of-transit domain
         self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
         oot_domain_before = self.get_variable('OOT_DOMAIN_BEFORE', func_name)
         oot_domain_after = self.get_variable('OOT_DOMAIN_AFTER', func_name)
@@ -1106,9 +1101,9 @@ class Instrument:
         # get flag for median out of transit
         med_oot = self.params['MEDIAN_OOT']
         # ---------------------------------------------------------------------
-        # deal  with creating median
+        # deal with creating median
         with warnings.catch_warnings:
-            if med_oot:
+            if med_oot and has_oot:
                 med = np.nanmedian(cube2[oot_domain], axis=0)
             else:
                 med = np.nanmedian(cube2, axis=0)
@@ -1206,15 +1201,28 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.get_valid_oot()'
         # get the oot domain
         oot_domain = self._variables['OOT_DOMAIN']
+        # deal with value already found
+        if oot_domain is not None:
+            return
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
         # get the contact points
         cframes = self.params['CONTACT_FRAMES']
+        # deal with no cframes set (can happen)
+        if cframes is None:
+            # set flag
+            self.set_variable('HAS_OOT', False)
+            # update variables
+            self.set_variable('OOT_DOMAIN', 
+                              np.zeros(data_n_frames, dtype=bool))
+            self.set_variable('OOT_DOMAIN_BEFORE',  
+                              np.zeros(data_n_frames, dtype=bool))
+            self.set_variable('OOT_DOMAIN_AFTER',  
+                              np.zeros(data_n_frames, dtype=bool))
+            self.set_variable('INT_DOMAIN', np.ones(data_n_frames, dtype=bool))
+            return
         # get the rejection domain
         rej_domain = self.params['REJECT_DOMAIN']
-        # deal with value already found
-        if oot_domain is not None:
-            return
         # if we don't have out-of-transit domain work it out
         valid_oot = np.ones(data_n_frames, dtype=bool)
         # set the frames in the transit to False
@@ -1250,6 +1258,8 @@ class Instrument:
                 # set to False in valid_int
                 valid_int[start:end] = False
         # ---------------------------------------------------------------------
+        # set flag
+        self.set_variable('HAS_OOT', True)
         # update variables
         self.set_variable('OOT_DOMAIN', valid_oot)
         self.set_variable('OOT_DOMAIN_BEFORE', valid_oot_before)
@@ -1352,7 +1362,15 @@ class Instrument:
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # validate out-of-transit domain
         self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # if we don't have oot domain we cannot do the pca analysis
+        if not has_oot:
+            wmsg = ('Cannot do PCA analysis without out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to use PCA.')
+            misc.printc(wmsg, 'warning')
+            return None
         # ---------------------------------------------------------------------
         # only fit the pca to the flux in the trace (nan everything else)
         nanmask = np.ones_like(tracemap, dtype=float)
@@ -1650,7 +1668,9 @@ class Instrument:
         # vector is the median ravelled
         vector = [med.ravel()]
         # output parameters
-        output_names, output_units, output_factor = [], [], []
+        output_names: List[str] = []
+        output_units: List[str] = []
+        output_factor: List[float] = []
         # add the amplitude
         output_names.append('amplitude')
         output_units.append('flux')
@@ -1705,7 +1725,7 @@ class Instrument:
                 vector.append(pca[icomp].ravel())
                 output_names.append(f'PCA{icomp+1}')
                 output_units.append('ppm')
-                output_factor.append('1.0')
+                output_factor.append(1.0)
         # ---------------------------------------------------------------------
         # deal with quadratic term
         if self.params['FIT_QUAD_TERM']:
@@ -1729,7 +1749,7 @@ class Instrument:
                         lvector: np.ndarray,
                         x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
                         x_order0: np.ndarray, y_order0: np.ndarray
-                        ) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+                        ) -> Tuple[Table, np.ndarray]:
         """
         Apply the amplitude reconstruction to the cube
 
@@ -1868,11 +1888,12 @@ class Instrument:
         # plot the aperture correction plot
         plots.aperture_correction_plot(self.params, outputs, trace_corr)
         # ---------------------------------------------------------------------
+        # convert outputs to an astropy table
+        output_table = Table(outputs)
         # return the outputs
-        return outputs, all_recon
+        return output_table, all_recon
 
-    def normalize_sum_trace(self, loutputs: Dict[str, np.ndarray]
-                            ) -> Dict[str, np.ndarray]:
+    def normalize_sum_trace(self, loutputs: Table) -> Table:
         """
         Normalize the sum trace by the median of the sum trace
 
@@ -1884,7 +1905,18 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.normalize_sum_trace()'
         # validate out-of-transit domain
         self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # if we don't have oot domain we cannot do the normalization
+        if not has_oot:
+            wmsg = ('Cannot normalize sum trace without out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to normalize by the sum of '
+                    'the trace.')
+            misc.printc(wmsg, 'warning')
+            # return loutputs without normalization
+            return loutputs
+        # ---------------------------------------------------------------------
         # get the normalization factor
         with warnings.catch_warnings(record=True) as _:
             norm_factor = np.nanmedian(loutputs[oot_domain]['sum_trace'])
@@ -1893,6 +1925,175 @@ class Instrument:
         loutputs['sum_trace_error'] /= norm_factor
         # return the outputs
         return loutputs
+
+    def per_pixel_baseline(self, cube: np.ndarray,
+                           valid: np.ndarray) -> np.ndarray:
+        """
+        Correct the per pixel baseline
+
+        :param cube: np.ndarray, the cube
+        :param valid: np.ndarray, the valid pixels
+
+        :return: np.ndarray, the corrected cube
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.per_pixel_baseline()'
+        # get params
+        nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
+        # ---------------------------------------------------------------------
+        # copy the cube
+        cube = np.array(cube)
+        # get the frame numbers
+        frames = np.arange(nframes, dtype=float)
+        # get the out-of-transit domain
+        self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # if we don't have oot domain we cannot do the normalization
+        if not has_oot:
+            wmsg = ('Cannot do per pixel baseline correction without '
+                    'out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to do per pixel baseline'
+                    ' correction.')
+            misc.printc(wmsg, 'warning')
+            # return loutputs without normalization
+            return cube
+        # ---------------------------------------------------------------------
+        # get the polynomial degree for the transit baseline
+        poly_order = self.params['TRANSIT_BASELINE_POLYORD']
+        # get the mid transit frame
+        mid_transit_frame = int(np.nanmean(self.params['CONTACT_FRAMES']))
+        # get the rms of the cube (before correction) for mid transit
+        rms1_cube = mp.estimate_sigma(cube[mid_transit_frame] * valid)
+        # ---------------------------------------------------------------------
+        # print progress
+        msg = 'Correcting the per pixel transit baseline'
+        misc.printc(msg, 'info')
+        # ---------------------------------------------------------------------
+        # loop around x pix
+        for ix in tqdm(range(nbxpix), leave=False):
+            # get the slice of the cube
+            cube_slice = cube[:, :, ix]
+            # if we don't have any valid pixels skip
+            if np.sum(valid[:, :, ix]) == 0:
+                continue
+            # loop around y pix
+            for iy in range(nbypix):
+                # if pixel is not valid we skip
+                if not valid[iy, ix]:
+                    continue
+                # get the sample column
+                sample = cube_slice[:, iy]
+                # get the out of transit domain in the sample
+                sample_oot = sample[oot_domain, :]
+                # get the indices of the out of transit domain
+                frames_oot = frames[oot_domain]
+                # find any nans in the oot sample
+                finite_mask = np.isfinite(sample_oot)
+                # -------------------------------------------------------------
+                # only fit the polynomial if we have enough points
+                if np.sum(finite_mask) <= poly_order:
+                    continue
+                # -------------------------------------------------------------
+                # deal with having NaNs in the sample
+                if np.sum(~finite_mask) > 0:
+                    # remove non-finite values
+                    sample_oot = sample_oot[finite_mask]
+                    frames_oot = frames_oot[finite_mask]
+                # -------------------------------------------------------------
+                # robustly fit the out of transit part
+                oot_fit, _ = mp.robust_polyfit(frames_oot, sample_oot,
+                                               poly_order, 5)
+                # -------------------------------------------------------------
+                # subtract this off the cube_slice
+                cube_slice[:, iy] -= np.polyval(oot_fit, frames)
+            # -----------------------------------------------------------------
+            # push the updated cube slice back into the cube
+            cube[:, :, ix] = np.array(cube_slice)
+
+        # ---------------------------------------------------------------------
+        # recalculate the rms of the cube
+        rms2_cube = mp.estimate_sigma(cube[mid_transit_frame]  * valid)
+        # print the mid transit frame used
+        msg = f'\tMid transit frame used: {mid_transit_frame}'
+        misc.printc(msg, 'info')
+        # print the rms of the cube before and after
+        msg_before = f'\tRMS[before]: {rms1_cube:.3f}'
+        misc.printc(msg_before, 'number')
+        msg_after = f'\tRMS[after]: {rms2_cube:.3f}'
+        misc.printc(msg_after, 'number')
+        # ---------------------------------------------------------------------
+        # return the updated cube
+        return cube
+
+    def get_rms_baseline(self, vector: Union[np.ndarray, None] = None,
+                         method: str = 'linear_sigma'
+                         ) -> Union[float, List[str]]:
+        """
+        Get the RMS of the baseline (for a given method)
+
+        Available methods are:
+        - naive_sigma: naive sigma method
+        - linear_sigma: linear sigma method
+        - lowpass_sigma: lowpass sigma method
+        - quadratic_sigma: quadratic sigma method
+
+        vector set to None returns the methods
+
+        :param vector: np.ndarray or None, the vector to calculate the RMS
+                       or None to return the methods
+        :param method: str, the method to use
+
+        :return: float or list, the RMS of the vector or the methods
+                 (if vector=None)
+        """
+        # deal with just getting the baseline methods
+        if vector is None:
+            return ['naive_sigma', 'linear_sigma', 'lowpass_sigma',
+                    'quadratic_sigma']
+        # ---------------------------------------------------------------------
+        # native method: we don't know that there's a transit
+        if method == 'naive_sigma':
+            # get the percentiles
+            p16_84 = np.nanpercentile(vector, [16, 84])
+            # return the result of half the difference between the two
+            return (p16_84[1] - p16_84[0]) / 2.0
+        # ---------------------------------------------------------------------
+        # linear sigma method: difference to immediate neighbours
+        if method == 'linear_sigma':
+            # calculate the difference between immediate neighbours
+            diff = vector[1: -1] - (vector[2:] + vector[:-2]) / 2
+            # calculate the sigma of the diff
+            nsig = mp.estimate_sigma(diff)
+            # normalize by 1 + 0.5 and return
+            return nsig / np.sqrt(1 + 0.5)
+        # ---------------------------------------------------------------------
+        # lowpass sigma method: difference to lowpass filtered
+        if method == 'lowpass_sigma':
+            # calculate the low pass filter
+            lowpass = mp.lowpassfilter(vector, width=15)
+            # subtract off the low pass filter
+            diff = vector - lowpass
+            # return the sigma of the diff
+            return mp.estimate_sigma(diff)
+        # ---------------------------------------------------------------------
+        # quadratic sigma method: difference to quadratic fit
+        if method == 'quadratic_sigma':
+            # calculate the vector rolled
+            roll1 = np.roll(vector, -2)
+            roll2 = np.roll(vector, -1)
+            roll3 = np.roll(vector, 1)
+            # get the contributions from each roll
+            vector2 = -roll1/3 + roll2 + roll3/3
+            # get the diff between the two vectors
+            diff = vector - vector2
+            # calculate the sigma of the diff
+            nsig = mp.estimate_sigma(diff)
+            # normalize by sqrt(20 / 9.0) and return
+            return nsig / np.sqrt(20 / 9.0)
 
 
 # =============================================================================

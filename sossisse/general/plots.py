@@ -14,10 +14,12 @@ from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.table import Table
 
 from sossisse.core import base
 from sossisse.core import math
 from sossisse.core import misc
+from sossisse.core import math as mp
 from sossisse.general import science
 
 
@@ -250,66 +252,115 @@ def aperture_correction_plot(params: Dict[str, Any],
 
 
 # TODO: re-write
-def plot_sossice(tbl, params):
-    params = science.get_valid_oot(params)
-    params['output_factor'] = np.array(params['output_factor'], dtype=float)
+def plot_stability(inst: Any, table: Table):
 
-    nrows = len(params['output_names'])
-
-    # just for fun, a graph with stats on the trace rotation+scale
-    rms_phot = science.get_rms_baseline(tbl['amplitude'], method='quadratic_sigma')
-    fig, ax = plt.subplots(nrows=nrows, ncols=1, sharex='all', figsize=[8, 12])
-
-    alpha = np.min([np.sqrt(200 / len(tbl)), 1])
-
-    for i in range(nrows):
-        val = tbl[params['output_names'][i]] * params['output_factor'][i]
-        errval = tbl[params['output_names'][i] + '_error'] * params['output_factor'][i]
-
-        y0 = np.nanpercentile(val - errval, 0.5)
-        y1 = np.nanpercentile(val + errval, 99.5)
-        dy = y1 - y0
-        ylim = [y0 - dy / 8, y1 + dy / 8]
-        ax[i].set(ylim=ylim)
-        if 'oot_domain' in params.keys():
-            oot = params['oot_domain']
-            ax[i].errorbar(np.arange(len(tbl))[oot], val[oot], yerr=errval[oot],
-                           fmt='.', color='green', alpha=alpha, label='oot')
-            ax[i].errorbar(np.arange(len(tbl))[~oot], val[~oot], yerr=errval[~oot],
-                           fmt='.', color='red', alpha=alpha, label='it')
-            if i == 0:
-                ax[i].legend()
-        else:
-            ax[i].errorbar(np.arange(len(tbl)), val, yerr=errval,
-                           fmt='g.', alpha=0.4)
-
-    xlabel = 'N$^{th}$ integration'
-
-    if 'wlc_domain' in params.keys():
-        domain = '({0:.2f} - {1:.2f}µm)\nunique ID {2}'.format(params['wlc_domain'][0],
-                                                               params['wlc_domain'][1], params['checksum'])
+    # set function name
+    func_name = f'{__NAME__}.plot_stability()'
+    # validate out-of-transit domain
+    inst.get_valid_oot()
+    has_oot = inst.get_variable('HAS_OOT', func_name)
+    oot_domain = inst.get_variable('OOT_DOMAIN', func_name)
+    # -------------------------------------------------------------------------
+    # get the output names, units and factors
+    output_names = inst.get_variable('OUTPUT_NAMES', func_name)
+    output_units = inst.get_variable('OUTPUT_UNITS', func_name)
+    output_factor = inst.get_variable('OUTPUT_FACTOR', func_name)
+    # -------------------------------------------------------------------------
+    # get the number of outputs
+    noutputs = len(output_names)
+    # get the number of points
+    npoints = len(table['amplitude'])
+    # force output factors to be floats
+    output_factor = np.array(output_factor, dtype=float)
+    # -------------------------------------------------------------------------
+    # calculate the rms photon noise
+    rms_phot = inst.get_rms_baseline(table['amplitude'],
+                                     method='quadratic_sigma')
+    # -------------------------------------------------------------------------
+    # set up the plot
+    fig, frames = plt.subplots(nrows=noutputs, ncols=1, sharex='all',
+                               figsize=[8, 12])
+    # -------------------------------------------------------------------------
+    # set the alpha level
+    alpha = np.min([np.sqrt(200 / npoints), 1])
+    # -------------------------------------------------------------------------
+    # get a index array
+    index = np.arange(npoints)
+    # -------------------------------------------------------------------------
+    # get the domain text
+    if  inst.params['WLC_DOMAIN'] is not None:
+        dargs = [inst.params['WLC_DOMAIN'][0], inst.params['WLC_DOMAIN'][1],
+                 inst.params['SID']]
+        domain = '({0:.2f} - {1:.2f}µm)\nunique ID {2}\n'.format(*dargs)
     else:
         domain = ''
-
-    for i in range(nrows):
-
-        if i == 0:
-            title = '{0} -- {1}\nrms : {3:.2f} ppm'.format(params['object'], params['suffix'], domain, rms_phot * 1e6)
+    # -------------------------------------------------------------------------
+    # set the x label
+    xlabel = 'N$^{th}$ integration'
+    # -------------------------------------------------------------------------
+    # loop around parameters and plot them
+    for it in range(noutputs):
+        # get this iterations name/unit/factor
+        name_it = output_names[it]
+        unit_it = output_units[it]
+        factor_it = output_factor[it]
+        # ---------------------------------------------------------------------
+        # get the value and error value from the table and scale it accordingly
+        value = table[name_it] * factor_it
+        errval = table[name_it + '_error'] * factor_it
+        # ---------------------------------------------------------------------
+        # deal with having out of transit points
+        if has_oot:
+            # plot the out of transit points
+            frames[it].errorbar(index[oot_domain], value[oot_domain],
+                                yerr=errval[oot_domain],
+                                fmt='.', color='green', alpha=alpha,
+                                label='out-of-transit')
+            # plot the in transit points
+            frames[it].errorbar(index[~oot_domain], value[~oot_domain],
+                                yerr=errval[~oot_domain],
+                                fmt='.', color='red', alpha=alpha,
+                                label='in-transit')
+            # only plot the legend for the first plot frame
+            if it == 0:
+                frames[it].legend()
+        # otherwise we just plot everything
         else:
-            title = 'rms : {:.4f}'.format(math.estimate_sigma(tbl[params['output_names'][i]]) * params['output_factor'][i])
-
-        ylabel = '{} [{}]'.format(params['output_names'][i], params['output_units'][i])
-        ax[i].set(xlabel=xlabel, ylabel=ylabel, title=title)
-        ax[i].grid(color='grey', linestyle='--', alpha=alpha, linewidth=2)
-
+            # plot all points
+            frames[it].errorbar(index, value, yerr=errval,
+                                fmt='g.', alpha=0.4)
+        # ---------------------------------------------------------------------
+        # axis labels, title and grid
+        # ---------------------------------------------------------------------
+        # calculate the ylimit based on the 0.5th and 99.5th percentiles
+        y0 = np.nanpercentile(value - errval, 0.5)
+        y1 = np.nanpercentile(value + errval, 99.5)
+        diff_y = y1 - y0
+        # we set the limits an extra 8th of the difference above and below
+        ylim = [y0 - diff_y / 8, y1 + diff_y / 8]
+        # get the rms for this output
+        rms_it = mp.estimate_sigma(table[name_it] * factor_it)
+        # ---------------------------------------------------------------------
+        # get the title for the plot
+        if it == 0:
+            title = f'{inst.params["OBJECTNAME"]} -- {inst.params["SUFFIX"]}\n'
+            title += domain
+            title += f'rms: {rms_phot: .2f} ppm'
+        else:
+            title = f'rms: {rms_it:.4f} {unit_it}'
+        # ---------------------------------------------------------------------
+        # construct the y label
+        ylabel = f'{name_it} [{unit_it}]'
+        # ---------------------------------------------------------------------
+        # push all the settings to the plot frame
+        frames[it].set(xlabel=xlabel, ylabel=ylabel, ylim=ylim, title=title)
+        frames[it].grid(color='grey', linestyle='--', alpha=alpha, linewidth=2)
+    # force a tight layout
     plt.tight_layout()
-    for figtype in params['figure_types']:
-        # TODO: you shouldn't use '/'  as it is OS dependent
-        # TODO: use os.path.join(1, 2, 3)
-        plt.savefig('{}/stability_soss{}.{}'.format(params['PLOT_PATH'], params['tag'], figtype))
-    if params['show_plots']:
-        plt.show()
-    plt.close()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'stability{0}'.format(inst.params['tag']))
+
 
 
 # TODO: re-write

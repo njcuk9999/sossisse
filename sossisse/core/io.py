@@ -11,7 +11,11 @@ Created on 2024-08-20 at 09:56
 """
 import os
 import shutil
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Union
+
+import numpy as np
+from astropy.io import fits
+from astropy.table import Table
 
 from sossisse.core import base
 from sossisse.core import exceptions
@@ -107,6 +111,84 @@ def copy_file(inpath: str, outpath: str):
         emsg = 'Cannot copy file: {0}-->{1}\n\t{2}: {3}'
         eargs = [inpath, outpath, type(e), str(e)]
         raise SossisseIOException(emsg.format(*eargs))
+
+
+def load_fits(filename: str, ext: int = None, extname: str = None):
+    """
+    Load the data from a file
+
+    :param filename: str, the filename to load
+    :param ext: int, the extension number to load
+    :param extname: str, the extension name to load
+
+    :return: data, the loaded data
+    """
+    # try to get data from filename
+    try:
+        data = fits.getdata(filename, ext, extname)
+    except Exception as e:
+        emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+
+
+def load_table(filename: str, ext: int = None):
+    """
+    Load the table from a file
+
+    :param filename: str, the filename to load
+    :param ext: int, the extension number to load
+
+    :return: data, the loaded data
+    """
+    try:
+        data = Table.read(filename, ext)
+    except Exception as e:
+        emsg = 'Error loading table from file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+
+
+def save_fitsimage(filename: str, data: np.ndarray, meta: Dict[str, Any] = None):
+    """
+    Save the data to a file
+
+    :param filename:
+    :param data:
+    :param meta:
+    :return:
+    """
+    # print progres
+    msg = 'Saving data to file: {0}'
+    misc.printc(msg.format(filename), msg_type='info')
+    # try to save the data
+    try:
+        fits.writeto(filename, data, meta, overwrite=True)
+    except Exception as e:
+        emsg = 'Error saving data to file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+
+
+def save_table(filename: str, data: Table, fmt: str='csv'):
+    """
+    Save the table to a file
+
+    :param filename: str, the filename to save to
+    :param data: Table, the astropy table to save
+    :param fmt: str, the format to save the table in
+    :return:
+    """
+    # print progres
+    msg = 'Saving table to file: {0}'
+    misc.printc(msg.format(filename), msg_type='info')
+    # try to save the data
+    try:
+        data.write(filename, format=fmt, overwrite=True)
+    except Exception as e:
+        emsg = 'Error saving table to file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
 
 
 # =============================================================================
