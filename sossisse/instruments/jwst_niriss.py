@@ -132,6 +132,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         :return: tuple, 1. the updated mask trace positions, 2. the x order 0
                         positions, 3. the y order 0 positions
         """
+        # mask trace pos is not used - we get it from the tracemap
+        _ = mask_trace_pos
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_mask_order0()'
         # get in vs out filename

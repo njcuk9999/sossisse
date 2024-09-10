@@ -80,6 +80,11 @@ class Instrument:
         self._variables['TEMP_BEFORE_AFTER_CLEAN1F'] = None
         self._variables['TEMP_PCA_FILE'] = None
         self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
+        self._variables['WLC_ERR_FILE'] = None
+        self._variables['WLC_RES_FILE'] = None
+        self._variables['WLC_RECON_FILE'] = None
+        self._variables['WLC_LTBL_FILE'] = None
+        self._variables['SPE_SED_TBL'] = None
         # true/false flags
         self._variables['DO_BACKGROUND'] = None
         self._variables['FLAG_CDS'] = None
@@ -103,15 +108,22 @@ class Instrument:
         self.vsources['DATA_X_SIZE'] = f'{self.name}.load_data_with_dq()'
         self.vsources['DATA_Y_SIZE'] = f'{self.name}.load_data_with_dq()'
         self.vsources['DATA_N_FRAMES'] = f'{self.name}.load_data_with_dq()'
+        # construct temporary file name function
+        tmp_func = f'{self.name}.temporary_filenames()'
         # temp files
-        self.vsources['TEMP_INI_CUBE'] = f'{self.name}.load_data_with_dq()'
-        self.vsources['TEMP_INI_ERR'] = f'{self.name}.load_data_with_dq()'
-        self.vsources['TEMP_CLEAN_NAN'] = f'{self.name}.patch_isolated_bads()'
-        self.vsources['MEIDAN_IMAGE_FILE'] = f'{self.name}.clean_1f()'
-        self.vsources['CLEAN_CUBE_FILE'] = f'{self.name}.clean_1f()'
-        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = f'{self.name}.clean_1f()'
-        self.vsources['TEMP_PCA_FILE'] = f'{self.name}.clean_1f()'
-        self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = f'{self.name}.clean_1f()'
+        self.vsources['TEMP_INI_CUBE'] = tmp_func
+        self.vsources['TEMP_INI_ERR'] = tmp_func
+        self.vsources['TEMP_CLEAN_NAN'] = tmp_func
+        self.vsources['MEIDAN_IMAGE_FILE'] = tmp_func
+        self.vsources['CLEAN_CUBE_FILE'] = tmp_func
+        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] =tmp_func
+        self.vsources['TEMP_PCA_FILE'] = tmp_func
+        self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = tmp_func
+        self.vsources['WLC_ERR_FILE'] = tmp_func
+        self.vsources['WLC_RES_FILE'] = tmp_func
+        self.vsources['WLC_RECON_FILE'] = tmp_func
+        self.vsources['WLC_LTBL_FILE'] = tmp_func
+        self.vsources['SPE_SED_TBL'] = tmp_func
         # true/false flags
         self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
         self.vsources['FLAG_CDS'] = f'{self.name}.load_data_with_dq()'
@@ -129,8 +141,6 @@ class Instrument:
         self.vsources['OOT_DOMAIN_AFTER'] = f'{self.name}.get_valid_oot()'
         self.vsources['INT_DOMAIN'] = f'{self.name}.get_valid_int()'
 
-
-
     def param_override(self):
         """
         Override the parameters for this instrument
@@ -138,16 +148,21 @@ class Instrument:
         """
         pass
 
-    def set_variable(self, key, value):
+    def set_variable(self, key: str, value: Any, func_name: str = None):
         """
         Set a variable in the variables dictionary
 
         :param key: str, the key to set
         :param value: any, the value to set
+        :param func_name: set the function name (should be set but can be
+                          updated)
         :return:
         """
         if key in self._variables and key in self.vsources:
             self._variables[key] = value
+            # push the function name if given
+            if func_name is not None:
+                self.vsources[key] = func_name
         else:
             emsg = ('Key {0} not found in variables dictionary.'
                     'Please set it in Instrument class')
@@ -302,6 +317,75 @@ class Instrument:
         self.set_variable('TAG2', tag2)
         self.set_variable('META', meta_data)
 
+    def temporary_filenames(self):
+        # set function name
+        func_name = f'{__NAME__}.temporary_filenames()'
+        # update meta data
+        self.update_meta_data()
+        # get tag1
+        tag1 = self.get_variable('TAG1', func_name)
+        # ---------------------------------------------------------------------
+        # construct temporary file names
+        # ---------------------------------------------------------------------
+        median_image_file = 'median{0}.fits'.format(tag1)
+        median_image_file = os.path.join(self.params['TEMP_PATH'],
+                                         median_image_file)
+        # ---------------------------------------------------------------------
+        clean_cube_file = 'cleaned_cube{0}.fits'.format(tag1)
+        clean_cube_file = os.path.join(self.params['TEMP_PATH'],
+                                        clean_cube_file)
+        # ---------------------------------------------------------------------
+        tmp_before_after_clean1f = 'temporary_before_after_clean1f.fits'
+        tmp_before_after_clean1f = os.path.join(self.params['TEMP_PATH'],
+                                                tmp_before_after_clean1f)
+        # ---------------------------------------------------------------------
+        tmp_pcas = 'temporary_pcas.fits'.format(tag1)
+        tmp_pcas = os.path.join(self.params['TEMP_PATH'], tmp_pcas)
+        # ---------------------------------------------------------------------
+        temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
+        tmp_transit_invsout = os.path.join(self.params['TEMP_PATH'],
+                                           temp_transit_invsout)
+        # ---------------------------------------------------------------------
+        temp_clean_nan = 'temporary_cleaned_isolated.fits'
+        temp_clean_nan = os.path.join(self.params['TEMP_PATH'], temp_clean_nan)
+        # ---------------------------------------------------------------------
+        temp_ini_cube = 'temporary_initial_cube.fits'
+        temp_ini_cube = os.path.join(self.params['TEMP_PATH'], temp_ini_cube)
+        temp_ini_err = 'temporary_initial_err.fits'
+        temp_ini_err = os.path.join(self.params['TEMP_PATH'], temp_ini_err)
+        # ---------------------------------------------------------------------
+        errfile = os.path.join(self.params['TEMP_PATH'],
+                               'errormap{}.fits'.format(self.params['tag']))
+        # ---------------------------------------------------------------------
+        resfile = os.path.join(self.params['TEMP_PATH'],
+                               'residual{}.fits'.format(self.params['tag']))
+        # ---------------------------------------------------------------------
+        reconfile = os.path.join(self.params['TEMP_PATH'],
+                                 'recon{}.fits'.format(self.params['tag']))
+        # ---------------------------------------------------------------------
+        ltbl_file = os.path.join(self.params['CSV_PATH'],
+                                 'stability{}.csv'.format(self.params['tag']))
+        # ---------------------------------------------------------------------
+        sed_table = os.path.join(self.params['CSV_PATH'], 'sed_{0}_ord{1}.csv')
+        # ---------------------------------------------------------------------
+        # save these for later
+        self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
+        self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
+        self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F', tmp_before_after_clean1f)
+        self.set_variable('TEMP_PCA_FILE', tmp_pcas)
+        self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
+        self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
+        self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
+        self.set_variable('TEMP_INI_ERR', temp_ini_err)
+        self.set_variable('WLC_ERR_FILE', errfile)
+        self.set_variable('WLC_RES_FILE', resfile)
+        self.set_variable('WLC_RECON_FILE', reconfile)
+        self.set_variable('WLC_LTBL_FILE', ltbl_file)
+        self.set_variable('SPE_SED_TBL', sed_table)
+
+    # ==========================================================================
+    # White light curve functionality
+    # ==========================================================================
     def load_data(self, filename: str, ext: int = None, extname: str = None):
         """
         Load the data from a file
@@ -410,17 +494,14 @@ class Instrument:
         Load and correct the data
         :return:
         """
+        # set function name
+        func_name = f'{__NAME__}.load_data_with_dq()'
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
         use_temp = self.params['USE_TEMPORARY']
         # construct temporary file names
-        temp_ini_cube = 'temporary_initial_cube.fits'
-        temp_ini_cube = os.path.join(self.params['TEMP_PATH'], temp_ini_cube)
-        temp_ini_err = 'temporary_initial_err.fits'
-        temp_ini_err = os.path.join(self.params['TEMP_PATH'], temp_ini_err)
-        # save these for later
-        self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
-        self.set_variable('TEMP_INI_ERR', temp_ini_err)
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -746,14 +827,13 @@ class Instrument:
 
         :return: np.ndarray, the patched cube
         """
+        # set function name
+        func_name = f'{__NAME__}.patch_isolated_bads()'
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
         use_temp = self.params['USE_TEMPORARY']
         # construct temporary file names
-        temp_clean_nan = 'temporary_cleaned_isolated.fits'
-        temp_clean_nan = os.path.join(self.params['TEMP_PATH'], temp_clean_nan)
-        # save these for later
-        self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
+        temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -1011,10 +1091,6 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
-        # update meta data
-        self.update_meta_data()
-        # get tag1
-        tag1 = self.get_variable('TAG1', func_name)
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
         use_temp = self.params['USE_TEMPORARY']
@@ -1022,34 +1098,22 @@ class Instrument:
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
         # construct temporary file names
-        median_image_file = 'median{0}.fits'.format(tag1)
-        median_image_file = os.path.join(self.params['TEMP_PATH'],
-                                         median_image_file)
-        clean_cube_file = 'cleaned_cube{0}.fits'.format(tag1)
-        clean_cube_file = os.path.join(self.params['TEMP_PATH'],
-                                        clean_cube_file)
-        tmp_before_after_clean1f = 'temporary_before_after_clean1f.fits'
-        tmp_before_after_clean1f = os.path.join(self.params['TEMP_PATH'],
-                                                tmp_before_after_clean1f)
-        tmp_pcas = 'temporary_pcas.fits'.format(tag1)
-        tmp_pcas = os.path.join(self.params['TEMP_PATH'], tmp_pcas)
-        temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
-        tmp_transit_invsout = os.path.join(self.params['TEMP_PATH'],
-                                           temp_transit_invsout)
-        # ---------------------------------------------------------------------
+        self.temporary_filenames()
         # save these for later
-        self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
-        self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
-        self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F', tmp_before_after_clean1f)
-        self.set_variable('TEMP_PCA_FILE', tmp_pcas)
-        self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
+        median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
+        clean_cube_file = self.set_variable('CLEAN_CUBE_FILE', func_name)
+        tmp_before_after_c1f = self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F',
+                                                 func_name)
+        tmp_pcas = self.set_variable('TEMP_PCA_FILE', func_name)
+        tmp_transit_invsout = self.set_variable('TEMP_TRANSIT_IN_VS_OUT',
+                                                func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
             # make sure all required files exist
             cond = os.path.exists(median_image_file)
             cond &= os.path.exists(clean_cube_file)
-            cond &= os.path.exists(tmp_before_after_clean1f)
+            cond &= os.path.exists(tmp_before_after_c1f)
             cond &= os.path.exists(tmp_transit_invsout)
             # only look for fit pca file if we are fitting pca
             if self.params['FIT_PCA']:
@@ -1066,9 +1130,9 @@ class Instrument:
                 misc.printc('\tReading: {0}'.format(clean_cube_file), 'info')
                 clean_cube = self.load_data(clean_cube_file)
                 # load the before after clean 1f
-                misc.printc('\tReading: {0}'.format(tmp_before_after_clean1f),
+                misc.printc('\tReading: {0}'.format(tmp_before_after_c1f),
                             'info')
-                before_after_clean1f = self.load_data(tmp_before_after_clean1f)
+                before_after_clean1f = self.load_data(tmp_before_after_c1f)
                 # load the transit in vs out
                 misc.printc('\tReading: {0}'.format(tmp_transit_invsout),
                             'info')
@@ -1749,7 +1813,7 @@ class Instrument:
                         lvector: np.ndarray,
                         x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
                         x_order0: np.ndarray, y_order0: np.ndarray
-                        ) -> Tuple[Table, np.ndarray]:
+                        ) -> Tuple[Table, np.ndarray, np.ndarray]:
         """
         Apply the amplitude reconstruction to the cube
 
@@ -1776,7 +1840,8 @@ class Instrument:
         :param x_order0: np.ndarray, the x order 0 positions
         :param y_order0: np.ndarray, the y order 0 positions
 
-        :return: tuple, 1. dict, the outputs (see above), 2. the recon cube
+        :return: tuple, 1. dict, the outputs (see above), 2. the recon cube,
+                 3. the valid mask
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.apply_amp_recon()'
@@ -1802,6 +1867,8 @@ class Instrument:
         outputs['amplitude_no_model'] = np.zeros(cube.shape[0])
         # add the amplitude without the model error
         outputs['amplitude_no_model error'] = np.zeros(cube.shape[0])
+        # storage of a mask cube of bad pixels
+        valid_arr = np.ones_like(cube).astype(bool)
         # ---------------------------------------------------------------------
         # storage a trace correction array
         trace_corr = np.zeros(nframes, dtype=float)
@@ -1876,6 +1943,8 @@ class Instrument:
             tmp_slice = np.array(cube[iframe], dtype=float)
             # calculate the rms of the recon cube
             outputs['rms_cube_recon'][iframe] = mp.estimate_sigma(tmp_slice)
+            # keep the valid mask for later
+            valid_arr[iframe] = valid
         # ---------------------------------------------------------------------
         # normalize the trace correction by the median
         trace_corr /= np.nanmedian(trace_corr)
@@ -1891,7 +1960,7 @@ class Instrument:
         # convert outputs to an astropy table
         output_table = Table(outputs)
         # return the outputs
-        return output_table, all_recon
+        return output_table, all_recon, valid_arr
 
     def normalize_sum_trace(self, loutputs: Table) -> Table:
         """
@@ -1927,7 +1996,7 @@ class Instrument:
         return loutputs
 
     def per_pixel_baseline(self, cube: np.ndarray,
-                           valid: np.ndarray) -> np.ndarray:
+                           valid_arr: np.ndarray) -> np.ndarray:
         """
         Correct the per pixel baseline
 
@@ -1966,8 +2035,11 @@ class Instrument:
         poly_order = self.params['TRANSIT_BASELINE_POLYORD']
         # get the mid transit frame
         mid_transit_frame = int(np.nanmean(self.params['CONTACT_FRAMES']))
+        # get the image for the mid transit frame
+        mid_transit_slice = (cube[mid_transit_frame] *
+                             valid_arr[mid_transit_frame])
         # get the rms of the cube (before correction) for mid transit
-        rms1_cube = mp.estimate_sigma(cube[mid_transit_frame] * valid)
+        rms1_cube = mp.estimate_sigma(mid_transit_slice)
         # ---------------------------------------------------------------------
         # print progress
         msg = 'Correcting the per pixel transit baseline'
@@ -1978,12 +2050,12 @@ class Instrument:
             # get the slice of the cube
             cube_slice = cube[:, :, ix]
             # if we don't have any valid pixels skip
-            if np.sum(valid[:, :, ix]) == 0:
+            if np.sum(valid_arr[:, :, ix]) == 0:
                 continue
             # loop around y pix
             for iy in range(nbypix):
                 # if pixel is not valid we skip
-                if not valid[iy, ix]:
+                if  np.sum(valid_arr[:, iy, ix]) == 0:
                     continue
                 # get the sample column
                 sample = cube_slice[:, iy]
@@ -2015,8 +2087,11 @@ class Instrument:
             cube[:, :, ix] = np.array(cube_slice)
 
         # ---------------------------------------------------------------------
+        # re-get the image for the mid transit frame
+        mid_transit_slice = (cube[mid_transit_frame] *
+                             valid_arr[mid_transit_frame])
         # recalculate the rms of the cube
-        rms2_cube = mp.estimate_sigma(cube[mid_transit_frame]  * valid)
+        rms2_cube = mp.estimate_sigma(mid_transit_slice)
         # print the mid transit frame used
         msg = f'\tMid transit frame used: {mid_transit_frame}'
         misc.printc(msg, 'info')
@@ -2094,6 +2169,257 @@ class Instrument:
             nsig = mp.estimate_sigma(diff)
             # normalize by sqrt(20 / 9.0) and return
             return nsig / np.sqrt(20 / 9.0)
+
+    def get_effective_wavelength(self) -> Tuple[float, float]:
+        """
+        Get the effective wavelength factors (photon and energy weights)
+
+        :return: tuple, 1. the photon weighted mean, 2. the energy weighted mean
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.get_effective_wavelength()'
+        # get the median file
+        medfile = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+        # load the median from disk
+        med = io.load_fits(medfile)
+        # get the tracemap
+        tracemap = self.get_trace_map()
+        # get the wave grid
+        wavegrid = self.get_wavegrid(order=1)
+        # ---------------------------------------------------------------------
+        # find the domain that has spectra
+        with warnings.catch_warnings(record=True) as _:
+            sp_domain = np.nanmean(tracemap * med, axis=0)
+        # work out the spectral energy distribution
+        sp_energy = sp_domain / wavegrid
+        # ---------------------------------------------------------------------
+        # work out the mean photon weighted wavegrid
+        part1a = np.nansum(sp_domain * wavegrid)
+        part2a = np.nansum(sp_domain * np.isfinite(wavegrid))
+        mean_photon_weighted = part1a / part2a
+        # ---------------------------------------------------------------------
+        # work out the mean energy weighted wavegrid
+        part1b = np.nansum(sp_energy * wavegrid)
+        part2b = np.nansum(sp_energy * np.isfinite(wavegrid))
+        mean_energy_weighted = part1b / part2b
+        # ---------------------------------------------------------------------
+        # deal with WLC domain
+        if self.params['WLC_DOMAIN'] is not None:
+            msg = 'Domain:\t {0:.3f} -- {1:.3f} um'
+            margs = self.params['WLO_DOMAIN']
+            misc.printc(msg.format(*margs), 'number')
+        else:
+            msg = 'Full domain included, parameter WLC_DOMAIN not defined'
+            misc.printc(msg, 'warning')
+        # ---------------------------------------------------------------------
+        # print the energy-weighted mean
+        msg = 'Energy-weighted mean:\t{0:.3f} um'
+        misc.printc(msg.format(mean_energy_weighted), 'number')
+        # print the photon-weighted mean
+        msg = 'Photon-weighted mean:\t{0:.3f} um'
+        misc.printc(msg.format(mean_photon_weighted), 'number')
+        # ----------------------------------------------------------------
+        # return the effective wavelength factors
+        return mean_photon_weighted, mean_energy_weighted
+
+    # ==========================================================================
+    # Spectral Extraction functionality
+    # ==========================================================================
+    def create_sed(self, trace_order: int) -> Table:
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.create_sed()'
+        # load the median image
+        med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+        med = io.load_fits(med_file)
+        # load the residuals
+        res_file = self.get_variable('WLC_RES_FILE', func_name)
+        residual = io.load_fits(res_file)
+        # for future reference in the code, we keep track of data size
+        self.set_variable('DATA_X_SIZE', residual.shape[2], func_name)
+        self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
+        self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
+        # ---------------------------------------------------------------------
+        # get the trace position
+        posmax, throughput = self.get_trace_pos(order_num=trace_order)
+        # get wave grid
+        wavegrid = self.get_wavegrid(order_num=trace_order)
+        # get clean median trace for spectrum
+        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med)
+        # construct the sed
+        sp_sed = np.zeros(med.shape[1])
+        # get a ribbon on the trace that extends over the input width
+        for ix in range(med.shape[1]):
+            # get width
+            width = self.params['TRACE_WIDTH_EXTRACTION'] // 2
+            # get start and end positions
+            ystart = posmax[ix] - width
+            yend = posmax[ix] + width
+            # sum to get the spectrum SED
+            sp_sed[ix] = np.nansum(med_clean[ystart:yend, ix])
+        # ---------------------------------------------------------------------
+        # plot the SED
+        plots.plot_sed(self.params, wavegrid, sp_sed / throughput, trace_order)
+        # ---------------------------------------------------------------------
+        # construct sed table name
+        sed_table_name = self.get_variable('SED_TABLE_FILE', func_name)
+        sed_table_name = sed_table_name.format(self.params['OBJECTNAME'],
+                                               trace_order)
+        # construct SED table
+        sed_table = Table()
+        sed_table['wavelength'] = wavegrid
+        sed_table['flux'] = sp_sed / throughput
+        sed_table['raw flux'] = sp_sed
+        sed_table['throughput'] = throughput
+        # save table to disk
+        io.save_table(sed_table_name, sed_table)
+        # return this table
+        return sed_table
+
+    def load_model(self) -> np.ndarray:
+        """
+        load the model (and deal with masking order zero if required)
+
+        :return:
+        """
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.create_model()'
+        # load the median image
+        med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+        med = io.load_fits(med_file)
+        # load the residuals
+        recon_file = self.get_variable('WLC_RECON_FILE', func_name)
+        model = io.load_fits(recon_file)
+        # get the number of frames
+        nbframes = self.get_variable('DATA_N_FRAMES', func_name)
+        # load the tracemap
+        tracemap = self.get_trace_map()
+        # ---------------------------------------------------------------------
+        # deal with masking order zero
+        if self.params['MASK_ORDER_0']:
+            # load the mask trace position
+            mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, tracemap)
+            # need to re-get the mask order zero
+            mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
+                                                           tracemap)
+            # loop around frames and mask out order zero (with NaNs)
+            for iframe in tqdm(nbframes, leave=False):
+                # set the order zero values to nan
+                model[iframe][mask_order0] = np.nan
+        # ---------------------------------------------------------------------
+        # return the model
+        return model
+
+    def ratio_residual_to_trace(self, model: np.ndarray, trace_order: int
+                                ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        We find the ratio of residual to trace.
+
+        The logic here is that  we want to know the mean ratio of the
+        residual to the model trace to do this, we divide the residual by the
+        trace and take the weighted mean.
+
+        The thing is that the trace has a very structured shape, so this
+        needs to include a propagation of errors. There error of pixels along
+        the trace profile are the input errors divided by the model trace.
+        Pixels with a very low trace value have correspondingly larger errors.
+
+        :param model:
+        :param trace_order:
+
+        :return:
+        """
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.ratio_residual_to_trace()'
+        # get the number of frames
+        nbframes = self.get_variable('DATA_N_FRAMES', func_name)
+        # get the number of x and y pixels
+        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        # ---------------------------------------------------------------------
+        # get the trace position
+        posmax, throughput = self.get_trace_pos(order_num=trace_order)
+        # load the residuals
+        res_file = self.get_variable('WLC_RES_FILE', func_name)
+        residual = io.load_fits(res_file)
+        # load the error file
+        err_file = self.get_variable('WLC_ERR_FILE', func_name)
+        err = io.load_fits(err_file)
+        # ---------------------------------------------------------------------
+        # placeholder for the cube spectra
+        spec = np.full([nbframes, nbxpix], np.nan)
+        spec_err = np.full([nbframes, nbxpix], np.nan)
+        # loop through observations and spectral bins
+        for iframe in tqdm(range(nbframes), leave=False):
+            for ix in range(nbxpix):
+                # get width
+                width = self.params['TRACE_WIDTH_EXTRACTION'] // 2
+                # get start and end positions
+                ystart = posmax[ix] - width
+                yend = posmax[ix] + width
+                # model of the trace for that observation
+                v0 = model[iframe, ystart:yend, ix]
+                # residual of the trace
+                v1 = residual[iframe, ystart:yend, ix]
+                # corresponding error
+                v2 = err[iframe, ystart:yend, ix]
+                # calculate the ratio
+                with warnings.catch_warnings(record=True) as _:
+                    try:
+                        ratio, err_ratio = mp.odd_ratio_mean(v1/v0, v2/v0)
+                    except Exception as _:
+                        ratio, err_ratio = np.nan, 0
+                # the above code does the eqiuvalent of a sigma-clipped mean
+                # and returns the uncertainty
+                if err_ratio != 0:
+                    # update the cube
+                    spec[iframe, ix] = ratio
+                    spec_err[iframe, ix] = err_ratio
+        # ---------------------------------------------------------------------
+        # return the spectrum and corresponding error
+        return spec, spec_err
+
+    def remove_trend(self, spec: np.ndarray):
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.binary_transit_masks()'
+        # get the number of frames
+        nbframes = self.get_variable('DATA_N_FRAMES', func_name)
+        # get the number of x and y pixels
+        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        # get the polynomial degree for trace baseline
+        polydeg = self.params['TRACE_BASELINE_POLYORD']
+        # get the out-of-transit domain
+        self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # deal with no out-of-transit domain defined
+        if not has_oot:
+            wmsg = ('Cannot remove trend without '
+                    'out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to remove_trend.')
+            misc.printc(wmsg, 'warning')
+        # ---------------------------------------------------------------------
+        # loop around
+        for ix in range(nbxpix):
+            # get the slide without the transit
+            v1 = spec[oot_domain, ix]
+            # find valid pixels
+            valid = np.isfinite(v1)
+            # if we don't have enough good pixels skip removing trend for this
+            #  row
+            if np.sum(valid) < 2:
+                continue
+            # get the valid xpix for this row
+            index = np.arange(nbframes)[oot_domain]
+            # fit the trend
+            tfit = np.polyfit(index[valid], v1[valid], polydeg)
+            # remove the trend and update the spectrum
+            spec[:, ix] -= np.polyval(tfit, np.arange(nbframes))
+        # ---------------------------------------------------------------------
+        # return the spectrum
+        return spec
+
+
+
 
 
 # =============================================================================

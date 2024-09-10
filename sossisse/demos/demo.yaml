@@ -67,6 +67,11 @@ USE_TEMPORARY: true
 # Save results at the end
 SAVE_RESULTS: true
 
+# Switch for turning on/off the white light curve step
+WHITE_LIGHT_CURVE: true
+
+# Switch for turning on/off the spectral extraction step
+SPECTRAL_EXTRACTION: true
 
 ###############################################################################
 ##  Plot behavior

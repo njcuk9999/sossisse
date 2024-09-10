@@ -460,3 +460,25 @@ def plot_transit(inst: Any, table: Table):
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'transit_{0}'.format(inst.params['tag']))
+
+
+def plot_sed(params: Dict[str, Any], wavegrid: np.ndarray, sed: np.ndarray,
+             trace_order: int):
+    # set up the plot
+    fig, frame = plt.subplots(nrows=1, ncols=1)
+    # plot the SED
+    frame.plot(wavegrid, sed)
+    # construct title
+    objname = params['OBJECTNAME']
+    title = f'{objname} -- {params["SUFFIX"]} order={trace_order}'
+    # set the axis labels
+    frame.set(xlabel='Wavelength [nm]',
+              ylabel='Flux\nthroughput-corrected',
+              title=title)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'sed_{0}_ord{1}'.format(objname, trace_order))
+
+
