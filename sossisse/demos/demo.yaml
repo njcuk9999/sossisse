@@ -230,6 +230,7 @@ REMOVE_TREND: true
 #   OR
 #   "known": provide the number in TDEPTH
 TDEPTH_MODE: "compute"
+
 # define the "white" transit depth if known
 TDEPTH: None
 

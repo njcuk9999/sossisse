@@ -58,7 +58,7 @@ def white_light_curve(inst: Instrument):
     print(misc.art('White light curve ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
-    inst.temporary_filenames()
+    inst.define_filenames()
     # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err = inst.load_data_with_dq()
@@ -172,31 +172,73 @@ def spectral_extraction(inst: Instrument):
     print(misc.art('Spectral timeseries ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
-    inst.temporary_filenames()
+    inst.define_filenames()
+    # load the median image
+    med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+    med = io.load_fits(med_file)
+    # load the residuals
+    res_file = self.get_variable('WLC_RES_FILE', func_name)
+    residual = io.load_fits(res_file)
+    # load the error file
+    err_file = self.get_variable('WLC_ERR_FILE', func_name)
+    err = io.load_fits(err_file)
+    # load the residuals
+    recon_file = self.get_variable('WLC_RECON_FILE', func_name)
+    recon = io.load_fits(recon_file)
+    # load the linear fit table
+    ltable_file = self.get_variable('WLC_LTBL_FILE', func_name)
+    ltable = io.load_table(ltable_file)
+    # -------------------------------------------------------------------------
+    # plot / save storage
+    storage = dict()
     # -------------------------------------------------------------------------
     # loop around trace orders
     for trace_order in inst.params['TRACE_ORDERS']:
         # create the SED
-        sed_tbl = inst.create_sed(trace_order)
+        sed_tbl = inst.create_sed(med, residual, trace_order)
+        # ---------------------------------------------------------------------
         # load the model (and deal with masking order zero if required)
-        model = inst.load_model()
+        model = inst.load_model(recon, med, residual)
+        # ---------------------------------------------------------------------
         # spectrum is the ratio of the residual to the trace model
-        spec, spec_err = inst.ratio_residual_to_trace(model, trace_order)
+        spec, spec_err = inst.ratio_residual_to_trace(model, err, res,
+                                                      trace_order)
+        # ---------------------------------------------------------------------
         # remove the out-of-transit trend
         if inst.params['REMOVE_TREND']:
-            spec = inst.remove_trend(spec)
-
-        # TODO: Got to here
-        inst.photometric_time_series()
-
-        inst.intransit_spectrum()
-
-        inst.save_results()
-
-        # plots
-
+            spec, ltable = inst.remove_trend(spec, ltable)
+        # ---------------------------------------------------------------------
+        # compute or set transit depth
+        transit_depth = inst.get_transit_depth(ltable)
+        # ---------------------------------------------------------------------
+        # get the in-transit spectrum
+        isout = inst.intransit_spectrum(spec, spec_err)
+        spec_in, spec_err_in, spec_err_out = isout
+        # ---------------------------------------------------------------------
+        # bin the data by RESOLUTION_BIN
+        wave_bin, flux_bin, flux_bin_err = inst.bin_spectrum(wavegrid,
+                                                             spec_in,
+                                                             spec_err_in)
+        # ---------------------------------------------------------------------
+        # save for plotting (outside the trace_order loop) / saving
+        storage_it = dict()
+        storage_it['wavegrid'] = wavegrid
+        storage_it['sp_sed'] = sp_sed
+        storage_it['throughput'] = throughput
+        storage_it['spec_in'] = spec_in
+        storage_it['spec_err_in'] = spec_err_in
+        storage_it['transit_depth'] = transit_depth
+        storage_it['wave_bin'] = wave_bin
+        storage_it['flux_bin'] = flux_bin
+        storage_it['flux_bin_err'] = flux_bin_err
+        # append to plot storage
+        storage[trace_order] = plot_storage_it
+        # ---------------------------------------------------------------------
+        inst.save_results(storage_it)
+    # -------------------------------------------------------------------------
+    # plot the SED
+    plots.plot_full_sed(inst.params, storage)
     # -------------------------------------------------------------------------
     # convert sossisse to eureka products
     inst.to_eureka()
-    # plot
 

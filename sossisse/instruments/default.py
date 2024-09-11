@@ -109,14 +109,14 @@ class Instrument:
         self.vsources['DATA_Y_SIZE'] = f'{self.name}.load_data_with_dq()'
         self.vsources['DATA_N_FRAMES'] = f'{self.name}.load_data_with_dq()'
         # construct temporary file name function
-        tmp_func = f'{self.name}.temporary_filenames()'
+        tmp_func = f'{self.name}.define_filenames()'
         # temp files
         self.vsources['TEMP_INI_CUBE'] = tmp_func
         self.vsources['TEMP_INI_ERR'] = tmp_func
         self.vsources['TEMP_CLEAN_NAN'] = tmp_func
         self.vsources['MEIDAN_IMAGE_FILE'] = tmp_func
         self.vsources['CLEAN_CUBE_FILE'] = tmp_func
-        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] =tmp_func
+        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = tmp_func
         self.vsources['TEMP_PCA_FILE'] = tmp_func
         self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = tmp_func
         self.vsources['WLC_ERR_FILE'] = tmp_func
@@ -317,58 +317,71 @@ class Instrument:
         self.set_variable('TAG2', tag2)
         self.set_variable('META', meta_data)
 
-    def temporary_filenames(self):
+    def define_filenames(self):
         # set function name
-        func_name = f'{__NAME__}.temporary_filenames()'
+        func_name = f'{__NAME__}.define_filenames()'
         # update meta data
         self.update_meta_data()
         # get tag1
         tag1 = self.get_variable('TAG1', func_name)
+        tag2 = self.get_variable('TAG2', func_name)
+        
+        temppath = self.parmas['TEMP_PATH']
+        csvpath = self.params['CSV_PATH']
+        fitspath = self.params['FITS_PATH']
         # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
         median_image_file = 'median{0}.fits'.format(tag1)
-        median_image_file = os.path.join(self.params['TEMP_PATH'],
-                                         median_image_file)
+        median_image_file = os.path.join(temppath, median_image_file)
         # ---------------------------------------------------------------------
         clean_cube_file = 'cleaned_cube{0}.fits'.format(tag1)
-        clean_cube_file = os.path.join(self.params['TEMP_PATH'],
-                                        clean_cube_file)
+        clean_cube_file = os.path.join(temppath, clean_cube_file)
         # ---------------------------------------------------------------------
         tmp_before_after_clean1f = 'temporary_before_after_clean1f.fits'
-        tmp_before_after_clean1f = os.path.join(self.params['TEMP_PATH'],
+        tmp_before_after_clean1f = os.path.join(temppath,
                                                 tmp_before_after_clean1f)
         # ---------------------------------------------------------------------
         tmp_pcas = 'temporary_pcas.fits'.format(tag1)
-        tmp_pcas = os.path.join(self.params['TEMP_PATH'], tmp_pcas)
+        tmp_pcas = os.path.join(temppath, tmp_pcas)
         # ---------------------------------------------------------------------
         temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
-        tmp_transit_invsout = os.path.join(self.params['TEMP_PATH'],
-                                           temp_transit_invsout)
+        tmp_transit_invsout = os.path.join(temppath, temp_transit_invsout)
         # ---------------------------------------------------------------------
         temp_clean_nan = 'temporary_cleaned_isolated.fits'
-        temp_clean_nan = os.path.join(self.params['TEMP_PATH'], temp_clean_nan)
+        temp_clean_nan = os.path.join(temppath, temp_clean_nan)
         # ---------------------------------------------------------------------
         temp_ini_cube = 'temporary_initial_cube.fits'
-        temp_ini_cube = os.path.join(self.params['TEMP_PATH'], temp_ini_cube)
+        temp_ini_cube = os.path.join(temppath, temp_ini_cube)
         temp_ini_err = 'temporary_initial_err.fits'
-        temp_ini_err = os.path.join(self.params['TEMP_PATH'], temp_ini_err)
+        temp_ini_err = os.path.join(temppath, temp_ini_err)
         # ---------------------------------------------------------------------
-        errfile = os.path.join(self.params['TEMP_PATH'],
-                               'errormap{}.fits'.format(self.params['tag']))
+        errfile = os.path.join(temppath, 'errormap{}.fits'.format(tag1))
         # ---------------------------------------------------------------------
-        resfile = os.path.join(self.params['TEMP_PATH'],
-                               'residual{}.fits'.format(self.params['tag']))
+        resfile = os.path.join(temppath, 'residual{}.fits'.format(tag1))
         # ---------------------------------------------------------------------
-        reconfile = os.path.join(self.params['TEMP_PATH'],
-                                 'recon{}.fits'.format(self.params['tag']))
+        reconfile = os.path.join(temppath, 'recon{}.fits'.format(tag1))
         # ---------------------------------------------------------------------
-        ltbl_file = os.path.join(self.params['CSV_PATH'],
-                                 'stability{}.csv'.format(self.params['tag']))
+        ltbl_file = os.path.join(csvpath, 'stability{}.csv'.format(tag1))
         # ---------------------------------------------------------------------
-        sed_table = os.path.join(self.params['CSV_PATH'], 'sed_{0}_ord{1}.csv')
+        sed_table = os.path.join(csvpath, 'sed_{objname}_ord{trace_order}.csv')
         # ---------------------------------------------------------------------
-        # save these for later
+        res_no_grey_ord = 'residual_no_grey_ord{trace_order}' + tag2 + '.fits'
+        res_no_grey_ord = os.path.join(fitspath, res_no_grey_ord)
+        # ---------------------------------------------------------------------
+        res_grey_ord = 'residual_grey_ord{trace_order}' + tag2 + '.fits'
+        res_grey_ord = os.path.join(fitspath, res_grey_ord)
+        # ---------------------------------------------------------------------
+        spectra_ord = 'spectra_ord{trace_order}' + tag2  + '.fits'
+        spectra_ord = os.path.join(fitspath, spectra_ord)
+        # ---------------------------------------------------------------------
+        waveord_file = 'wavelength_ord{trace_order}' + tag2  + '.fits'
+        waveord_file = os.path.join(fitspath, waveord_file)
+        # ---------------------------------------------------------------------
+        tspec_ord = 'tspec_ord{trace_order}' + tag2  + '.csv'
+        tspec_ord = os.path.join(csvpath, tspec_ord)
+        # ---------------------------------------------------------------------
+        # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
         self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
         self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F', tmp_before_after_clean1f)
@@ -377,11 +390,18 @@ class Instrument:
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
         self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
         self.set_variable('TEMP_INI_ERR', temp_ini_err)
+        # WLC files
         self.set_variable('WLC_ERR_FILE', errfile)
         self.set_variable('WLC_RES_FILE', resfile)
         self.set_variable('WLC_RECON_FILE', reconfile)
         self.set_variable('WLC_LTBL_FILE', ltbl_file)
         self.set_variable('SPE_SED_TBL', sed_table)
+        # spectral extraction files
+        self.set_variable('RESIDUAL_NO_GREY_ORD', residual_no_grey_ord)
+        self.set_variable('RESIDUAL_GREY_ORD', residual_grey_ord)
+        self.set_variable('SPECTRA_ORD', spectra_ord)
+        self.set_variable('WAVE_ORD', waveord_file)
+        self.set_variable('TSPEC_ORD', tspec_ord)
 
     # ==========================================================================
     # White light curve functionality
@@ -892,7 +912,7 @@ class Instrument:
         # return the cube
         return cube
 
-    def get_trace_positions(self, log: bool = True) -> np.ndarray:
+    def get_trace_positions(self, log: bool = True):
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
@@ -948,7 +968,6 @@ class Instrument:
         :param map2d: bool, if True return a 2D map of the trace
         :param order_num: int, the order number to use
         :param round_pos: bool, if True round the positions to integers
-        :param log: bool, if True print log messages
 
         :return:
         """
@@ -1022,14 +1041,12 @@ class Instrument:
             # return the trace position
             return posmax, throughput
 
-    def get_wavegrid(self, source: str = 'pos',
-                     order_num: Union[int, None] = None,
+    def get_wavegrid(self, order_num: Union[int, None] = None,
                      return_xpix: bool = False
                      ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get the wave grid for the instrument
 
-        :param source: str, the source of the wave grid
         :param order_num: int, the order number to use (if source is pos)
         :param return_xpix: bool, if True return xpix as well as wave
 
@@ -1098,7 +1115,7 @@ class Instrument:
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
         # construct temporary file names
-        self.temporary_filenames()
+        self.define_filenames()
         # save these for later
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         clean_cube_file = self.set_variable('CLEAN_CUBE_FILE', func_name)
@@ -1200,7 +1217,7 @@ class Instrument:
                 for frame in range(med_diff.shape[0]):
                     med_diff[frame] = mp.lowpassfilter(med_diff[frame], 15)
                 # get the square ratio between median and med diff
-                ratio = np.sqrt(np.nansum(med**2) / np.nansum(med_diff**2))
+                ratio = np.sqrt(np.nansum(med ** 2) / np.nansum(med_diff ** 2))
                 # scale the median difference
                 med_diff *= ratio
             else:
@@ -1251,7 +1268,7 @@ class Instrument:
                          overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
-        return_list =  [cube, med, med_diff, transit_invsout, pcas]
+        return_list = [cube, med, med_diff, transit_invsout, pcas]
         return return_list
 
     def get_valid_oot(self):
@@ -1277,11 +1294,11 @@ class Instrument:
             # set flag
             self.set_variable('HAS_OOT', False)
             # update variables
-            self.set_variable('OOT_DOMAIN', 
+            self.set_variable('OOT_DOMAIN',
                               np.zeros(data_n_frames, dtype=bool))
-            self.set_variable('OOT_DOMAIN_BEFORE',  
+            self.set_variable('OOT_DOMAIN_BEFORE',
                               np.zeros(data_n_frames, dtype=bool))
-            self.set_variable('OOT_DOMAIN_AFTER',  
+            self.set_variable('OOT_DOMAIN_AFTER',
                               np.zeros(data_n_frames, dtype=bool))
             self.set_variable('INT_DOMAIN', np.ones(data_n_frames, dtype=bool))
             return
@@ -1383,6 +1400,7 @@ class Instrument:
                     valid &= ~tracemap[:, col]
                     valid &= np.abs(v1 / err1) < 5
                     # try fit the polynomial
+                    # noinspection PyBroadException
                     try:
                         pfit = np.polyfit(index[valid], v1[valid],
                                           degree_1f_corr, w=1 / err1[valid])
@@ -1394,12 +1412,18 @@ class Instrument:
         return cube
 
     def fit_pca(self, cube2: np.ndarray, err: np.ndarray,
-                med: np.ndarray, tracemap: np.ndarray):
+                med: np.ndarray, tracemap: np.ndarray
+                ) -> Union[None, np.ndarray]:
         """
         Fit the PCA to the tracemap
 
-        :param tracemap:
-        :return:
+        :param cube2: np.ndarray, the cube to fit the PCA to
+        :param err: np.ndarray, the error cube
+        :param med: np.ndarray, the median image
+        :param tracemap: np.ndarray, the trace map
+
+        :return: None if unable to do the PCA otherwise np.ndarray:
+                 the principle components
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
@@ -1662,15 +1686,18 @@ class Instrument:
         else:
             y_trace_pos, x_trace_pos = np.array([np.nan]), np.array([np.nan])
         # ---------------------------------------------------------------------
+        # if we don't have a mask, we set dummy values for the plot
+        # later in the code
+        x_order0 = [np.nan]
+        y_order0 = [np.nan]
         # deal with masking order zero
         if self.params['MASK_ORDER_0']:
             # adding the masking of order 0
-            mask_order0, x_order0, y_order0 = self.get_mask_order0(mask_trace_pos)
+            mo0out = self.get_mask_order0(mask_trace_pos, tracemap)
+            # get return from get_mask_order0
+            mask_order0, x_order0, y_order0 = mo0out
+            # set the values in the mask where order zero to 0
             mask_trace_pos[mask_order0] = 0
-        else:
-            # if we don't have a mask, we set dummy values for the plot later in the code
-            x_order0 = [np.nan]
-            y_order0 = [np.nan]
         # return the mask trace positions
         return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
 
@@ -1687,7 +1714,7 @@ class Instrument:
                         positions, 3. the y order 0 positions
         """
         # default option does not use tracemap
-        _ = tracemap
+        _ = self, tracemap
         # default option is not to mask order 0 (overridden by SOSS)
         empty_x = np.array([np.nan])
         empty_y = np.array([np.nan])
@@ -1787,7 +1814,7 @@ class Instrument:
             n_comp = self.params['FIT_N_PCA']
             for icomp in range(n_comp):
                 vector.append(pca[icomp].ravel())
-                output_names.append(f'PCA{icomp+1}')
+                output_names.append(f'PCA{icomp + 1}')
                 output_units.append('ppm')
                 output_factor.append(1.0)
         # ---------------------------------------------------------------------
@@ -1886,7 +1913,7 @@ class Instrument:
             with warnings.catch_warnings(record=True) as _:
                 # work out the sum and error on the sum of the trace
                 sum_trace = np.nansum(cube[iframe] * valid)
-                err_sum_trace = np.sqrt(np.nansum(err[iframe]**2 * valid))
+                err_sum_trace = np.sqrt(np.nansum(err[iframe] ** 2 * valid))
                 # push into outputs
                 outputs['sum_trace'][iframe] = sum_trace
                 outputs['sum_trace_error'][iframe] = err_sum_trace
@@ -1914,8 +1941,8 @@ class Instrument:
                 recon -= amp_model[output_names == 'zero point']
             # -----------------------------------------------------------------
             # calculate the trace correction
-            part1 = np.nansum(recon * valid / err[iframe]**2)
-            part2 = np.nansum(med * amp_model[0] * valid / err[iframe]**2)
+            part1 = np.nansum(recon * valid / err[iframe] ** 2)
+            part2 = np.nansum(med * amp_model[0] * valid / err[iframe] ** 2)
             trace_corr[iframe] = part1 / part2
             # -----------------------------------------------------------------
             # plot the trace correction sample plot
@@ -2001,7 +2028,7 @@ class Instrument:
         Correct the per pixel baseline
 
         :param cube: np.ndarray, the cube
-        :param valid: np.ndarray, the valid pixels
+        :param valid_arr: np.ndarray, the valid pixels
 
         :return: np.ndarray, the corrected cube
         """
@@ -2055,7 +2082,7 @@ class Instrument:
             # loop around y pix
             for iy in range(nbypix):
                 # if pixel is not valid we skip
-                if  np.sum(valid_arr[:, iy, ix]) == 0:
+                if np.sum(valid_arr[:, iy, ix]) == 0:
                     continue
                 # get the sample column
                 sample = cube_slice[:, iy]
@@ -2125,6 +2152,7 @@ class Instrument:
         :return: float or list, the RMS of the vector or the methods
                  (if vector=None)
         """
+        _ = self
         # deal with just getting the baseline methods
         if vector is None:
             return ['naive_sigma', 'linear_sigma', 'lowpass_sigma',
@@ -2162,7 +2190,7 @@ class Instrument:
             roll2 = np.roll(vector, -1)
             roll3 = np.roll(vector, 1)
             # get the contributions from each roll
-            vector2 = -roll1/3 + roll2 + roll3/3
+            vector2 = -roll1 / 3 + roll2 + roll3 / 3
             # get the diff between the two vectors
             diff = vector - vector2
             # calculate the sigma of the diff
@@ -2185,7 +2213,7 @@ class Instrument:
         # get the tracemap
         tracemap = self.get_trace_map()
         # get the wave grid
-        wavegrid = self.get_wavegrid(order=1)
+        wavegrid = self.get_wavegrid(order_num=1)
         # ---------------------------------------------------------------------
         # find the domain that has spectra
         with warnings.catch_warnings(record=True) as _:
@@ -2225,15 +2253,10 @@ class Instrument:
     # ==========================================================================
     # Spectral Extraction functionality
     # ==========================================================================
-    def create_sed(self, trace_order: int) -> Table:
+    def create_sed(self, med: np.ndarray, residual: np.ndarray,
+                   trace_order: int) -> Table:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_sed()'
-        # load the median image
-        med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
-        med = io.load_fits(med_file)
-        # load the residuals
-        res_file = self.get_variable('WLC_RES_FILE', func_name)
-        residual = io.load_fits(res_file)
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', residual.shape[2], func_name)
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
@@ -2275,7 +2298,7 @@ class Instrument:
         # return this table
         return sed_table
 
-    def load_model(self) -> np.ndarray:
+    def load_model(self, recon: np.ndarray, med: np.ndarray) -> np.ndarray:
         """
         load the model (and deal with masking order zero if required)
 
@@ -2283,17 +2306,13 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_model()'
-        # load the median image
-        med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
-        med = io.load_fits(med_file)
-        # load the residuals
-        recon_file = self.get_variable('WLC_RECON_FILE', func_name)
-        model = io.load_fits(recon_file)
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # load the tracemap
         tracemap = self.get_trace_map()
         # ---------------------------------------------------------------------
+        # the model starts as the recon
+        model = np.array(recon)
         # deal with masking order zero
         if self.params['MASK_ORDER_0']:
             # load the mask trace position
@@ -2309,7 +2328,8 @@ class Instrument:
         # return the model
         return model
 
-    def ratio_residual_to_trace(self, model: np.ndarray, trace_order: int
+    def ratio_residual_to_trace(self, model: np.ndarray, err: np.ndarray,
+                                residual: np.ndarray, trace_order: int
                                 ) -> Tuple[np.ndarray, np.ndarray]:
         """
         We find the ratio of residual to trace.
@@ -2323,10 +2343,12 @@ class Instrument:
         the trace profile are the input errors divided by the model trace.
         Pixels with a very low trace value have correspondingly larger errors.
 
-        :param model:
-        :param trace_order:
+        :param model: np.ndarray, the model
+        :param err: np.ndarray, the error cube
+        :param residual: np.ndarray, the residual cube
+        :param trace_order: int, the trace order
 
-        :return:
+        :return: tuple, 1. the spectrum, 2. the spectrum error
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.ratio_residual_to_trace()'
@@ -2337,12 +2359,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the trace position
         posmax, throughput = self.get_trace_pos(order_num=trace_order)
-        # load the residuals
-        res_file = self.get_variable('WLC_RES_FILE', func_name)
-        residual = io.load_fits(res_file)
-        # load the error file
-        err_file = self.get_variable('WLC_ERR_FILE', func_name)
-        err = io.load_fits(err_file)
         # ---------------------------------------------------------------------
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
@@ -2363,8 +2379,9 @@ class Instrument:
                 v2 = err[iframe, ystart:yend, ix]
                 # calculate the ratio
                 with warnings.catch_warnings(record=True) as _:
+                    # noinspection PyBroadException
                     try:
-                        ratio, err_ratio = mp.odd_ratio_mean(v1/v0, v2/v0)
+                        ratio, err_ratio = mp.odd_ratio_mean(v1 / v0, v2 / v0)
                     except Exception as _:
                         ratio, err_ratio = np.nan, 0
                 # the above code does the eqiuvalent of a sigma-clipped mean
@@ -2377,7 +2394,16 @@ class Instrument:
         # return the spectrum and corresponding error
         return spec, spec_err
 
-    def remove_trend(self, spec: np.ndarray):
+    def remove_trend(self, spec: np.ndarray, ltable: Table
+                     ) -> Tuple[np.ndarray, Table]:
+        """
+        Remove the out-of-transit trend from the spectrum and the linear fit
+        table
+
+        :param spec: np.ndarray, the spectrum
+        :param ltable: Table, the linear fit table
+        :return:
+        """
         # set function name
         func_name = f'{__NAME__}.{self.name}.binary_transit_masks()'
         # get the number of frames
@@ -2397,6 +2423,8 @@ class Instrument:
                     'out-of-transit domain.'
                     '\n\tPlease set CONTACT_FRAMES to remove_trend.')
             misc.printc(wmsg, 'warning')
+            # return the spec and ltable without removing trend
+            return spec, ltable
         # ---------------------------------------------------------------------
         # loop around
         for ix in range(nbxpix):
@@ -2415,9 +2443,183 @@ class Instrument:
             # remove the trend and update the spectrum
             spec[:, ix] -= np.polyval(tfit, np.arange(nbframes))
         # ---------------------------------------------------------------------
-        # return the spectrum
-        return spec
+        # do the same for the photometric time series
+        # ---------------------------------------------------------------------
+        # to the same as we did on the spectrum on the photometric time series
+        v1 = np.array(ltable['amplitude'])
+        # get an index array for v1
+        index = np.arange(spec.shape[0])
+        # fit the out-of-transit trend
+        tfit = np.polyfit(index[oot_domain], v1[oot_domain], 1)
+        # remove this off the ampliduteds
+        ltable['amplitude'] -= np.polyval(tfit, index)
+        # ---------------------------------------------------------------------
+        # return the updated spec and ltable
+        return spec, ltable
 
+    def get_transit_depth(self, ltable: Table) -> Union[float, None]:
+        """
+        Get the transit depth (either user defined or calculate)
+
+        :param ltable: Table, the linear fit table (from WLC)
+
+        :raises SossisseConstantException: if TDEPTH_MODE is set to compute
+                                             and TDEPTH is not set or TDEPTH
+                                             is not a valid float
+        :return: None if out-of-transit domain not set, otherwise the transit
+                 depth
+        """
+        # deal with the case where we are not in "compute" mode
+        if self.params['TDEPTH_MODE'] != 'compute':
+            # user must set the transit depth if this is the case
+            if self.params['TDEPTH'] is None:
+                emsg = 'TDEPTH_MODE is not set to compute, please set TDEPTH'
+                raise exceptions.SossisseConstantException(emsg)
+            # return the transit depth defined by user
+            else:
+                try:
+                    return float(self.params['TDEPTH'])
+                except Exception as e:
+                    emsg = 'TDEPTH value is not valid\n\t{0}:{1}'
+                    emsg = emsg.format(type(e), e)
+                    raise exceptions.SossisseConstantException(emsg)
+        # ---------------------------------------------------------------------
+        # otherwise we are in compute mode
+        # ---------------------------------------------------------------------
+        # get the out-of-transit domain
+        self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        int_domain = self.get_variable('INT_DOMAIN', func_name)
+        # deal with out of transit domain not set
+        if not has_oot:
+            wmsg = ('Cannot calculate transit depth trend without '
+                    'out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to remove_trend.')
+            misc.printc(wmsg, 'warning')
+            # return the spec and ltable without removing trend
+            return None
+        # ---------------------------------------------------------------------
+        # get the transit depth
+        with warnings.catch_warnings(record=True) as _:
+            part1 = np.nanmedian(ltable['amplitude'][oot_domain])
+            part2 = np.nanmean(ltable['amplitude'][int_domain])
+            # transit depth is the median out-of-transit amplitudes
+            # minus the mean of the in transit amplitudes
+            transit_depth = part1 - part2
+        # ---------------------------------------------------------------------
+        # return the transit depth
+        return transit_depth
+
+
+    IntransitSpectrum = Union[Tuple[np.ndarray, np.ndarray, np.ndarray],
+                              Tuple[None, None, None]]
+
+    def intransit_spectrum(self, spec: np.ndarray, spec_err: np.ndarray
+                           ) -> IntransitSpectrum:
+        """
+        Construct the in-transit spectrum
+
+        :param spec: np.ndarray, the spectrum
+        :param spec_err: np.ndarray, the spectrum error
+
+        :return: tuple, 1. the in-transit spectrum, 2. the in-transit spectrum
+                    error, 3. the out-of-transit spectrum error,
+                    if out-of-transit if not defined returns None, None, None
+        """
+        # get the out-of-transit domain
+        self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        int_domain = self.get_variable('INT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # deal with no out-of-transit domain defined
+        if not has_oot:
+            wmsg = ('Cannot get in-transit spectrum without '
+                    'out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to remove_trend.')
+            misc.printc(wmsg, 'warning')
+            # return the spec and ltable without removing trend
+            return None, None, None
+        # ---------------------------------------------------------------------
+        # weights of each point from uncertainties
+        weight = 1 / spec_err ** 2
+        # in transit spectrum and error
+        with warnings.catch_warnings(record=True) as _:
+            # calculate the weighted sum of the spectrum - in transit
+            sumspec_in = np.nansum(spec[int_domain] * weight[int_domain],
+                                   axis=0)
+            # calculate the sum of the weights - in transit
+            sumweight_in = np.nansum(weight[int_domain], axis=0)
+            # calculate the in transit spectrum
+            spec_in = sumspec_in / sumweight_in
+            # calculate the in transit spectrum error
+            spec_err_in = np.sqrt(1 / sumweight_in ** 2)
+
+        with warnings.catch_warnings(record=True) as _:
+            # calculate the sum of the weights - out of transit
+            sumweight_out = np.nansum(weight[oot_domain], axis=0)
+            # calculate the out-of-transit spectrum error
+            spec_err_out = 1 / np.sqrt(sumweight_out ** 2)
+        # ---------------------------------------------------------------------
+        # if we have removed a trend, we need to add in quadrature
+        #  out-of-transit  errors to in-transit
+        if inst.params['REMOVE_TREND']:
+            spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
+        # ---------------------------------------------------------------------
+        # chane infinite values to nan
+        spec_err_in[~np.isfinite(spec_err_in)] = np.nan
+        spec_err_out[~np.isfinite(spec_err_out)] = np.nan
+        # ---------------------------------------------------------------------
+        return spec_in, spec_err_in, spec_err_out
+
+    def bin_spectrum(self, wavegrid: np.ndarray, spec_in: np.ndarray,
+                     spec_err_in: np.ndarray) -> Tuple[np.ndarray, np.ndarray,
+                                                      np.ndarray]:
+        """
+        Bin the spectrum
+        
+        :param wavegrid: np.ndarray, the wavelength grid
+        :param spec_in: np.ndarray, the in-transit
+        :param spec_err_in: np.ndarray, the in-transit error
+        
+        """
+        # get the wavelength bins
+        with warnings.catch_warnings(record=True) as _:
+            # log the wavelength
+            logwave = np.log(wavegrid / np.nanmin(wavegrid))
+            # get the wavelength binning
+            wbin = np.floor(logwave) * self.params['RESOLUTION_BIN']
+        # create a wavebin, fluxbin and corresponding error vectors for output
+        wavebin = np.array(list(set(wbin)))
+        flux_bin = np.zeros_like(wave_bin)
+        err_bin = np.zeros_like(wave_bin)
+        # loop around bins in wavelength
+        for ibin in range(len(wavebin)):
+            # find all wavelengths in this bin
+            valid = wbin == wavebin[ibin]
+            # get the flux and error using odd_ratio_mean
+            flux, error = mp.odd_ratio_mean(spec_in[valid], spec_err_in[valid])
+            # push into array
+            flux_bin[ibin] = flux
+            err_bin[ibin] = error
+        # return the binned data
+        return wavebin, flux_bin, err_bin
+
+    def save_results(self, storage: Dict[str, Any], trace_order: int):
+        """
+        Save the results to disk
+        """
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.save_results()'
+        # deal with not saving results --> return
+        if not self.params['SAVE_RESULTS']:
+            # print message saving results are not saved 
+            msg = 'Results not saved as SAVE_RESUILTS is False'
+            misc.printc(msg, 'info')
+            return
+    
+        
 
 
 

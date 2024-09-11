@@ -482,3 +482,57 @@ def plot_sed(params: Dict[str, Any], wavegrid: np.ndarray, sed: np.ndarray,
     save_show_plot(params, 'sed_{0}_ord{1}'.format(objname, trace_order))
 
 
+def plot_full_sed(params: Dict[str, Any],
+                  plot_storage: Dict[str, Dict[str, Any]]):
+    # set up the plot
+    fig, frame = plt.subplots(nrows=1, ncols=1)
+    # loop around tarce orders
+    for trace_order in plot_storage.keys():
+        # deal with trace order
+        if trace_order == 1:
+            fmt1 = 'g.'
+            fmt2 = 'ro--'
+        elif trace_order == 2:
+            fmt1 = 'c.'
+            fmt2 = 'mo--'
+        else:
+            continue
+        # get this trace orders parameters
+        wavegrid = plot_storage[trace_order]['wavegrid']
+        sed_spec = plot_storage[trace_order]['sed_spec']
+        throughtput = plot_storage[trace_order]['throughtput']
+        spec_in = plot_storage[trace_order]['spec_in']
+        spec_err_in = plot_storage[trace_order]['spec_err_in']
+        transit_depth = plot_storage[trace_order]['transit_depth']
+        wave_bin = plot_storage[trace_order]['wave_bin']
+        flux_bin = plot_storage[trace_order]['flux_bin']
+        flux_bin_err = plot_storage[trace_order]['flux_bin_err']
+        # plot the SED
+        frame.plot(wavegrid, sed_spec / throughtput,
+                   label='Flux, throughput-corrected, '
+                         'order {0}'.format(trace_order))
+        # plot the in-transit spectrum
+        ax.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
+                    yerr=spec_err_in * 1e6,
+                    fmt=fmt1, alpha=0.25,
+                    label='in-transit, order {}'.format(trace_order))
+        # plot the binned in-transit spectrum
+        binlabelargs = [params['resolution_bin'], trace_order]
+        binlabel = 'Resolution {}, order {}'.format(*binlabelargs)
+        ax.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
+                    yerr=flux_bin_err * 1e6, fmt=fmt2,
+                    label=binlabel)
+    # -------------------------------------------------------------------------
+    # construct title
+    objname = params['OBJECTNAME']
+    title = f'{objname} -- {params["SUFFIX"]}'
+    # set the axis labels
+    frame.set(xlabel='Wavelength [$\mu$m]', ylabel='ppm',
+              title=title)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(params, 'sed_{0}'.format(objname))
+
+
