@@ -80,11 +80,19 @@ class Instrument:
         self._variables['TEMP_BEFORE_AFTER_CLEAN1F'] = None
         self._variables['TEMP_PCA_FILE'] = None
         self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
+        # WLC files
         self._variables['WLC_ERR_FILE'] = None
         self._variables['WLC_RES_FILE'] = None
         self._variables['WLC_RECON_FILE'] = None
         self._variables['WLC_LTBL_FILE'] = None
         self._variables['SPE_SED_TBL'] = None
+        # spectral extraction files
+        self._variables['RES_NO_GREY_ORD'] = None
+        self._variables['RES_GREY_ORD'] = None
+        self._variables['SPECTRA_ORD'] = None
+        self._variables['WAVE_ORD'] = None
+        self._variables['TSPEC_ORD'] = None
+        self._variables['TSPEC_ORD_BIN'] = None
         # true/false flags
         self._variables['DO_BACKGROUND'] = None
         self._variables['FLAG_CDS'] = None
@@ -109,21 +117,29 @@ class Instrument:
         self.vsources['DATA_Y_SIZE'] = f'{self.name}.load_data_with_dq()'
         self.vsources['DATA_N_FRAMES'] = f'{self.name}.load_data_with_dq()'
         # construct temporary file name function
-        tmp_func = f'{self.name}.define_filenames()'
+        define_func = f'{self.name}.define_filenames()'
         # temp files
-        self.vsources['TEMP_INI_CUBE'] = tmp_func
-        self.vsources['TEMP_INI_ERR'] = tmp_func
-        self.vsources['TEMP_CLEAN_NAN'] = tmp_func
-        self.vsources['MEIDAN_IMAGE_FILE'] = tmp_func
-        self.vsources['CLEAN_CUBE_FILE'] = tmp_func
-        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = tmp_func
-        self.vsources['TEMP_PCA_FILE'] = tmp_func
-        self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = tmp_func
-        self.vsources['WLC_ERR_FILE'] = tmp_func
-        self.vsources['WLC_RES_FILE'] = tmp_func
-        self.vsources['WLC_RECON_FILE'] = tmp_func
-        self.vsources['WLC_LTBL_FILE'] = tmp_func
-        self.vsources['SPE_SED_TBL'] = tmp_func
+        self.vsources['TEMP_INI_CUBE'] = define_func
+        self.vsources['TEMP_INI_ERR'] = define_func
+        self.vsources['TEMP_CLEAN_NAN'] = define_func
+        self.vsources['MEIDAN_IMAGE_FILE'] = define_func
+        self.vsources['CLEAN_CUBE_FILE'] = define_func
+        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = define_func
+        self.vsources['TEMP_PCA_FILE'] = define_func
+        self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = define_func
+        # WLC files
+        self.vsources['WLC_ERR_FILE'] = define_func
+        self.vsources['WLC_RES_FILE'] = define_func
+        self.vsources['WLC_RECON_FILE'] = define_func
+        self.vsources['WLC_LTBL_FILE'] = define_func
+        self.vsources['SPE_SED_TBL'] = define_func
+        # spectral extraction files
+        self.vsources['RESIDUAL_NO_GREY_ORD'] = define_func
+        self.vsources['RESIDUAL_GREY_ORD'] = define_func
+        self.vsources['SPECTRA_ORD'] = define_func
+        self.vsources['WAVE_ORD'] = define_func
+        self.vsources['TSPEC_ORD'] = define_func
+        self.vsources['TSPEC_ORD_BIN'] = define_func
         # true/false flags
         self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
         self.vsources['FLAG_CDS'] = f'{self.name}.load_data_with_dq()'
@@ -325,8 +341,8 @@ class Instrument:
         # get tag1
         tag1 = self.get_variable('TAG1', func_name)
         tag2 = self.get_variable('TAG2', func_name)
-        
-        temppath = self.parmas['TEMP_PATH']
+        # get file paths
+        temppath = self.params['TEMP_PATH']
         csvpath = self.params['CSV_PATH']
         fitspath = self.params['FITS_PATH']
         # ---------------------------------------------------------------------
@@ -372,14 +388,19 @@ class Instrument:
         res_grey_ord = 'residual_grey_ord{trace_order}' + tag2 + '.fits'
         res_grey_ord = os.path.join(fitspath, res_grey_ord)
         # ---------------------------------------------------------------------
-        spectra_ord = 'spectra_ord{trace_order}' + tag2  + '.fits'
+        spectra_ord = 'spectra_ord{trace_order}' + tag2 + '.fits'
         spectra_ord = os.path.join(fitspath, spectra_ord)
         # ---------------------------------------------------------------------
-        waveord_file = 'wavelength_ord{trace_order}' + tag2  + '.fits'
+        waveord_file = 'wavelength_ord{trace_order}' + tag2 + '.fits'
         waveord_file = os.path.join(fitspath, waveord_file)
         # ---------------------------------------------------------------------
-        tspec_ord = 'tspec_ord{trace_order}' + tag2  + '.csv'
+        tspec_ord = 'tspec_ord{trace_order}' + tag2 + '.csv'
         tspec_ord = os.path.join(csvpath, tspec_ord)
+        # ---------------------------------------------------------------------
+        tspec_ord_bin = 'tspec_ord_{trace_order}_bin{res}' + tag2 + '.csv'
+        tspec_ord_bin = os.path.join(csvpath, tspec_ord_bin)
+        # ---------------------------------------------------------------------
+        eureka_file = 'spectra_ord{trace_order}' + tag2 + '.h5'
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
@@ -397,11 +418,13 @@ class Instrument:
         self.set_variable('WLC_LTBL_FILE', ltbl_file)
         self.set_variable('SPE_SED_TBL', sed_table)
         # spectral extraction files
-        self.set_variable('RESIDUAL_NO_GREY_ORD', residual_no_grey_ord)
-        self.set_variable('RESIDUAL_GREY_ORD', residual_grey_ord)
+        self.set_variable('RES_NO_GREY_ORD', res_no_grey_ord)
+        self.set_variable('RES_GREY_ORD', res_grey_ord)
         self.set_variable('SPECTRA_ORD', spectra_ord)
         self.set_variable('WAVE_ORD', waveord_file)
         self.set_variable('TSPEC_ORD', tspec_ord)
+        self.set_variable('TSPEC_ORD_BIN', tspec_ord_bin)
+        self.set_variable('EUREKA_FILE', eureka_file)
 
     # ==========================================================================
     # White light curve functionality
@@ -2250,11 +2273,39 @@ class Instrument:
         # return the effective wavelength factors
         return mean_photon_weighted, mean_energy_weighted
 
+    def save_wlc_results(self, err: np.ndarray, valid_cube: np.ndarray,
+                         lrecon: np.ndarray, ltable: Table):
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.save_wlc_results()'
+        # get the meta data
+        meta_data = self.get_variable('META', func_name)
+        # -------------------------------------------------------------------------
+        # write the error map
+        errfile = self.get_variable('WLC_ERR_FILE', func_name)
+        io.save_fits(errfile, datalist=[err], datatypes=['image'],
+                     datanames=['err'], meta=meta_data)
+        # -------------------------------------------------------------------------
+        # write the residual map
+        resfile = self.get_variable('WLC_RES_FILE', func_name)
+        io.save_fits(resfile, datalist=[valid_cube], datatypes=['image'],
+                     datanames=['residual'], meta=meta_data)
+        # -------------------------------------------------------------------------
+        # write the recon
+        reconfile = self.get_variable('WLC_RECON_FILE', func_name)
+        io.save_fits(reconfile, datalist=[lrecon], datatypes=['image'],
+                     datanames=['recon'], meta=meta_data)
+        # -------------------------------------------------------------------------
+        # write the table to the csv path
+        ltbl_file = self.get_variable('WLC_LTBL_FILE', func_name)
+        io.save_table(ltbl_file, ltable, fmt='csv')
+
     # ==========================================================================
     # Spectral Extraction functionality
     # ==========================================================================
     def create_sed(self, med: np.ndarray, residual: np.ndarray,
-                   trace_order: int) -> Table:
+                   wavegrid: np.ndarray, posmax: np.ndarray,
+                   throughput: np.ndarray, med_clean: np.ndarray,
+                   trace_order: int) -> np.ndarray:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_sed()'
         # for future reference in the code, we keep track of data size
@@ -2262,12 +2313,6 @@ class Instrument:
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
         self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
         # ---------------------------------------------------------------------
-        # get the trace position
-        posmax, throughput = self.get_trace_pos(order_num=trace_order)
-        # get wave grid
-        wavegrid = self.get_wavegrid(order_num=trace_order)
-        # get clean median trace for spectrum
-        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med)
         # construct the sed
         sp_sed = np.zeros(med.shape[1])
         # get a ribbon on the trace that extends over the input width
@@ -2283,20 +2328,8 @@ class Instrument:
         # plot the SED
         plots.plot_sed(self.params, wavegrid, sp_sed / throughput, trace_order)
         # ---------------------------------------------------------------------
-        # construct sed table name
-        sed_table_name = self.get_variable('SED_TABLE_FILE', func_name)
-        sed_table_name = sed_table_name.format(self.params['OBJECTNAME'],
-                                               trace_order)
-        # construct SED table
-        sed_table = Table()
-        sed_table['wavelength'] = wavegrid
-        sed_table['flux'] = sp_sed / throughput
-        sed_table['raw flux'] = sp_sed
-        sed_table['throughput'] = throughput
-        # save table to disk
-        io.save_table(sed_table_name, sed_table)
         # return this table
-        return sed_table
+        return sp_sed
 
     def load_model(self, recon: np.ndarray, med: np.ndarray) -> np.ndarray:
         """
@@ -2329,7 +2362,7 @@ class Instrument:
         return model
 
     def ratio_residual_to_trace(self, model: np.ndarray, err: np.ndarray,
-                                residual: np.ndarray, trace_order: int
+                                residual: np.ndarray, posmax: np.ndarray
                                 ) -> Tuple[np.ndarray, np.ndarray]:
         """
         We find the ratio of residual to trace.
@@ -2346,7 +2379,7 @@ class Instrument:
         :param model: np.ndarray, the model
         :param err: np.ndarray, the error cube
         :param residual: np.ndarray, the residual cube
-        :param trace_order: int, the trace order
+        :param posmax: np.ndarray, the position of the trace
 
         :return: tuple, 1. the spectrum, 2. the spectrum error
         """
@@ -2356,9 +2389,6 @@ class Instrument:
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        # ---------------------------------------------------------------------
-        # get the trace position
-        posmax, throughput = self.get_trace_pos(order_num=trace_order)
         # ---------------------------------------------------------------------
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
@@ -2469,6 +2499,8 @@ class Instrument:
         :return: None if out-of-transit domain not set, otherwise the transit
                  depth
         """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.get_transit_depth()'
         # deal with the case where we are not in "compute" mode
         if self.params['TDEPTH_MODE'] != 'compute':
             # user must set the transit depth if this is the case
@@ -2511,7 +2543,6 @@ class Instrument:
         # return the transit depth
         return transit_depth
 
-
     IntransitSpectrum = Union[Tuple[np.ndarray, np.ndarray, np.ndarray],
                               Tuple[None, None, None]]
 
@@ -2527,6 +2558,8 @@ class Instrument:
                     error, 3. the out-of-transit spectrum error,
                     if out-of-transit if not defined returns None, None, None
         """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
         # get the out-of-transit domain
         self.get_valid_oot()
         has_oot = self.get_variable('HAS_OOT', func_name)
@@ -2564,7 +2597,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we have removed a trend, we need to add in quadrature
         #  out-of-transit  errors to in-transit
-        if inst.params['REMOVE_TREND']:
+        if self.params['REMOVE_TREND']:
             spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
         # ---------------------------------------------------------------------
         # chane infinite values to nan
@@ -2574,8 +2607,8 @@ class Instrument:
         return spec_in, spec_err_in, spec_err_out
 
     def bin_spectrum(self, wavegrid: np.ndarray, spec_in: np.ndarray,
-                     spec_err_in: np.ndarray) -> Tuple[np.ndarray, np.ndarray,
-                                                      np.ndarray]:
+                     spec_err_in: np.ndarray
+                     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Bin the spectrum
         
@@ -2591,22 +2624,22 @@ class Instrument:
             # get the wavelength binning
             wbin = np.floor(logwave) * self.params['RESOLUTION_BIN']
         # create a wavebin, fluxbin and corresponding error vectors for output
-        wavebin = np.array(list(set(wbin)))
+        wave_bin = np.array(list(set(wbin)))
         flux_bin = np.zeros_like(wave_bin)
         err_bin = np.zeros_like(wave_bin)
         # loop around bins in wavelength
-        for ibin in range(len(wavebin)):
+        for ibin in range(len(wave_bin)):
             # find all wavelengths in this bin
-            valid = wbin == wavebin[ibin]
+            valid = wbin == wave_bin[ibin]
             # get the flux and error using odd_ratio_mean
             flux, error = mp.odd_ratio_mean(spec_in[valid], spec_err_in[valid])
             # push into array
             flux_bin[ibin] = flux
             err_bin[ibin] = error
         # return the binned data
-        return wavebin, flux_bin, err_bin
+        return wave_bin, flux_bin, err_bin
 
-    def save_results(self, storage: Dict[str, Any], trace_order: int):
+    def save_spe_results(self, storage: Dict[str, Any], trace_order: int):
         """
         Save the results to disk
         """
@@ -2618,12 +2651,167 @@ class Instrument:
             msg = 'Results not saved as SAVE_RESUILTS is False'
             misc.printc(msg, 'info')
             return
-         # TODO: ---------------------------
-         # TODO: Got to here
-         # TODO: ---------------------------
-        
 
+        # get the meta data
+        meta_data = self.get_variable('META', func_name)
 
+        # get variables from storage
+        wavegrid = storage['wavegrid']
+        sp_sed = storage['sp_sed']
+        throughput = storage['throughput']
+        spec = storage['spec']
+        spec_err = storage['spec_err']
+        amp_image = storage['amp_image']
+        wavegrid_2d = storage['wavegrid_2d']
+        spec_in = storage['spec_in']
+        spec_err_in = storage['spec_err_in']
+        transit_depth = storage['transit_depth']
+        wave_bin = storage['wave_bin']
+        flux_bin = storage['flux_bin']
+        flux_bin_err = storage['flux_bin_err']
+        # ---------------------------------------------------------------------
+        # Save the SED table
+        # ---------------------------------------------------------------------
+        # construct sed table name
+        sed_table_name = self.get_variable('SED_TABLE_FILE', func_name)
+        sed_table_name = sed_table_name.format(self.params['OBJECTNAME'],
+                                               trace_order)
+        # construct SED table
+        sed_table = Table()
+        sed_table['wavelength'] = wavegrid
+        sed_table['flux'] = sp_sed / throughput
+        sed_table['raw flux'] = sp_sed
+        sed_table['throughput'] = throughput
+        # save table to disk
+        io.save_table(sed_table_name, sed_table)
+        # ---------------------------------------------------------------------
+        # Save the residual no grey order file
+        # ---------------------------------------------------------------------
+        # get file name
+        res_no_grey_ord = self.get_variable('RES_NO_GREY_ORD', func_name)
+        res_no_grey_ord = res_no_grey_ord.format(trace_order)
+        # write the residual no grey order tile
+        io.save_fits(res_no_grey_ord, datalist=[spec, spec_err],
+                     datatypes=['image', 'image'],
+                     datanames=['spec', 'spec_err'],
+                     meta=meta_data)
+        # ---------------------------------------------------------------------
+        # Save the residual grey order file (from amplitudes
+        # ---------------------------------------------------------------------
+        # get file name
+        res_grey_ord = self.get_variable('RES_GREY_ORD', func_name)
+        res_grey_ord = res_grey_ord.format(trace_order)
+        # write the residual grey order tile
+        io.save_fits(res_grey_ord, datalist=[amp_image, spec_err],
+                     datatypes=['image', 'image'],
+                     datanames=['spec', 'spec_err'],
+                     meta=meta_data)
+        # ---------------------------------------------------------------------
+        # Save the spectra for this trace order to file
+        # ---------------------------------------------------------------------
+        # get file name
+        spec_file = self.get_variable('SPECTRA_ORD', func_name)
+        spec_file = spec_file.format(trace_order)
+        # get the data list
+        datalist = [wavegrid_2d, amp_image, spec_err]
+        # get the data type list
+        datatypes = ['image', 'image', 'image']
+        # get the data names
+        datanames = ['WAVELENGTH', 'RELFLUX', 'RELFLUX_ERROR']
+        # save the fits file
+        io.save_fits(spec_file, datalist=datalist, datatypes=datatypes,
+                     datanames=datanames, meta=meta_data)
+
+        # ---------------------------------------------------------------------
+        # Save the wavelength for this trace order to file
+        # ---------------------------------------------------------------------
+        # get file name
+        wave_file = self.get_variable('WAVE_ORD', func_name)
+        wave_file = wave_file.format(trace_order)
+        # write the wavelength file
+        io.save_fits(wave_file, datalist=[wavegrid], datatypes=['image'],
+                     datanames=['WAVELENGTH'], meta=meta_data)
+
+        # ---------------------------------------------------------------------
+        # Save the transit spectrum for this trace order to file
+        # ---------------------------------------------------------------------
+        # get file name
+        transit_file = self.get_variable('TSPEC_ORD', func_name)
+        transit_file = transit_file.format(trace_order)
+
+        # make transit table
+        t_table = Table()
+        t_table['wavelength'] = wavegrid
+        t_table['flux'] = (spec_in + transit_depth) * 1e6
+        t_table['flux_err'] = spec_err_in * 1e6
+        # save table
+        io.save_table(transit_file, t_table, fmt='csv')
+
+        # ---------------------------------------------------------------------
+        # Save the transit spectrum for this trace order (binned) to file
+        # ---------------------------------------------------------------------
+        # get the resolution
+        res = self.params['RESOLUTION_BIN']
+        # get file name
+        transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
+        transit_bin_file = transit_bin_file.format(trace_order, res)
+        # make transit table
+        tb_table = Table()
+        tb_table['wavelength'] = wave_bin
+        tb_table['flux'] = (flux_bin + transit_depth) * 1e6
+        tb_table['flux_err'] = flux_bin_err * 1e6
+        # save table
+        io.save_table(transit_bin_file, tb_table, fmt='csv')
+
+    def to_eureka(self, storage: Dict[int, Dict[str, Any]]):
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.to_eureka()'
+        # get the trace orders from the
+        trace_orders = list(storage.keys())
+        # print progress
+        msg = 'Converting to Eureka format'
+        misc.printc(msg, 'info')
+        # loop around trace orders
+        for trace_order in trace_orders:
+            # ----------------------------------------------------------------
+            # print progress
+            msg = f'Processing order {trace_order}'
+            misc.printc(msg, 'info')
+            # get variables from storage
+            flux = storage[trace_order]['amp_image']
+            flux_err = storage[trace_order]['spec_err']
+            wavegrid = storage[trace_order]['wavegrid']
+            # ----------------------------------------------------------------
+            # print progress
+            msg = 'Sorting in decreasing wavelength order'
+            misc.printc(msg, 'info')
+            # sort by decreasing wavelength order
+            sortmask = np.argsort(wavegrid)[::-1]
+            # apply sort mask
+            wavegrid = wavegrid[sortmask]
+            flux = flux[:, sortmask]
+            flux_err = flux_err[:, sortmask]
+            # -----------------------------------------------------------------
+            # print progress
+            msg = 'Reading raw file(s) to get time array'
+            misc.printc(msg, 'info')
+            # storage for time info
+            time_arr = []
+            # loop around raw files
+            for filename in self.params['FILES']:
+                # get time array data
+                tmp_table = io.load_table(filename, hdu='INT_TIMES')
+                # get the int_mid_bjd_tdb column
+                time_arr.append(np.array(tmp_table['int_mid_BJD_TDB']))
+            # convert time_arr into a numpy array
+            time_arr = np.array(time_arr)
+            # -----------------------------------------------------------------
+            # get the filename
+            filename = self.get_variable('EUREKA_FILE', func_name)
+            filename = filename.format(trace_order)
+            # -----------------------------------------------------------------
+            # save eureka format file
+            io.save_eureka(filename, wavegrid, flux, flux_err, time_arr)
 
 
 # =============================================================================

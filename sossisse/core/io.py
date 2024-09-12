@@ -13,7 +13,7 @@ import datetime
 import os
 import shutil
 from string import Template
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Union
 
 import numpy as np
 from astropy.io import fits
@@ -139,17 +139,17 @@ def load_fits(filename: str, ext: int = None, extname: str = None):
         raise exceptions.SossisseFileException(emsg.format(*eargs))
 
 
-def load_table(filename: str, ext: int = None):
+def load_table(filename: str, hdu: Union[int, str] = None):
     """
     Load the table from a file
 
     :param filename: str, the filename to load
-    :param ext: int, the extension number to load
+    :param hdu: int or str, the extension number or extention name to load
 
     :return: data, the loaded data
     """
     try:
-        data = Table.read(filename, ext)
+        data = Table.read(filename, hdu)
     except Exception as e:
         emsg = 'Error loading table from file: {0}\n\t{1}: {2}'
         eargs = [filename, type(e), str(e)]
@@ -176,6 +176,47 @@ def save_fitsimage(filename: str, data: np.ndarray, meta: Dict[str, Any] = None)
         eargs = [filename, type(e), str(e)]
         raise exceptions.SossisseFileException(emsg.format(*eargs))
 
+
+def save_fits(filename: str, datalist: List[Any], datatypes: List[str],
+              datanames: List[str], meta: Dict[str, Any] = None):
+    """
+    Save the data to a file
+    :param filename:
+    :param datalist:
+    :param datatypes:
+    :param datanames:
+    :param meta:
+    :return:
+    """
+    # print progres
+    msg = 'Saving data to file: {0}'
+    misc.printc(msg.format(filename), msg_type='info')
+
+    try:
+        # open a fits hdu list
+        with fits.HDUList() as hdul:
+            # first hdu is primary and is blank
+            hdul.append(fits.PrimaryHDU())
+            # loop around all data
+            for it in range(len(datalist)):
+                # deal with differing datatypes
+                if datatypes[it] == 'table':
+                    hdu = fits.BinTableHDU(datalist[it], name=datanames[it])
+                else:
+                    # create a hdu
+                    hdu = fits.ImageHDU(datalist[it], name=datanames[it])
+                # add the hdu to the hdul
+                hdul.append(hdu)
+            # add the meta data
+            if meta is not None:
+                for key in meta:
+                    hdul[0].header[key] = meta[key]
+            # write the hdul to a file
+            hdul.writeto(filename, overwrite=True)
+    except Exception as e:
+        emsg = 'Error saving data to file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
 
 def save_table(filename: str, data: Table, fmt: str='csv'):
     """
@@ -300,6 +341,43 @@ def summary_html(params: Dict[str, Any]):
     # write the html file
     with open(html_file, 'w') as html_file:
         html_file.write(rendered_html)
+
+
+    # noinspection PyUnresolvedReferences
+def save_eureka(filename: str, flux: np.ndarray, flux_err: np.ndarray,
+                wavegrid: np.ndarray, time_arr: np.ndarray):
+    # set function name
+    func_name = __NAME__ + '.save_eureka()'
+    # attempt to install astraeus package
+    try:
+        from astraeus import xarrayIO as xrio
+    except ImportError:
+        emsg = ('Please install the astraeus package manually to use '
+                f'"{func_name}" with the following: \n'
+                'pip install git+https://github.com/kevin218/Astraeus.git')
+        raise exceptions.SossisseException(emsg)
+    # -----------------------------------------------------------------
+    # flux and flux_error should be of shape time x wavelength
+    # wavelength should be in descending order (and in microns)
+    # time in BJD_TBD
+    # outfile is the name you want to save your file as
+    # -----------------------------------------------------------------
+    # make h5 data set
+    outdata = xrio.makeDataset()
+    # add the spectrum extension
+    outdata['optspec'] = (['time', 'x'], flux)
+    outdata['optspec'].attrs['flux_units'] = 'e-/s'
+    outdata['optspec'].attrs['time_units'] = 'BJD_TBD'
+    # add the error extension
+    outdata['opterr'] = (['time', 'x'], flux_err)
+    outdata['opterr'].attrs['flux_units'] = 'e-/s'
+    outdata['opterr'].attrs['time_units'] = 'BJD_TBD'
+    # add the wave extension
+    outdata['wave_1d'] = (['x'], wavegrid)
+    # add the time array
+    outdata.coords['time'] = time_arr
+    # write file
+    xrio.writeXR(filename, outdata)
 
 
 # =============================================================================

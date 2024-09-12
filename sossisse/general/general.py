@@ -101,10 +101,10 @@ def white_light_curve(inst: Instrument):
                                    lvector, x_trace_pos, y_trace_pos,
                                    x_order0, y_order0)
     # get outputs of apply_amp_recon
-    l_table, lrecon, valid_cube = amp_out
+    ltable, lrecon, valid_cube = amp_out
     # -------------------------------------------------------------------------
     # normalize the trace but a normalization factor
-    l_table = inst.normalize_sum_trace(l_table)
+    ltable = inst.normalize_sum_trace(ltable)
     # -------------------------------------------------------------------------
     # per pixel baseline
     if inst.params['PER_PIXEL_BASELINE_CORRECTION']:
@@ -114,7 +114,7 @@ def white_light_curve(inst: Instrument):
     # print the rms baseline for all methods
     for method in inst.get_rms_baseline():
         # calculate the rms for this method
-        rms_method = inst.get_rms_baseline(l_table['amplitude'], method=method)
+        rms_method = inst.get_rms_baseline(ltable['amplitude'], method=method)
         # print this
         msg = '{0}, rms = {1:.1f}ppm'.format(method, rms_method * 1e6)
         misc.printc(msg, 'number')
@@ -124,32 +124,15 @@ def white_light_curve(inst: Instrument):
     # =========================================================================
     # write files
     # =========================================================================
-    # get the meta data
-    meta_data = inst.get_variable('META', func_name)
-    # -------------------------------------------------------------------------
-    # write the error map
-    errfile = inst.get_variable('WLC_ERR_FILE', func_name)
-    io.save_fitsimage(errfile, err, meta=meta_data)
-    # -------------------------------------------------------------------------
-    # write the residual map
-    resfile = inst.get_variable('WLC_RES_FILE', func_name)
-    io.save_fitsimage(resfile, cube, meta=meta_data)
-    # -------------------------------------------------------------------------
-    # write the recon
-    reconfile = inst.get_variable('WLC_RECON_FILE', func_name)
-    io.save_fitsimage(reconfile, lrecon, meta=meta_data)
-    # -------------------------------------------------------------------------
-    # write the table to the csv path
-    ltbl_file = inst.get_variable('WLC_LTBL_FILE', func_name)
-    io.save_table(ltbl_file, l_table, fmt='csv')
+    inst.save_wlc_results(err, valid_cube, lrecon, ltable)
     # =========================================================================
     # Plots and Summary HTML
     # =========================================================================
     # plot the stability plot
-    plots.plot_stability(inst.params, l_table)
+    plots.plot_stability(inst.params, ltable)
     # -------------------------------------------------------------------------
     # plot the transit plot
-    plots.plot_transit(inst.params, l_table)
+    plots.plot_transit(inst.params, ltable)
     # -------------------------------------------------------------------------
     # write the yaml file to html
     io.summary_html(inst.params)
@@ -174,19 +157,21 @@ def spectral_extraction(inst: Instrument):
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
     # load the median image
-    med_file = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+    med_file = inst.get_variable('MEIDAN_IMAGE_FILE', func_name)
     med = io.load_fits(med_file)
+    # get clean median trace for spectrum
+    dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
     # load the residuals
-    res_file = self.get_variable('WLC_RES_FILE', func_name)
+    res_file = inst.get_variable('WLC_RES_FILE', func_name)
     residual = io.load_fits(res_file)
     # load the error file
-    err_file = self.get_variable('WLC_ERR_FILE', func_name)
+    err_file = inst.get_variable('WLC_ERR_FILE', func_name)
     err = io.load_fits(err_file)
     # load the residuals
-    recon_file = self.get_variable('WLC_RECON_FILE', func_name)
+    recon_file = inst.get_variable('WLC_RECON_FILE', func_name)
     recon = io.load_fits(recon_file)
     # load the linear fit table
-    ltable_file = self.get_variable('WLC_LTBL_FILE', func_name)
+    ltable_file = inst.get_variable('WLC_LTBL_FILE', func_name)
     ltable = io.load_table(ltable_file)
     # -------------------------------------------------------------------------
     # plot / save storage
@@ -194,19 +179,30 @@ def spectral_extraction(inst: Instrument):
     # -------------------------------------------------------------------------
     # loop around trace orders
     for trace_order in inst.params['TRACE_ORDERS']:
+        # get the trace position
+        posmax, throughput = inst.get_trace_pos(order_num=trace_order)
+        # get wave grid
+        wavegrid = inst.get_wavegrid(order_num=trace_order)
         # create the SED
-        sed_tbl = inst.create_sed(med, residual, trace_order)
+        sp_sed = inst.create_sed(med, residual, wavegrid, posmax, throughput,
+                                  med_clean, trace_order)
         # ---------------------------------------------------------------------
         # load the model (and deal with masking order zero if required)
-        model = inst.load_model(recon, med, residual)
+        model = inst.load_model(recon, med)
         # ---------------------------------------------------------------------
         # spectrum is the ratio of the residual to the trace model
-        spec, spec_err = inst.ratio_residual_to_trace(model, err, res,
-                                                      trace_order)
+        spec, spec_err = inst.ratio_residual_to_trace(model, err, residual,
+                                                      posmax)
         # ---------------------------------------------------------------------
         # remove the out-of-transit trend
         if inst.params['REMOVE_TREND']:
             spec, ltable = inst.remove_trend(spec, ltable)
+        # ---------------------------------------------------------------------
+        # reshape the amplitudes into an image
+        amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
+        amp_image = amp_image.reshape(spec.shape)
+        # reshape the wave grid into an image
+        wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
         # ---------------------------------------------------------------------
         # compute or set transit depth
         transit_depth = inst.get_transit_depth(ltable)
@@ -225,6 +221,11 @@ def spectral_extraction(inst: Instrument):
         storage_it['wavegrid'] = wavegrid
         storage_it['sp_sed'] = sp_sed
         storage_it['throughput'] = throughput
+        storage_it['spec'] = spec
+        storage_it['spec_err'] = spec_err
+        storage_it['ltable'] = ltable
+        storage_it['amp_image'] = amp_image
+        storage_it['wavegrid_2d'] = wavegrid_2d
         storage_it['spec_in'] = spec_in
         storage_it['spec_err_in'] = spec_err_in
         storage_it['transit_depth'] = transit_depth
@@ -232,13 +233,13 @@ def spectral_extraction(inst: Instrument):
         storage_it['flux_bin'] = flux_bin
         storage_it['flux_bin_err'] = flux_bin_err
         # append to plot storage
-        storage[trace_order] = plot_storage_it
+        storage[trace_order] = storage_it
         # ---------------------------------------------------------------------
-        inst.save_results(storage_it)
+        inst.save_spe_results(storage_it, trace_order)
     # -------------------------------------------------------------------------
     # plot the SED
     plots.plot_full_sed(inst.params, storage)
     # -------------------------------------------------------------------------
     # convert sossisse to eureka products
-    inst.to_eureka()
+    inst.to_eureka(storage)
 
