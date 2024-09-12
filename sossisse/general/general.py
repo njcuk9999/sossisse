@@ -9,25 +9,13 @@ Created on 2022-09-20
 
 @author: cook
 """
-import glob
-import os
-import warnings
-from datetime import datetime
-
-import matplotlib.pyplot as plt
 import numpy as np
-from astropy.io import fits
-from astropy.table import Table
-from tqdm import tqdm
 
 from sossisse.core import base
-
-from sossisse.core import math
-from sossisse.core import misc
 from sossisse.core import io
-from sossisse.instruments import Instrument
+from sossisse.core import misc
 from sossisse.general import plots
-
+from sossisse.instruments import Instrument
 
 # =============================================================================
 # Define variables
@@ -243,3 +231,16 @@ def spectral_extraction(inst: Instrument):
     # convert sossisse to eureka products
     inst.to_eureka(storage)
 
+
+# =============================================================================
+# Start of code
+# =============================================================================
+# Main code here
+if __name__ == "__main__":
+    # ----------------------------------------------------------------------
+    # print 'Hello World!'
+    print("Hello World!")
+
+# =============================================================================
+# End of code
+# =============================================================================
