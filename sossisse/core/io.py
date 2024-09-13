@@ -10,15 +10,17 @@ Created on 2024-08-20 at 09:56
 @author: cook
 """
 import datetime
+import glob
+import hashlib
 import os
 import shutil
+import time
 from string import Template
 from typing import Any, Dict, List, Union
 
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
-
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
@@ -36,7 +38,9 @@ SossisseIOException = exceptions.SossisseIOException
 PACKAGE_PATH = os.path.dirname(os.path.dirname(__file__))
 HTML_TEMPLATE_FILE = os.path.join(PACKAGE_PATH, 'resources',
                                   'html_template.html')
-
+# Define max counter
+MAX_LOCK_WAIT = 30
+LOCK_WAIT = 5
 
 # =============================================================================
 # Define functions
@@ -63,6 +67,47 @@ def create_directory(path: str):
         emsg = 'Cannot create directory: {0}\n\t{1}: {2}'
         eargs = [path, type(e), str(e)]
         raise SossisseIOException(emsg.format(*eargs))
+
+
+def get_hash(string_variable: str) -> str:
+    """
+    Get the hash of a string variable
+
+    :param string_variable: str, the string to hash
+
+    :return: str, the hashed string
+    """
+    # get the hash of the string
+    return hashlib.sha256(string_variable.encode('utf-8')).hexdigest()
+
+
+def lock_wait(filename: str, unlock: bool = False):
+    # get a lock file name
+    lockfile = filename + '.lock'
+    # unlock the lock file
+    if unlock:
+        os.remove(lockfile)
+        return
+    # get a counter
+    counter = 0
+    # -------------------------------------------------------------------------
+    # wait for the counter to excess limit or for the lock file to be removed
+    while os.path.exists(lockfile) or counter == MAX_LOCK_WAIT:
+        time.sleep(LOCK_WAIT)
+        msg = 'Waiting for lock file to be removed: {0} [{1}/{2}]'
+        margs = [lockfile, counter+1, MAX_LOCK_WAIT]
+        misc.printc(msg.format(*margs), msg_type='alert')
+    # -------------------------------------------------------------------------
+    # Deal with the case where the lock file still exists
+    if MAX_LOCK_WAIT == counter:
+        emsg = ('Lock file still exists after {0} seconds. '
+                'Please remove {1} manually.')
+        eargs = [LOCK_WAIT * MAX_LOCK_WAIT, lockfile]
+        raise SossisseIOException(emsg.format(*eargs))
+    # -------------------------------------------------------------------------
+    # create the lock file
+    with open(lockfile, 'w') as f:
+        f.write('lock')
 
 
 def get_file(path: Union[str, None], name: str,
@@ -132,12 +177,13 @@ def load_fits(filename: str, ext: int = None, extname: str = None):
     """
     # try to get data from filename
     try:
-        data = fits.getdata(filename, ext, extname)
+        data = fits.getdata(filename, ext=ext, extname=extname)
     except Exception as e:
         emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
         eargs = [filename, type(e), str(e)]
         raise exceptions.SossisseFileException(emsg.format(*eargs))
-
+    # return data
+    return data
 
 def load_table(filename: str, hdu: Union[int, str] = None):
     """
@@ -149,11 +195,12 @@ def load_table(filename: str, hdu: Union[int, str] = None):
     :return: data, the loaded data
     """
     try:
-        data = Table.read(filename, hdu)
+        table = Table.read(filename, hdu=hdu)
     except Exception as e:
         emsg = 'Error loading table from file: {0}\n\t{1}: {2}'
         eargs = [filename, type(e), str(e)]
         raise exceptions.SossisseFileException(emsg.format(*eargs))
+    return table
 
 
 def save_fitsimage(filename: str, data: np.ndarray, meta: Dict[str, Any] = None):
@@ -335,7 +382,7 @@ def summary_html(params: Dict[str, Any]):
     data['csvlist'] = csv_to_html(params)
     data['paramlist'] = params_to_html(params)
     # Substitute variables in the template
-    rendered_html = template.safe_substitute(variables)
+    rendered_html = template.safe_substitute(data)
     # construct filename for html file
     html_file = os.path.join(params['PLOT_PATH'], 'index.html')
     # write the html file
@@ -344,6 +391,8 @@ def summary_html(params: Dict[str, Any]):
 
 
     # noinspection PyUnresolvedReferences
+
+
 def save_eureka(filename: str, flux: np.ndarray, flux_err: np.ndarray,
                 wavegrid: np.ndarray, time_arr: np.ndarray):
     # set function name

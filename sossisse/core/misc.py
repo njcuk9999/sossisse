@@ -41,6 +41,8 @@ LOG_LEVELS['WARNING'] = 2
 LOG_LEVELS['ERROR'] = 3
 LOG_LEVELS['ALERT'] = 4
 LOG_LEVELS['NUMBER'] = 1
+# flag for sossart printing
+SOSSART_USED = False
 
 
 # =============================================================================
@@ -67,6 +69,13 @@ def sossart():
 
     :return: None: prints to screen
     """
+    global SOSSART_USED
+    # if we have already printed SOSSART then return and don't print again
+    if SOSSART_USED:
+        return
+    # set the flag
+    SOSSART_USED = True
+    # special logo for Etienne only
     if os.getlogin() in ['eartigau', 'spirou']:
         # Etienne needs his sausage picture
         v = """                                                                                    
@@ -132,16 +141,10 @@ def sossart():
         dw = (w - vlen // 2) // 2
         # add the white space
         v = v.replace('\n', '\n' + ' ' * dw)
-
-
+    # otherwise we print the normal SOSSISSE logo
     v = art('SOSSISSE', color1='white')
     # print to screen
     print(v)
-    # add spaces
-    try:
-        w = os.get_terminal_size().columns
-    except OSError:
-        w = 80
     # version string
     vstring = f'SOSSISSE: v{__version__} - {__date__}'
     # print date and version

@@ -75,7 +75,7 @@ class Instrument:
         self._variables['TEMP_INI_CUBE'] = None
         self._variables['TEMP_INI_ERR'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
-        self._variables['MEIDAN_IMAGE_FILE'] = None
+        self._variables['MEDIAN_IMAGE_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
         self._variables['TEMP_BEFORE_AFTER_CLEAN1F'] = None
         self._variables['TEMP_PCA_FILE'] = None
@@ -93,6 +93,7 @@ class Instrument:
         self._variables['WAVE_ORD'] = None
         self._variables['TSPEC_ORD'] = None
         self._variables['TSPEC_ORD_BIN'] = None
+        self._variables['EUREKA_FILE'] = None
         # true/false flags
         self._variables['DO_BACKGROUND'] = None
         self._variables['FLAG_CDS'] = None
@@ -122,7 +123,7 @@ class Instrument:
         self.vsources['TEMP_INI_CUBE'] = define_func
         self.vsources['TEMP_INI_ERR'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
-        self.vsources['MEIDAN_IMAGE_FILE'] = define_func
+        self.vsources['MEDIAN_IMAGE_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
         self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = define_func
         self.vsources['TEMP_PCA_FILE'] = define_func
@@ -134,15 +135,16 @@ class Instrument:
         self.vsources['WLC_LTBL_FILE'] = define_func
         self.vsources['SPE_SED_TBL'] = define_func
         # spectral extraction files
-        self.vsources['RESIDUAL_NO_GREY_ORD'] = define_func
-        self.vsources['RESIDUAL_GREY_ORD'] = define_func
+        self.vsources['RES_NO_GREY_ORD'] = define_func
+        self.vsources['RES_GREY_ORD'] = define_func
         self.vsources['SPECTRA_ORD'] = define_func
         self.vsources['WAVE_ORD'] = define_func
         self.vsources['TSPEC_ORD'] = define_func
         self.vsources['TSPEC_ORD_BIN'] = define_func
+        self.vsources['EUREKA_FILE'] = define_func
         # true/false flags
         self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
-        self.vsources['FLAG_CDS'] = f'{self.name}.load_data_with_dq()'
+        self.vsources['FLAG_CDS'] = f'{self.name}.id_image_shape()'
         self.vsources['HAS_OOT'] = f'{self.name}.get_valid_oot()'
         # meta data
         self.vsources['TAG1'] = f'{self.name}.update_meta_data()'
@@ -222,15 +224,22 @@ class Instrument:
         # ---------------------------------------------------------------------
         # deal with CDS data
         # ---------------------------------------------------------------------
-        if self.get_variable('FLAG_CDS', func_name) is not None:
-            # add to tag 1
-            tag1 += '_cds-{0}-{1}'.format(*self.params['CDS_IDS'])
-            # add to meta data
-            meta_data['CDS'] = (True, 'Whether data is calculated from a CDS')
-            meta_data['CDS_FIRST'] = (self.params['CDS_IDS'][0],
-                                      'First frame of CDS')
-            meta_data['CDS_LAST'] = (self.params['CDS_IDS'][1],
-                                     'Last frame of CDS')
+        if self._variables['FLAG_CDS'] is not None:
+            # only if true
+            if self._variables['FLAG_CDS']:
+                # deal with FLAG_CDS = True but CDS_IDS None
+                if self.params['CDS_IDS'] is None:
+                    emsg = ('CDS_IDS not set but CDS flag is set to True.'
+                            'If input data is not a CDS please set CDS_IDS.')
+                    raise exceptions.SossisseConstantException(emsg)
+                # add to tag 1
+                tag1 += '_cds-{0}-{1}'.format(*self.params['CDS_IDS'])
+                # add to meta data
+                meta_data['CDS'] = (True, 'Whether data is calculated from a CDS')
+                meta_data['CDS_FIRST'] = (self.params['CDS_IDS'][0],
+                                          'First frame of CDS')
+                meta_data['CDS_LAST'] = (self.params['CDS_IDS'][1],
+                                         'Last frame of CDS')
         # ---------------------------------------------------------------------
         # deal with wlc domain
         # ---------------------------------------------------------------------
@@ -343,7 +352,7 @@ class Instrument:
         tag2 = self.get_variable('TAG2', func_name)
         # get file paths
         temppath = self.params['TEMP_PATH']
-        csvpath = self.params['CSV_PATH']
+        otherpath = self.params['OTHER_PATH']
         fitspath = self.params['FITS_PATH']
         # ---------------------------------------------------------------------
         # construct temporary file names
@@ -378,9 +387,9 @@ class Instrument:
         # ---------------------------------------------------------------------
         reconfile = os.path.join(temppath, 'recon{}.fits'.format(tag1))
         # ---------------------------------------------------------------------
-        ltbl_file = os.path.join(csvpath, 'stability{}.csv'.format(tag1))
+        ltbl_file = os.path.join(otherpath, 'stability{}.csv'.format(tag1))
         # ---------------------------------------------------------------------
-        sed_table = os.path.join(csvpath, 'sed_{objname}_ord{trace_order}.csv')
+        sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace_order}.csv')
         # ---------------------------------------------------------------------
         res_no_grey_ord = 'residual_no_grey_ord{trace_order}' + tag2 + '.fits'
         res_no_grey_ord = os.path.join(fitspath, res_no_grey_ord)
@@ -395,10 +404,10 @@ class Instrument:
         waveord_file = os.path.join(fitspath, waveord_file)
         # ---------------------------------------------------------------------
         tspec_ord = 'tspec_ord{trace_order}' + tag2 + '.csv'
-        tspec_ord = os.path.join(csvpath, tspec_ord)
+        tspec_ord = os.path.join(otherpath, tspec_ord)
         # ---------------------------------------------------------------------
         tspec_ord_bin = 'tspec_ord_{trace_order}_bin{res}' + tag2 + '.csv'
-        tspec_ord_bin = os.path.join(csvpath, tspec_ord_bin)
+        tspec_ord_bin = os.path.join(otherpath, tspec_ord_bin)
         # ---------------------------------------------------------------------
         eureka_file = 'spectra_ord{trace_order}' + tag2 + '.h5'
         # ---------------------------------------------------------------------
@@ -460,14 +469,14 @@ class Instrument:
         # return the data
         return data
 
-    def load_cube(self, n_slices: int, raw_shape: Tuple[int, int, int],
+    def load_cube(self, n_slices: int, image_shape: Tuple[int, int, int],
                   flag_cds: bool
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
-        cube = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
-        err = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
-        dq = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
+        cube = np.zeros([n_slices, image_shape[0], image_shape[1]])
+        err = np.zeros([n_slices, image_shape[0], image_shape[1]])
+        dq = np.zeros([n_slices, image_shape[0], image_shape[1]])
         # counter for the slice we are on
         n_slice = 0
         # ---------------------------------------------------------------------
@@ -569,7 +578,7 @@ class Instrument:
             # get the raw files
             tmp_data = self.load_data(filename)
             # get the shape of the bins
-            bin_shape = tuple(self.bin_cube(tmp_data, get_shape=True))
+            bin_shape = self.bin_cube(tmp_data, get_shape=True)
             # add to the number of slices
             n_slices += bin_shape[0]
             # store the shape of the raw data
@@ -577,32 +586,18 @@ class Instrument:
             # make sure tmp data is deleted
             del tmp_data
         # ---------------------------------------------------------------------
-        # deal with inconsistent data shapes - must all be the same
-        if len(set(raw_shapes)) != 1:
-            emsg = 'Inconsistent data shapes:'
-            for f_it, filename in enumerate(self.params['FILES']):
-                emsg += f'\n\t{filename}: {raw_shapes[f_it]}'
-            raise exceptions.SossisseFileException(emsg.format(raw_shapes))
+        # identify cds and get iamge shape
         # ---------------------------------------------------------------------
-        # store the shape (now it should be consistent)
-        raw_shape = raw_shapes[0]
-        # raw data might be a cds - flag this and adjust raw shape accordingly
-        if len(raw_shape) == 4:
-            flag_cds = True
-            raw_shape = raw_shape[:-1]
-        else:
-            flag_cds = False
-        #
-        self.set_variable('FLAG_CDS', flag_cds)
+        image_shape, flag_cds = self.id_image_shape(raw_shapes)
         # ---------------------------------------------------------------------
         # recalculate tags
         self.update_meta_data()
         # ---------------------------------------------------------------------
         # get flat
-        flat, no_flat = self.get_flat(cube_shape=raw_shape)
+        flat, no_flat = self.get_flat(image_shape)
         # ---------------------------------------------------------------------
         # load and bin the cube
-        cube, err, dq = self.load_cube(n_slices, raw_shape, flag_cds)
+        cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds)
         # ---------------------------------------------------------------------
         # apply the flat (may be ones)
         if not no_flat:
@@ -655,9 +650,60 @@ class Instrument:
         # return the cube and error
         return cube, err
 
+    def id_image_shape(self, raw_shapes: List[List[int]]
+                       ) -> Tuple[List[int], bool]:
+        """
+        Identify the image shape and if the data is in CDS format
+        and return the shape of the images (without the number of slices) and
+        with out the number of raw frames
+
+        :param raw_shapes: list of list of ints, the raw shapes of the
+                           input data files
+        :return:
+        """
+        # flag for all cds
+        all_cds = []
+        # storage of image shapes
+        image_shapes = []
+        # loop around raw shapes
+        for raw_shape in raw_shapes:
+            # raw data might be a cds - flag this and adjust raw shape accordingly
+            if len(raw_shape) == 4:
+                flag_cds = True
+                raw_shape = raw_shape[:-1]
+            else:
+                flag_cds = False
+            # append flag
+            all_cds.append(flag_cds)
+            # get the image shape
+            image_shapes.append(tuple(raw_shape[1:]))
+        # ---------------------------------------------------------------------
+        # check if all image shapes are the same
+        if len(set(image_shapes)) != 1:
+            emsg = 'Inconsistent image shapes:'
+            for f_it, filename in enumerate(self.params['FILES']):
+                emsg += f'\n\t{filename}: {image_shapes[f_it]}'
+            raise exceptions.SossisseFileException(emsg)
+        # ---------------------------------------------------------------------
+        # check that all are CDS or all are not CDS
+        if len(set(all_cds)) != 1:
+            emsg = 'Inconsistent CDS format (Eiher all CDS or not):'
+            for f_it, filename in enumerate(self.params['FILES']):
+                emsg += f'\n\t{filename}: {raw_shapes[f_it]}'
+            raise exceptions.SossisseFileException(emsg)
+        else:
+            flag_cds = all_cds[0]
+            # store the flag
+            self.set_variable('FLAG_CDS', flag_cds)
+        # ---------------------------------------------------------------------
+        # return the image shape (as all should be the same now)
+        return list(image_shapes[0]), flag_cds
+
+
+
     def bin_cube(self, cube: np.ndarray, bin_type: str = 'Flux',
                  get_shape: bool = False
-                 ) -> Union[np.ndarray, Tuple[int, int, int]]:
+                 ) -> Union[np.ndarray, List[int]]:
         """
         Bin the cube
 
@@ -671,10 +717,16 @@ class Instrument:
         func_name = f'{__NAME__}.bin_cube()'
         # don't bin if user doesn't want to bin
         if not self.params['DATA_BIN_TIME']:
-            return cube
+            if get_shape:
+                return list(cube.shape)
+            else:
+                return cube
         # don't bin if the number of frames in each bin is 1
         if self.params['DATA_BIN_SIZE'] == 1:
-            return cube
+            if get_shape:
+                return list(cube.shape)
+            else:
+                return cube
         # get the bin size
         bin_size = self.params['DATA_BIN_SIZE']
         # we can only bin certain types of files
@@ -686,7 +738,7 @@ class Instrument:
         # get the dimension size
         n_bins = cube.shape[0] // bin_size
         # shape of the binned image
-        bin_shape = (n_bins, cube.shape[1], cube.shape[2])
+        bin_shape = [n_bins, cube.shape[1], cube.shape[2]]
         # deal with get shape
         if get_shape:
             return bin_shape
@@ -713,22 +765,23 @@ class Instrument:
         # return the new cube
         return new_cube.astype(float)
 
-    def get_flat(self, cube_shape: Tuple[int, int, int]
-                 ) -> Tuple[np.ndarray, bool]:
+    def get_flat(self, image_shape: List[int]) -> Tuple[np.ndarray, bool]:
         """
         Get the flat field
+
+        :param image_shape: tuple, the shape of the image
 
         :return: tuple, 1. the flat field, 2. a boolean indicating if the flat
                  field is all ones
         """
         if self.params['FLATFILE'] is None:
             # flat field is a single frame
-            return np.ones((cube_shape[1], cube_shape[2])), True
+            return np.ones(image_shape), True
         else:
             # load the flat field
             flat = self.load_data(self.params['FLATFILE'])
             # check the shape of the flat field
-            if flat.shape[1:] != cube_shape[1:]:
+            if flat.shape != image_shape:
                 emsg = 'Flat field shape does not match data frame shape'
                 raise exceptions.SossisseInstException(emsg, self.name)
             # some sanity checks in flat
@@ -799,7 +852,7 @@ class Instrument:
             # get the background fit
             bfit, _ = mp.robust_polyfit(xvalues, yvalues, 1, 5)
             # get the residuals between background and background fit
-            residuals = yvalues - np.polyval(bfit, background2)
+            residuals = mcube - np.polyval(bfit, background2)
             # get the median of the residuals
             med_res = np.nanmedian(residuals[box[2]:box[3], box[0]:box[1]],
                                    axis=0)
@@ -811,6 +864,7 @@ class Instrument:
         # fit this rms
         bstart = rms_min - 1
         bend = rms_min + 1
+        # TODO: Deal with pooly conditioned polyfit (RankWarning)
         rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
         # the optimal offset is the half way point
         optimal_offset = -0.5 * rms_fit[1] / rms_fit[0]
@@ -883,7 +937,7 @@ class Instrument:
             if os.path.exists(temp_clean_nan):
                 # print progress
                 msg = ('patch_isolated_bads: \t we read temporary files to '
-                       'speed things up. \\nReading: {0}')
+                       'speed things up. \nReading: {0}')
                 margs = [temp_clean_nan]
                 misc.printc(msg.format(*margs), 'info')
                 # load the data
@@ -949,6 +1003,9 @@ class Instrument:
     def get_trace_map(self, log: bool = True) -> np.ndarray:
         # set function name
         func_name = f'{__NAME__}.get_trace_map()'
+        # print progress
+        if log:
+            misc.printc('Getting the trace map', 'info')
         # get x and y size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
@@ -999,11 +1056,11 @@ class Instrument:
         # get x and y size from cube
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         xsize = self.get_variable('DATA_X_SIZE', func_name)
-        xoffset = self.params['TRACE_X_OFFSET']
-        yoffset = self.params['TRACE_Y_OFFSET']
+        xoffset = self.params['X_TRACE_OFFSET']
+        yoffset = self.params['Y_TRACE_OFFSET']
         trace_wid_mask = self.params['TRACE_WIDTH_MASKING']
         # load the trace position
-        tbl_ref = self.load_table(self.params['TRACEPOS'], ext=order_num)
+        tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
         # ---------------------------------------------------------------------
         # get columns
         xpos = tbl_ref['X']
@@ -1051,8 +1108,8 @@ class Instrument:
             # loop around pixels in the x direction
             for ix_pix in range(xsize):
                 # get the top and bottom of the trace
-                bottom = posmax[ix_pix] - trace_wid_mask // 2
-                top = posmax[ix_pix] + trace_wid_mask // 2
+                bottom = int(posmax[ix_pix] - trace_wid_mask // 2)
+                top = int(posmax[ix_pix] + trace_wid_mask // 2)
                 # deal with edge cases
                 bottom = max(0, bottom)
                 top = min(ysize - 1, top)
@@ -1131,21 +1188,21 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # print progress
+        misc.printc('Cleaning 1/f noise', 'info')
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
         use_temp = self.params['USE_TEMPORARY']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
-        # construct temporary file names
-        self.define_filenames()
         # save these for later
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        clean_cube_file = self.set_variable('CLEAN_CUBE_FILE', func_name)
-        tmp_before_after_c1f = self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F',
+        clean_cube_file = self.get_variable('CLEAN_CUBE_FILE', func_name)
+        tmp_before_after_c1f = self.get_variable('TEMP_BEFORE_AFTER_CLEAN1F',
                                                  func_name)
-        tmp_pcas = self.set_variable('TEMP_PCA_FILE', func_name)
-        tmp_transit_invsout = self.set_variable('TEMP_TRANSIT_IN_VS_OUT',
+        tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
+        tmp_transit_invsout = self.get_variable('TEMP_TRANSIT_IN_VS_OUT',
                                                 func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
@@ -1194,7 +1251,7 @@ class Instrument:
         # trace
         cube2 = np.array(cube, dtype=float)
         # first estimate of the trace amplitude
-        misc.printc('First median of cube to create trace esimate', 'info')
+        misc.printc('\tFirst median of cube to create trace esimate', 'info')
         # validate out-of-transit domain
         self.get_valid_oot()
         has_oot = self.get_variable('HAS_OOT', func_name)
@@ -1206,7 +1263,7 @@ class Instrument:
         med_oot = self.params['MEDIAN_OOT']
         # ---------------------------------------------------------------------
         # deal with creating median
-        with warnings.catch_warnings:
+        with warnings.catch_warnings(record=True) as _:
             if med_oot and has_oot:
                 med = np.nanmedian(cube2[oot_domain], axis=0)
             else:
@@ -1216,7 +1273,7 @@ class Instrument:
         #   so that they all match
         amps = np.zeros(nframes)
         # loop around frames
-        for iframe in tqdm(range(nframes), leave=False):
+        for iframe in tqdm(range(nframes)):
             # only keep finite values in all frames
             valid = np.isfinite(cube2[iframe]) & np.isfinite(med)
             # work out the amps
@@ -1227,7 +1284,7 @@ class Instrument:
             cube2[iframe] /= amps[iframe]
         # ---------------------------------------------------------------------
         # median of the normalized cube
-        misc.printc('Second median of cube with proper normalization', 'info')
+        misc.printc('\tSecond median of cube with proper normalization', 'info')
         # normalize cube
         with warnings.catch_warnings(record=True) as _:
             if med_oot:
@@ -1237,7 +1294,7 @@ class Instrument:
                 # get the median difference
                 med_diff = before - after
                 # low pass the median difference
-                for frame in range(med_diff.shape[0]):
+                for frame in tqdm(range(med_diff.shape[0])):
                     med_diff[frame] = mp.lowpassfilter(med_diff[frame], 15)
                 # get the square ratio between median and med diff
                 ratio = np.sqrt(np.nansum(med ** 2) / np.nansum(med_diff ** 2))
@@ -1252,10 +1309,12 @@ class Instrument:
         # get the diff in vs out
         transit_invsout = med_in - med_out
         # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('\nCalculating residuals', 'info')
         # work out the residuals
         residuals = np.zeros_like(cube)
         # loop around frames
-        for iframe in tqdm(range(nframes), leave=False):
+        for iframe in tqdm(range(nframes)):
             # mask the nans and apply trace map
             valid = np.isfinite(cube2[iframe]) & np.isfinite(med)
             valid &= tracemap
@@ -1385,6 +1444,8 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # print progress
+        misc.printc('\tSubtracting 1/f noise', 'info')
         # get the degree for the 1/f polynomial fit
         degree_1f_corr = self.params['DEGREE_1F_CORR']
         # get the number of frames
@@ -1482,6 +1543,9 @@ class Instrument:
                     '\n\tPlease set CONTACT_FRAMES to use PCA.')
             misc.printc(wmsg, 'warning')
             return None
+        # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('Fitting PCA', 'info')
         # ---------------------------------------------------------------------
         # only fit the pca to the flux in the trace (nan everything else)
         nanmask = np.ones_like(tracemap, dtype=float)
@@ -1584,12 +1648,15 @@ class Instrument:
         # deal with not wanting to recenter trace position
         if not self.params['RECENTER_TRACE_POSITION']:
             return tracemap
+        # print progress
+        msg = 'Recentering trace position'
+        misc.printc(msg, 'info')
         # ---------------------------------------------------------------------
         # get some parameters from instrument
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # ---------------------------------------------------------------------
         # print what we are doing
-        msg = 'Scan to optimize position of trace'
+        msg = '\tScan to optimize position of trace'
         misc.printc(msg, 'info')
         # save the current width (we will reset it later
         width_current = float(self.params['TRACE_WIDTH_MASKING'])
@@ -1607,15 +1674,15 @@ class Instrument:
         best_dy = 0
         best_sum = 0
         # loop around dxs and dys
-        for ix in tqdm(range(len(dxs)), leave=False):
-            for iy in tqdm(range(len(dys)), leave=False):
+        for ix in tqdm(range(len(dxs))):
+            for iy in range(len(dys)):
                 # update the x and y positions
                 self.params['X_TRACE_OFFSET'] = dxs[ix]
                 self.params['Y_TRACE_OFFSET'] = dys[iy]
                 # re-gen the trace map (without logging) using new x/y trace
                 #  offset
-                params = self.get_trace_map(log=False)
-                sums[ix, iy] = np.nansum(params['TRACEMAP'] * med)
+                tracemap = self.get_trace_map(log=False)
+                sums[ix, iy] = np.nansum(tracemap * med)
                 if sums[ix, iy] > best_sum:
                     best_sum = sums[ix, iy]
                     best_dx = dxs[ix]

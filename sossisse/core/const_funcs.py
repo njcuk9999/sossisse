@@ -8,13 +8,13 @@ Created on 2024-08-13
 @author: cook
 """
 import argparse
+import json
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
-
 from sossisse.core import base
 from sossisse.core import base_classes
 from sossisse.core import constants
@@ -86,8 +86,17 @@ def run_time_params(params: Dict[str, Any],
     func_name = f'{__NAME__}.run_time_params()'
     # get the sossisse unique id (sid) for this run
     if params['SID'] is None:
-        params['SID'] = misc.sossice_unique_id(params['PARAM_FILE'])
-        sources['SID'] = func_name
+        
+        # check whether we have a hash that matches the current yaml file
+        # if so this gives us our SID
+        sid = hash_match(params)
+        # deal with having a yaml that matches a previous run
+        if sid is None:
+            params['SID'] = misc.sossice_unique_id(params['PARAM_FILE'])
+            sources['SID'] = func_name
+        else:
+            params['SID'] = sid
+            sources['SID'] = func_name
 
     # we show or don't show the plots based on the user
     if not params['SHOW_PLOTS']:
@@ -317,6 +326,9 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # re-create the yaml
     _ = create_yaml(params, log=False)
     # -------------------------------------------------------------------------
+    # create hash file (for quick check on SID
+    create_hash(params)
+    # -------------------------------------------------------------------------
     # now we load the instrument specific parameters
     instrument = load_instrument(params)
     instrument.sources = sources
@@ -329,10 +341,12 @@ def create_yaml(params: Dict[str, Any], log: bool = True) -> str:
     Create a yaml file from input parameters
 
     :param params: Dict[str, Any], the input parameters
-    :return:
+    :param log: bool, if True print log messages
+
+    :return: None writes yaml file
     """
     # get the output path
-    outpath = os.path.join(params['SOSSIOPATH'], 'sossisse_params.yaml')
+    outpath = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
     # -------------------------------------------------------------------------
     # create a commented map instance
     data = CommentedMap()
@@ -398,6 +412,101 @@ def create_yaml(params: Dict[str, Any], log: bool = True) -> str:
     # -------------------------------------------------------------------------
     # return the yaml file path
     return outpath
+
+
+# =============================================================================
+# Hash functions
+# =============================================================================
+def create_hash(params: Dict[str, Any]):
+    """
+    Create a hash file for the current run
+
+    :param params: dict, the parameters dictionary
+
+    :return: None writes hashlist file
+    """
+    # get the hash file path
+    hashpath = os.path.join(params['OBJECTPATH'], 'hashlist.txt')
+    # get the current SID
+    sid = params['SID']
+    # get the current yaml file path
+    yaml_file = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
+    # we load the yaml file
+    with open(yaml_file, "r") as yamlfile:
+        yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
+    # remove SID from yaml_dict (we can't compare this)
+    if 'SID' in yaml_dict:
+        del yaml_dict['SID']
+    # create a jason string
+    yaml_string = json.dumps(yaml_dict, sort_keys=True)
+    # get the hash
+    hashvalue = io.get_hash(yaml_string)
+    # read the current hash list
+    if os.path.exists(hashpath):
+        with open(hashpath, "r") as hashfile:
+            hashlist = hashfile.readlines()
+    else:
+        hashlist = []
+    # add the new line to the hash
+    hashlist.append(f'{sid} {hashvalue}\n')
+    # wait for lock to release
+    io.lock_wait(hashpath)
+    # try to remove hash file
+    try:
+        # remove old hash file
+        if os.path.exists(hashpath):
+            os.remove(hashpath)
+        # write the new hash file
+        with open(hashpath, "w") as hashfile:
+            hashfile.writelines(hashlist)
+    finally:
+        # unlock hash list file
+        io.lock_wait(hashpath, unlock=True)
+
+
+def hash_match(params: Dict[str, Any]) -> Union[str, None]:
+    """
+    Look for a match between the current yaml file and the hash list of
+    previous runs SIDS and hashes
+
+    :param params: Dict[str, Any], the input parameters
+
+    :return: None if SID or hashlist.txt not found, otherwise returns the SID
+    """
+    # get the hash file path
+    hashpath = os.path.join(params['OBJECT'], 'hashlist.txt')
+    # get the current yaml file path
+    yaml_file = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
+    # we load the yaml file
+    with open(yaml_file, "r") as yamlfile:
+        yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
+    # remove SID from yaml_dict (we can't compare this)
+    if 'SID' in yaml_dict:
+        del yaml_dict['SID']
+    # create a jason string
+    yaml_string = json.dumps(yaml_dict, sort_keys=True)
+    # get the hash for this file
+    hashvalue = io.get_hash(yaml_string)
+    # if we don't have a hash file return None (this is a new run)
+    if not os.path.exists(hashpath):
+        return None
+    else:
+        # wait for lock to release
+        io.lock_wait(hashpath)
+        # try to read hash list file
+        try:
+            with open(hashpath, "r") as hashfile:
+                hashlist = hashfile.readlines()
+        finally:
+            # unlock hash list file
+            io.lock_wait(hashpath, unlock=True)
+    # look for sid in the hast list
+    for line in hashlist:
+        sid, hashline = line.split(' ')
+        if hashline == hashvalue:
+            return sid
+    # if we get to here we don't have a match --> return None
+    return None
 
 
 # =============================================================================

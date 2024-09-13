@@ -9,7 +9,7 @@ Created on 2024-08-13 at 11:29
 
 @author: cook
 """
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
 from astropy.io import fits
@@ -71,15 +71,19 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # run the super version first, then override after
         super().param_override()
 
-    def get_flat(self, cube_shape: Tuple[int, int, int]):
+    def get_flat(self, image_shape: Tuple[int, int, int]
+                 ) -> Tuple[np.ndarray, bool]:
         """
         Get the flat field
-
-        :return:
+        
+        :param image_shape: tuple, the shape of the image
+        
+        :return: tuple, 1. the flat field, 2. a boolean indicating if the flat
+                 field is all ones
         """
         if self.params['FLATFILE'] is None:
             # flat field is a single frame
-            return np.ones((cube_shape[1], cube_shape[2]))
+            return np.ones(image_shape), False
         else:
             # load the flat field
             flat = self.load_data(self.params['FLATFILE'])
@@ -91,7 +95,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
                 # cut down the flat field
                 flat = flat[-256:]
             # check the shape of the flat field
-            if flat.shape[1:] != cube_shape[1:]:
+            if tuple(flat.shape) != tuple(image_shape):
                 emsg = 'Flat field shape does not match data frame shape'
                 raise exceptions.SossisseInstException(emsg, self.name)
             # some sanity checks in flat
@@ -99,7 +103,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             flat[flat <= 0.5 * np.nanmedian(flat)] = np.nan
             flat[flat >= 1.5 * np.nanmedian(flat)] = np.nan
             # return the flat field
-            return flat
+            return flat, True
 
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
@@ -251,14 +255,14 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         # run the super version first, then override after
         super().param_override()
 
-    def load_cube(self, n_slices: int, raw_shape: Tuple[int, int, int],
+    def load_cube(self, n_slices: int, image_shape: List[int],
                    flag_cds: bool
                    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
-        cube = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
-        err = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
-        dq = np.zeros([n_slices, raw_shape[1], raw_shape[2]])
+        cube = np.zeros([n_slices, image_shape[0], image_shape[1]])
+        err = np.zeros([n_slices, image_shape[0], image_shape[1]])
+        dq = np.zeros([n_slices, image_shape[0], image_shape[1]])
         # counter for the slice we are on
         n_slice = 0
         # ---------------------------------------------------------------------
