@@ -112,15 +112,15 @@ def white_light_curve(inst: Instrument):
     # =========================================================================
     # write files
     # =========================================================================
-    inst.save_wlc_results(err, valid_cube, lrecon, ltable)
+    inst.save_wlc_results(cube, err, lrecon, ltable)
     # =========================================================================
     # Plots and Summary HTML
     # =========================================================================
     # plot the stability plot
-    plots.plot_stability(inst.params, ltable)
+    plots.plot_stability(inst, ltable)
     # -------------------------------------------------------------------------
     # plot the transit plot
-    plots.plot_transit(inst.params, ltable)
+    plots.plot_transit(inst, ltable)
     # -------------------------------------------------------------------------
     # write the yaml file to html
     io.summary_html(inst.params)
@@ -226,7 +226,7 @@ def spectral_extraction(inst: Instrument):
         inst.save_spe_results(storage_it, trace_order)
     # -------------------------------------------------------------------------
     # plot the SED
-    plots.plot_full_sed(inst.params, storage)
+    plots.plot_full_sed(inst, storage)
     # -------------------------------------------------------------------------
     # convert sossisse to eureka products
     inst.to_eureka(storage)

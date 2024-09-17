@@ -15,11 +15,10 @@ from typing import Any, Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table
-
 from sossisse.core import base
 from sossisse.core import math
-from sossisse.core import misc
 from sossisse.core import math as mp
+from sossisse.core import misc
 
 # =============================================================================
 # Define variables
@@ -82,12 +81,12 @@ def cal_y_limits(value: np.ndarray, errvalue: np.ndarray) -> List[float]:
 # =============================================================================
 # Define plot functions
 # =============================================================================
-def pca_plot(params: Dict[str, Any], n_comp: int, pcas: np.ndarray,
+def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
              variance_ratio: np.ndarray):
     """
     Plot the PCA components
 
-    :param params: Dict[str, Any], the parameters for the instrument
+    :param inst: Instrument instance
     :param n_comp: int, the number of PCA components we have
     :param pcas: np.ndarray, the PCA components
     :param variance_ratio: np.ndarray, ratio of variance normaliszed to the
@@ -118,21 +117,23 @@ def pca_plot(params: Dict[str, Any], n_comp: int, pcas: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'file_temporary_pcas')
+    save_show_plot(inst.params, 'file_temporary_pcas')
 
 
-def gradient_plot(params: Dict[str, Any], dx: np.ndarray, dy: np.ndarray,
+def gradient_plot(inst: Any, dx: np.ndarray, dy: np.ndarray,
                   rotxy: np.ndarray):
     """
     Plot the gradients
 
-    :param params: Dict[str, Any], the parameters for the instrument
+    :param inst: Instrument instance
     :param dx: np.ndarray, the gradient in x
     :param dy: np.ndarray, the gradient in y
     :param rotxy: np.ndarray, the rotation between x and y
 
     :return: None, plots graph
     """
+    # set function name
+    func_name = f'{__NAME__}.gradient_plot()'
     # set up figure
     fig, frames = plt.subplots(nrows=3, ncols=1, sharex='all', sharey='all')
     # -------------------------------------------------------------------------
@@ -155,12 +156,15 @@ def gradient_plot(params: Dict[str, Any], dx: np.ndarray, dy: np.ndarray,
     # plot rotxy
     frames[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'derivatives{0}'.format(params['tag']))
+    save_show_plot(inst.params, 'derivatives{0}'.format(tag))
 
 
-def mask_order0_plot(params: Dict[str, Any], diff: np.ndarray,
-                     sigmask: np.ndarray):
+def mask_order0_plot(inst: Any, diff: np.ndarray, sigmask: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.mask_order0_plot()'
     # set up figure
     fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
@@ -180,14 +184,18 @@ def mask_order0_plot(params: Dict[str, Any], diff: np.ndarray,
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'masking_order0_{0}'.format(params['tag']))
+    save_show_plot(inst.params, 'masking_order0_{0}'.format(tag))
 
 
-def trace_correction_sample(params: Dict[str, Any], iframe: int,
+def trace_correction_sample(inst: Any, iframe: int,
                             cube: np.ndarray, recon: np.ndarray,
                             x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
                             x_order0: np.ndarray, y_order0: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.trace_correction'
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
     # plot the cube
@@ -225,12 +233,16 @@ def trace_correction_sample(params: Dict[str, Any], iframe: int,
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'sample_frame{0}_{1}'.format(iframe, params['tag']))
+    save_show_plot(inst.params, 'sample_frame{0}_{1}'.format(iframe, tag))
 
 
-def aperture_correction_plot(params: Dict[str, Any],
-                             outputs: Dict[str, Any], trace_corr: np.ndarray):
+def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
+                             trace_corr: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.aperture_correction_plot()'
     # get values from outputs
     xpix = np.arange(len(outputs['amplitude_uncorrected']))
     amp_uncorr = outputs['amplitude_uncorrected']
@@ -265,8 +277,10 @@ def aperture_correction_plot(params: Dict[str, Any],
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'apperture_correction{0}'.format(params['tag']))
+    save_show_plot(inst.params, 'apperture_correction{0}'.format(tag))
 
 
 def plot_stability(inst: Any, table: Table):
@@ -370,8 +384,10 @@ def plot_stability(inst: Any, table: Table):
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'stability{0}'.format(inst.params['tag']))
+    save_show_plot(inst.params, 'stability{0}'.format(tag))
 
 
 def plot_transit(inst: Any, table: Table):
@@ -385,7 +401,7 @@ def plot_transit(inst: Any, table: Table):
     poly_order = inst.params['TRANSIT_BASELINE_POLYORD']
     # -------------------------------------------------------------------------
     # get the contact points
-    cframes = inst.get_variable('CONTACT_FRAMES', func_name)
+    cframes = inst.params['CONTACT_FRAMES']
     # get the number of points
     npoints = len(table['amplitude'])
     # -------------------------------------------------------------------------
@@ -458,19 +474,25 @@ def plot_transit(inst: Any, table: Table):
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'transit_{0}'.format(inst.params['tag']))
+    save_show_plot(inst.params, 'transit_{0}'.format(tag))
 
 
-def plot_sed(params: Dict[str, Any], wavegrid: np.ndarray, sed: np.ndarray,
+def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
              trace_order: int):
+    # set function name
+    # func_name = f'{__NAME__}.plot_sed()'
+    # get object name and suffix
+    objname = inst.params['OBJECTNAME']
+    suffix = inst.params['SUFFIX']
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # plot the SED
     frame.plot(wavegrid, sed)
     # construct title
-    objname = params['OBJECTNAME']
-    title = f'{objname} -- {params["SUFFIX"]} order={trace_order}'
+    title = f'{objname} -- {suffix} order={trace_order}'
     # set the axis labels
     frame.set(xlabel='Wavelength [nm]',
               ylabel='Flux\nthroughput-corrected',
@@ -479,11 +501,10 @@ def plot_sed(params: Dict[str, Any], wavegrid: np.ndarray, sed: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'sed_{0}_ord{1}'.format(objname, trace_order))
+    save_show_plot(inst.params, 'sed_{0}_ord{1}'.format(objname, trace_order))
 
 
-def plot_full_sed(params: Dict[str, Any],
-                  plot_storage: Dict[str, Dict[str, Any]]):
+def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # loop around tarce orders
@@ -527,12 +548,10 @@ def plot_full_sed(params: Dict[str, Any],
     objname = params['OBJECTNAME']
     title = f'{objname} -- {params["SUFFIX"]}'
     # set the axis labels
-    frame.set(xlabel='Wavelength [$\mu$m]', ylabel='ppm',
+    frame.set(xlabel=r'Wavelength [$\mu$m]', ylabel='ppm',
               title=title)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(params, 'sed_{0}'.format(objname))
-
-
+    save_show_plot(inst.params, 'sed_{0}'.format(objname))

@@ -110,6 +110,8 @@ class Instrument:
         self._variables['OOT_DOMAIN_BEFORE'] = None
         self._variables['OOT_DOMAIN_AFTER'] = None
         self._variables['INT_DOMAIN'] = None
+        self._variables['PHOTO_WEIGHTED_MEAN'] = None
+        self._variables['ENERGY_WEIGHTED_MEAN'] = None
         # ---------------------------------------------------------------------
         # define source for variables
         self.vsources = dict()
@@ -158,6 +160,8 @@ class Instrument:
         self.vsources['OOT_DOMAIN_BEFORE'] = f'{self.name}.get_valid_oot()'
         self.vsources['OOT_DOMAIN_AFTER'] = f'{self.name}.get_valid_oot()'
         self.vsources['INT_DOMAIN'] = f'{self.name}.get_valid_int()'
+        self.vsources['PHOTO_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
+        self.vsources['ENERGY_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
 
     def param_override(self):
         """
@@ -220,7 +224,6 @@ class Instrument:
         # set up storage
         meta_data = dict()
         tag1, tag2 = '', ''
-
         # ---------------------------------------------------------------------
         # deal with CDS data
         # ---------------------------------------------------------------------
@@ -336,6 +339,17 @@ class Instrument:
             transit_base_polyord = 'None'
         # add to tag 2
         tag2 += '_transit-base-polyord-{0}'.format(transit_base_polyord)
+        # ---------------------------------------------------------------------
+        # get photo weighted mean and energy weighted mean
+        # ---------------------------------------------------------------------
+        phot_wmn = self._variables['PHOTO_WEIGHTED_MEAN']
+        ener_wmn = self._variables['ENERGY_WEIGHTED_MEAN']
+        # Add the photo weighted mean 
+        if phot_wmn is not None:
+            meta_data['PHOT_WMN'] = (phot_wmn, 'Photo weighted mean in um')
+        # Add the energy weighted mean
+        if ener_wmn is not None:
+            meta_data['ENER_WMN'] = (ener_wmn, 'Energy weighted mean in um')
         # ---------------------------------------------------------------------
         # push tag1, tag2 and meta data to variables
         self.set_variable('TAG1', tag1)
@@ -1629,7 +1643,7 @@ class Instrument:
             pcas[icomp, :, :] = tmp
         # ---------------------------------------------------------------------
         # deal with plotting
-        plots.pca_plot(self.params, n_comp, pcas, variance_ratio)
+        plots.pca_plot(self, n_comp, pcas, variance_ratio)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         if allow_temp:
@@ -1745,7 +1759,7 @@ class Instrument:
         # make sure rotation and ddy are floats
         rotxy, ddy = np.array(rotxy, dtype=float), np.array(ddy, dtype=float)
         # ---------------------------------------------------------------------
-        plots.gradient_plot(self.params, dx, dy, rotxy)
+        plots.gradient_plot(self, dx, dy, rotxy)
         # ---------------------------------------------------------------------
         # return these values
         return [dx, dy, rotxy, ddy, med2]
@@ -1781,7 +1795,7 @@ class Instrument:
         x_order0 = [np.nan]
         y_order0 = [np.nan]
         # deal with masking order zero
-        if self.params['MASK_ORDER_0']:
+        if self.params['MASK_ORDER_ZERO']:
             # adding the masking of order 0
             mo0out = self.get_mask_order0(mask_trace_pos, tracemap)
             # get return from get_mask_order0
@@ -1995,7 +2009,7 @@ class Instrument:
             # amps is a vector with the amplitude of all fitted terms
             # -----------------------------------------------------------------
             # set up a mask of valid pixels
-            valid = np.isfinite(cube[iframe], dtype=float)
+            valid = np.isfinite(cube[iframe]).astype(float)
             valid[valid != 1] = np.nan
             valid[mask_trace_pos == 0] = np.nan
             # -----------------------------------------------------------------
@@ -2011,10 +2025,11 @@ class Instrument:
             # calculate the amplitude when there is no model applied
             with warnings.catch_warnings(record=True) as _:
                 # normalize cube by median
-                tmp_slice = valid * (cube[iframe] / med.ravel())
-                tmp_slice_err = valid * (err[iframe] / med.ravel())
+                tmp_slice = valid * (cube[iframe] / med)
+                tmp_slice_err = valid * (err[iframe] / med)
                 # get the odd ratio mean
-                amp0 = mp.odd_ratio_mean(tmp_slice, tmp_slice_err)
+                amp0 = mp.odd_ratio_mean(tmp_slice.ravel(),
+                                         tmp_slice_err.ravel())
                 # push into outputs
                 outputs['amplitude_no_model'][iframe] = amp0[0]
                 outputs['amplitude_no_model error'][iframe] = amp0[1]
@@ -2028,7 +2043,7 @@ class Instrument:
             # -----------------------------------------------------------------
             # deal with zero point offset (subtract it off the recon)
             if zpoint:
-                recon -= amp_model[output_names == 'zero point']
+                recon -= amp_model[output_names.index('zeropoint')]
             # -----------------------------------------------------------------
             # calculate the trace correction
             part1 = np.nansum(recon * valid / err[iframe] ** 2)
@@ -2037,7 +2052,7 @@ class Instrument:
             # -----------------------------------------------------------------
             # plot the trace correction sample plot
             if iframe == 0:
-                plots.trace_correction_sample(self.params, iframe,
+                plots.trace_correction_sample(self, iframe,
                                               cube, recon,
                                               x_trace_pos, y_trace_pos,
                                               x_order0, y_order0)
@@ -2072,7 +2087,7 @@ class Instrument:
         outputs['amplitude'] = outputs['amplitude'] * trace_corr
         # ---------------------------------------------------------------------
         # plot the aperture correction plot
-        plots.aperture_correction_plot(self.params, outputs, trace_corr)
+        plots.aperture_correction_plot(self, outputs, trace_corr)
         # ---------------------------------------------------------------------
         # convert outputs to an astropy table
         output_table = Table(outputs)
@@ -2297,7 +2312,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_effective_wavelength()'
         # get the median file
-        medfile = self.get_variable('MEIDAN_IMAGE_FILE', func_name)
+        medfile = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         # load the median from disk
         med = io.load_fits(medfile)
         # get the tracemap
@@ -2337,13 +2352,20 @@ class Instrument:
         msg = 'Photon-weighted mean:\t{0:.3f} um'
         misc.printc(msg.format(mean_photon_weighted), 'number')
         # ----------------------------------------------------------------
+        # Add to variables
+        self.set_variable('PHOTO_WEIGHTED_MEAN', mean_photon_weighted)
+        self.set_variable('ENERGY_WEIGHTED_MEAN', mean_energy_weighted)
+        # ----------------------------------------------------------------
         # return the effective wavelength factors
         return mean_photon_weighted, mean_energy_weighted
 
-    def save_wlc_results(self, err: np.ndarray, valid_cube: np.ndarray,
+    def save_wlc_results(self, cube: np.ndarray, err: np.ndarray, 
                          lrecon: np.ndarray, ltable: Table):
         # set function name
         func_name = f'{__NAME__}.{self.name}.save_wlc_results()'
+        # ---------------------------------------------------------------------
+        # update the meta data
+        self.update_meta_data()
         # get the meta data
         meta_data = self.get_variable('META', func_name)
         # -------------------------------------------------------------------------
@@ -2354,7 +2376,7 @@ class Instrument:
         # -------------------------------------------------------------------------
         # write the residual map
         resfile = self.get_variable('WLC_RES_FILE', func_name)
-        io.save_fits(resfile, datalist=[valid_cube], datatypes=['image'],
+        io.save_fits(resfile, datalist=[cube], datatypes=['image'],
                      datanames=['residual'], meta=meta_data)
         # -------------------------------------------------------------------------
         # write the recon
@@ -2393,7 +2415,7 @@ class Instrument:
             sp_sed[ix] = np.nansum(med_clean[ystart:yend, ix])
         # ---------------------------------------------------------------------
         # plot the SED
-        plots.plot_sed(self.params, wavegrid, sp_sed / throughput, trace_order)
+        plots.plot_sed(self, wavegrid, sp_sed / throughput, trace_order)
         # ---------------------------------------------------------------------
         # return this table
         return sp_sed
@@ -2414,7 +2436,7 @@ class Instrument:
         # the model starts as the recon
         model = np.array(recon)
         # deal with masking order zero
-        if self.params['MASK_ORDER_0']:
+        if self.params['MASK_ORDER_ZERO']:
             # load the mask trace position
             mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, tracemap)
             # need to re-get the mask order zero

@@ -169,7 +169,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             diff2[:, ix] = spline(ypix - posmax[ix])
         # ---------------------------------------------------------------------
         # apply a low pass filter to the diff2
-        for iy in range(diff.shape[1]):
+        for iy in range(diff.shape[0]):
             diff2[iy] = mp.lowpassfilter(diff2[iy])
         # ---------------------------------------------------------------------
         # spline the values again
@@ -199,7 +199,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # apply a clustering algorithm to the mask
         all_labels = measure.label(sig_mask, connectivity=2)
         # get a list of unique labels
-        unique_labels = list(set(all_labels))
+        unique_labels = np.unique(all_labels)
         # loop around cluster (labels) and find clusters with at least
         #   100 points
         for ulabel in tqdm(unique_labels, leave=False):
@@ -214,7 +214,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
                 sig_mask2[good] = True
         # ---------------------------------------------------------------------
         # get a circular mask for a bianry dilation
-        circle = np.sqrt(np.nansum(np.indices([7, 7]) - 3.0) ** 2, axis=0)
+        circle = np.sqrt(np.nansum((np.indices([7, 7]) - 3.0) ** 2, axis=0))
         # apply the circular mask to a binary dilation of the sig_mask2
         sig_mask = binary_dilation(sig_mask2, circle < 3.5)
         # ---------------------------------------------------------------------
@@ -226,7 +226,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         ypos, xpos = np.where(bdilate)
         # ---------------------------------------------------------------------
         # plot this relation
-        plots.mask_order0_plot(self.params, diff, sig_mask)
+        plots.mask_order0_plot(self, diff, sig_mask)
         # ---------------------------------------------------------------------
         # return the mask trace positions, x positions and y positions
         return sig_mask, xpos, ypos

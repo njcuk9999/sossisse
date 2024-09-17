@@ -212,10 +212,10 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     low_2 = color('║ ', color1) + color(low_2, color2) + color(' ║', color1)
     low_3 = color('║ ', color1) + color(low_3, color2) + color(' ║', color1)
     # add spaces
-    try:
-        w = os.get_terminal_size().columns
-    except OSError:
-        w = 80
+    # try:
+    #     w = os.get_terminal_size().columns
+    # except OSError:
+    w = 80
     dw = (w - len(low_1) // 2) // 2
     low_0 = ' ' * dw + low_0
     low_1 = ' ' * dw + low_1
