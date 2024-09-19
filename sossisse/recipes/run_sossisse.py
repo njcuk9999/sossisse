@@ -9,10 +9,13 @@ Created on 2024-08-13 at 12:50
 
 @author: cook
 """
+from typing import Union
+
 import sossisse
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
+from sossisse.instruments.default import Instrument
 
 # =============================================================================
 # Define variables
@@ -26,7 +29,7 @@ __authors__ = base.__authors__
 # =============================================================================
 # Define functions
 # =============================================================================
-def main(param_file: str = None, **kwargs):
+def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------
@@ -36,7 +39,7 @@ def main(param_file: str = None, **kwargs):
                                        **kwargs)
     except exceptions.SossisseException as e:
         misc.printc(e.message, msg_type='error')
-        return
+        return None
 
     # ----------------------------------------------------------------------
     # white light curve
@@ -50,8 +53,9 @@ def main(param_file: str = None, **kwargs):
     if inst.params['SPECTRAL_EXTRACTION']:
         inst = sossisse.spectral_extraction(inst)
 
-
-    return locals()
+    # -------------------------------------------------------------------------
+    # return the instrument object
+    return inst
 
 # =============================================================================
 # Start of code

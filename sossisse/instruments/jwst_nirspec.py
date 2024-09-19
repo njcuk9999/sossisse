@@ -169,7 +169,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # otherwise we use POS_FILE
         else:
             # get the trace position file
-            tbl_ref = self.load_table(self.params['POS_FILE'], order_num)
+            tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
             # get the valid pixels
             valid = tbl_ref['X'] > 0
             valid &= tbl_ref['X'] < xsize - 1

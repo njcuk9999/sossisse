@@ -29,7 +29,7 @@ __authors__ = base.__authors__
 # =============================================================================
 # Define functions
 # =============================================================================
-def white_light_curve(inst: Instrument):
+def white_light_curve(inst: Instrument) -> Instrument:
     """
     White light curve functionality
 
@@ -76,7 +76,7 @@ def white_light_curve(inst: Instrument):
     # setup the linear reconstruction vector based on the input parameters
     lvector = inst.setup_linear_reconstruction(med, dx, dy, rotxy, ddy,
                                                pcas, med_diff)
-    # -------------------------------------------------------------------------
+    # -----------------------------------------------------inst--------------------
     # find the best linear combination of scale/dx/dy/rotation from lvector
     # amps is a vector with the amplitude of all 4 fitted terms
     # amps[0] -> amplitude of trace
@@ -124,9 +124,12 @@ def white_light_curve(inst: Instrument):
     # -------------------------------------------------------------------------
     # write the yaml file to html
     io.summary_html(inst.params)
+    # -------------------------------------------------------------------------
+    # return the instrument object
+    return inst
 
 
-def spectral_extraction(inst: Instrument):
+def spectral_extraction(inst: Instrument) -> Instrument:
     """
     White light curve functionality
 
@@ -145,7 +148,7 @@ def spectral_extraction(inst: Instrument):
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
     # load the median image
-    med_file = inst.get_variable('MEIDAN_IMAGE_FILE', func_name)
+    med_file = inst.get_variable('MEDIAN_IMAGE_FILE', func_name)
     med = io.load_fits(med_file)
     # get clean median trace for spectrum
     dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
@@ -230,6 +233,12 @@ def spectral_extraction(inst: Instrument):
     # -------------------------------------------------------------------------
     # convert sossisse to eureka products
     inst.to_eureka(storage)
+    # -------------------------------------------------------------------------
+    # write the yaml file to html
+    io.summary_html(inst.params)
+    # -------------------------------------------------------------------------
+    # return the instrument object
+    return inst
 
 
 # =============================================================================

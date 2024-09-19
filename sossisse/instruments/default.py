@@ -85,8 +85,8 @@ class Instrument:
         self._variables['WLC_RES_FILE'] = None
         self._variables['WLC_RECON_FILE'] = None
         self._variables['WLC_LTBL_FILE'] = None
-        self._variables['SPE_SED_TBL'] = None
         # spectral extraction files
+        self._variables['SPE_SED_TBL'] = None
         self._variables['RES_NO_GREY_ORD'] = None
         self._variables['RES_GREY_ORD'] = None
         self._variables['SPECTRA_ORD'] = None
@@ -135,8 +135,8 @@ class Instrument:
         self.vsources['WLC_RES_FILE'] = define_func
         self.vsources['WLC_RECON_FILE'] = define_func
         self.vsources['WLC_LTBL_FILE'] = define_func
-        self.vsources['SPE_SED_TBL'] = define_func
         # spectral extraction files
+        self.vsources['SPE_SED_TBL'] = define_func
         self.vsources['RES_NO_GREY_ORD'] = define_func
         self.vsources['RES_GREY_ORD'] = define_func
         self.vsources['SPECTRA_ORD'] = define_func
@@ -468,18 +468,19 @@ class Instrument:
         # return the data
         return data
 
-    def load_table(self, filename: str, ext: int = None):
+    def load_table(self, filename: str, fmt: str = None, ext: int = None):
         """
         Load the table from a file
 
         :param filename: str, the filename to load
+        :param fmt: str, the format of the file
         :param ext: int, the extension number to load
 
         :return: data, the loaded data
         """
         _ = self
         # default is to just load the table file
-        data = io.load_table(filename, ext)
+        data = io.load_table(filename, fmt=fmt, hdu=ext)
         # return the data
         return data
 
@@ -1164,7 +1165,7 @@ class Instrument:
         # otherwise we use POS_FILE
         else:
             # get the trace position file
-            tbl_ref = self.load_table(self.params['POS_FILE'], order_num)
+            tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
             # get the valid pixels
             valid = tbl_ref['X'] > 0
             valid &= tbl_ref['X'] < xsize - 1
@@ -2443,7 +2444,7 @@ class Instrument:
             mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
                                                            tracemap)
             # loop around frames and mask out order zero (with NaNs)
-            for iframe in tqdm(nbframes, leave=False):
+            for iframe in tqdm(range(nbframes), leave=False):
                 # set the order zero values to nan
                 model[iframe][mask_order0] = np.nan
         # ---------------------------------------------------------------------
@@ -2762,9 +2763,9 @@ class Instrument:
         # Save the SED table
         # ---------------------------------------------------------------------
         # construct sed table name
-        sed_table_name = self.get_variable('SED_TABLE_FILE', func_name)
-        sed_table_name = sed_table_name.format(self.params['OBJECTNAME'],
-                                               trace_order)
+        sed_table_name = self.get_variable('SPE_SED_TBL', func_name)
+        sed_table_name = sed_table_name.format(objname=self.params['OBJECTNAME'],
+                                               trace_order=trace_order)
         # construct SED table
         sed_table = Table()
         sed_table['wavelength'] = wavegrid
@@ -2778,7 +2779,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         res_no_grey_ord = self.get_variable('RES_NO_GREY_ORD', func_name)
-        res_no_grey_ord = res_no_grey_ord.format(trace_order)
+        res_no_grey_ord = res_no_grey_ord.format(trace_order=trace_order)
         # write the residual no grey order tile
         io.save_fits(res_no_grey_ord, datalist=[spec, spec_err],
                      datatypes=['image', 'image'],
@@ -2789,7 +2790,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         res_grey_ord = self.get_variable('RES_GREY_ORD', func_name)
-        res_grey_ord = res_grey_ord.format(trace_order)
+        res_grey_ord = res_grey_ord.format(trace_order=trace_order)
         # write the residual grey order tile
         io.save_fits(res_grey_ord, datalist=[amp_image, spec_err],
                      datatypes=['image', 'image'],
@@ -2800,7 +2801,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         spec_file = self.get_variable('SPECTRA_ORD', func_name)
-        spec_file = spec_file.format(trace_order)
+        spec_file = spec_file.format(trace_order=trace_order)
         # get the data list
         datalist = [wavegrid_2d, amp_image, spec_err]
         # get the data type list
@@ -2816,7 +2817,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         wave_file = self.get_variable('WAVE_ORD', func_name)
-        wave_file = wave_file.format(trace_order)
+        wave_file = wave_file.format(trace_order=trace_order)
         # write the wavelength file
         io.save_fits(wave_file, datalist=[wavegrid], datatypes=['image'],
                      datanames=['WAVELENGTH'], meta=meta_data)
@@ -2826,7 +2827,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         transit_file = self.get_variable('TSPEC_ORD', func_name)
-        transit_file = transit_file.format(trace_order)
+        transit_file = transit_file.format(trace_order=trace_order)
 
         # make transit table
         t_table = Table()
@@ -2843,7 +2844,8 @@ class Instrument:
         res = self.params['RESOLUTION_BIN']
         # get file name
         transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
-        transit_bin_file = transit_bin_file.format(trace_order, res)
+        transit_bin_file = transit_bin_file.format(trace_order=trace_order,
+                                                   res=res)
         # make transit table
         tb_table = Table()
         tb_table['wavelength'] = wave_bin

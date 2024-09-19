@@ -520,8 +520,8 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
             continue
         # get this trace orders parameters
         wavegrid = plot_storage[trace_order]['wavegrid']
-        sed_spec = plot_storage[trace_order]['sed_spec']
-        throughtput = plot_storage[trace_order]['throughtput']
+        sed_spec = plot_storage[trace_order]['sp_sed']
+        throughtput = plot_storage[trace_order]['throughput']
         spec_in = plot_storage[trace_order]['spec_in']
         spec_err_in = plot_storage[trace_order]['spec_err_in']
         transit_depth = plot_storage[trace_order]['transit_depth']
@@ -533,20 +533,20 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
                    label='Flux, throughput-corrected, '
                          'order {0}'.format(trace_order))
         # plot the in-transit spectrum
-        ax.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
+        frame.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
                     yerr=spec_err_in * 1e6,
                     fmt=fmt1, alpha=0.25,
                     label='in-transit, order {}'.format(trace_order))
         # plot the binned in-transit spectrum
-        binlabelargs = [params['resolution_bin'], trace_order]
+        binlabelargs = [inst.params['RESOLUTION_BIN'], trace_order]
         binlabel = 'Resolution {}, order {}'.format(*binlabelargs)
-        ax.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
+        frame.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
                     yerr=flux_bin_err * 1e6, fmt=fmt2,
                     label=binlabel)
     # -------------------------------------------------------------------------
     # construct title
-    objname = params['OBJECTNAME']
-    title = f'{objname} -- {params["SUFFIX"]}'
+    objname = inst.params['OBJECTNAME']
+    title = f'{objname} -- {inst.params["SUFFIX"]}'
     # set the axis labels
     frame.set(xlabel=r'Wavelength [$\mu$m]', ylabel='ppm',
               title=title)

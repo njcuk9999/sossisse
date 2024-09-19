@@ -185,17 +185,22 @@ def load_fits(filename: str, ext: int = None, extname: str = None):
     # return data
     return data
 
-def load_table(filename: str, hdu: Union[int, str] = None):
+def load_table(filename: str, fmt: Union[int, str] = None,
+               hdu: Union[int, str] = None):
     """
     Load the table from a file
 
     :param filename: str, the filename to load
+    :param fmt: str, the format to load the table in
     :param hdu: int or str, the extension number or extention name to load
 
     :return: data, the loaded data
     """
     try:
-        table = Table.read(filename, hdu=hdu)
+        if fmt == 'fits' or hdu is not None:
+            table = Table.read(filename, format=fmt, hdu=hdu)
+        else:
+            table = Table.read(filename, format=fmt)
     except Exception as e:
         emsg = 'Error loading table from file: {0}\n\t{1}: {2}'
         eargs = [filename, type(e), str(e)]
@@ -347,7 +352,7 @@ def csv_to_html(params: Dict[str, Any]):
     :return:
     """
     # get all csv files in the plot path
-    csv_files = glob.glob(os.path.join(params['PLOT_PATH'], '*.csv'))
+    csv_files = glob.glob(os.path.join(params['OTHER_PATH'], '*.csv'))
     # define the html string
     html = '<br><ul>'
     # loop around all csv files
