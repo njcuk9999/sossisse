@@ -261,7 +261,7 @@ def printc(message: str, msg_type: str, print_time: bool = True):
         msg_type = 'INFO'
     # print if the log level is high enough
     if LOG_LEVELS[msg_type.upper()] >= LOG_LEVELS[LOG_LEVEL.upper()]:
-        print(color(time + message, msg_color))
+        print(color(time + message, msg_color), flush=True)
 
 
 def sossice_unique_id(param_file: str) -> str:

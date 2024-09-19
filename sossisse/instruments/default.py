@@ -95,7 +95,6 @@ class Instrument:
         self._variables['TSPEC_ORD_BIN'] = None
         self._variables['EUREKA_FILE'] = None
         # true/false flags
-        self._variables['DO_BACKGROUND'] = None
         self._variables['FLAG_CDS'] = None
         self._variables['HAS_OOT'] = None
         # meta data
@@ -145,7 +144,6 @@ class Instrument:
         self.vsources['TSPEC_ORD_BIN'] = define_func
         self.vsources['EUREKA_FILE'] = define_func
         # true/false flags
-        self.vsources['DO_BACKGROUND'] = f'{self.name}.remove_background()'
         self.vsources['FLAG_CDS'] = f'{self.name}.id_image_shape()'
         self.vsources['HAS_OOT'] = f'{self.name}.get_valid_oot()'
         # meta data
@@ -266,15 +264,14 @@ class Instrument:
         # deal with background correction
         # ---------------------------------------------------------------------
         # deal with DO_BACKGROUND set
-        if self._variables['DO_BACKGROUND'] is not None:
+        if self.params['DO_BACKGROUND']:
             # get variable
-            do_background = self.get_variable('DO_BACKGROUND', func_name)
+            do_background = self.params['DO_BACKGROUND']
             # add to tag 1
             tag1 += '_bkg{0}'.format(int(do_background))
             # add to meta data
             meta_data['DO_BKG'] = (int(do_background),
                                    'Background was removed')
-
         # ---------------------------------------------------------------------
         # deal with degree of the polynomial for the 1/f correction
         # ---------------------------------------------------------------------
@@ -573,6 +570,11 @@ class Instrument:
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
             if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
+                # print that we are reading files
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
+                            'info')
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
+                            'info')
                 # load the data
                 cube = self.load_data(temp_ini_cube)
                 err = self.load_data(temp_ini_err)
@@ -619,7 +621,7 @@ class Instrument:
             # print progress
             misc.printc('Applying flat field to data', 'info')
             # apply the flat field
-            for iframe in tqdm(range(cube.shape[0]), leave=False):
+            for iframe in tqdm(range(cube.shape[0])):
                 cube[iframe] /= flat
                 err[iframe] /= flat
         # ---------------------------------------------------------------------
@@ -764,7 +766,7 @@ class Instrument:
         margs = [bin_size]
         misc.printc(msg.format(*margs), 'number')
         # loop around bins
-        for it in tqdm(range(n_bins), leave=False):
+        for it in tqdm(range(n_bins)):
             # get the start frame and end frame
             start = it * bin_size
             end = (it + 1) * bin_size
@@ -817,20 +819,17 @@ class Instrument:
 
         :return: np.ndarray, the background corrected cube
         """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.remove_background()'
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
-        # deal with no background file given
-        if self.params['BKGFILE'] is None:
+        # deal with not doing background correction
+        if not self.params['DO_BACKGROUND']:
             # print progress
             msg = 'We do not clean background. BKGFILE is not set.'
             misc.printc(msg, 'warning')
-            # update DO_BACKGROUND variable
-            self.set_variable('DO_BACKGROUND', False)
             # return the cube (unchanged)
             return cube
-        else:
-            # update DO_BACKGROUND variable
-            self.set_variable('DO_BACKGROUND', True)
         # update the meta data
         self.update_meta_data()
         # ---------------------------------------------------------------------
@@ -856,7 +855,7 @@ class Instrument:
         # storage for the rms
         rms = np.zeros_like(bgnd_shifts)
         # loop around shifts
-        for ishift in tqdm(range(len(bgnd_shifts)), leave=False):
+        for ishift in tqdm(range(len(bgnd_shifts))):
             # get the shift
             bgnd_shift = bgnd_shifts[ishift]
             # get the shifted background
@@ -880,7 +879,8 @@ class Instrument:
         bstart = rms_min - 1
         bend = rms_min + 1
         # TODO: Deal with pooly conditioned polyfit (RankWarning)
-        rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
+        with warnings.catch_warnings(record=True) as _:
+            rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
         # the optimal offset is the half way point
         optimal_offset = -0.5 * rms_fit[1] / rms_fit[0]
         # print the optimal offset
@@ -897,7 +897,7 @@ class Instrument:
         # apply fit to full image
         background = np.polyval(bfit, background2)
         # apply the background correction to the cube
-        for frame in tqdm(range(cube.shape[0]), leave=False):
+        for frame in tqdm(range(cube.shape[0])):
             cube[frame] -= background
         # work out the mean of the cube
         with warnings.catch_warnings(record=True) as _:
@@ -921,7 +921,7 @@ class Instrument:
         # set all not equal to one to nan
         mean_mask[mean_mask != 1] = np.nan
         # loop around frames
-        for iframe in tqdm(range(cube.shape[0]), leave=False):
+        for iframe in tqdm(range(cube.shape[0])):
             with warnings.catch_warnings(record=True) as _:
                 med = np.nanmedian(cube[iframe] * mean_mask, axis=0)
                 lowp = mp.lowpassfilter(med, 25)
@@ -963,7 +963,7 @@ class Instrument:
         msg = ' Removing isolated NaNs'
         misc.printc(msg, 'info')
         # loop around frames in cube
-        for iframe in tqdm(range(cube.shape[0]), leave=False):
+        for iframe in tqdm(range(cube.shape[0])):
             # get the cube frame
             cframe = np.array(cube[iframe, :, :])
             # get a mask of the nan values
@@ -1203,8 +1203,6 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
-        # print progress
-        misc.printc('Cleaning 1/f noise', 'info')
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
         use_temp = self.params['USE_TEMPORARY']
@@ -1262,6 +1260,8 @@ class Instrument:
         # ---------------------------------------------------------------------
         # do the 1/f filtering
         # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('Cleaning 1/f noise', 'info')
         # create a copy of the cube, we will normalize the amplitude of each
         # trace
         cube2 = np.array(cube, dtype=float)
@@ -1319,8 +1319,9 @@ class Instrument:
                 med = np.nanmedian(cube2, axis=0)
         # ---------------------------------------------------------------------
         # also keep track of the in vs out-of-transit 2D image.
-        med_out = np.nanmedian(cube2[oot_domain], axis=0)
-        med_in = np.nanmedian(cube2[int_domain], axis=0)
+        with warnings.catch_warnings(record=True) as _:
+            med_out = np.nanmedian(cube2[oot_domain], axis=0)
+            med_in = np.nanmedian(cube2[int_domain], axis=0)
         # get the diff in vs out
         transit_invsout = med_in - med_out
         # ---------------------------------------------------------------------
@@ -1363,6 +1364,10 @@ class Instrument:
                         'info')
             fits.writeto(tmp_transit_invsout, transit_invsout,
                          overwrite=True)
+            # write the before after clean 1f
+            misc.printc('\tWriting: {0}'.format(tmp_before_after_c1f),
+                        'info')
+            fits.writeto(tmp_before_after_c1f, med_diff, overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
         return_list = [cube, med, med_diff, transit_invsout, pcas]
@@ -1469,16 +1474,17 @@ class Instrument:
         # deal with no poly fit of the 1/f noise
         if degree_1f_corr == 0:
             # get the median noise contribution
-            noise_1f = np.nanmedian(residuals, axis=1)
+            with warnings.catch_warnings(record=True) as _:
+                noise_1f = np.nanmedian(residuals, axis=1)
             # subtract this off the cube frame-by-frame
-            for iframe in tqdm(range(nframes), leave=False):
+            for iframe in tqdm(range(nframes)):
                 # we subtract the 1/f noise off each column
                 for col in range(nbxpix):
                     cube[iframe, :, col] -= noise_1f[iframe, col]
         # otherwise we fit the 1/f noise
         else:
             # loop around every frame
-            for iframe in tqdm(range(nframes), leave=False):
+            for iframe in tqdm(range(nframes)):
                 # get the residuals
                 res = residuals[iframe]
                 err2 = np.array(err[iframe])
@@ -1568,7 +1574,7 @@ class Instrument:
         # copy the normalized cube
         cube3ini = cube2[oot_domain]
         # subtract off the median
-        for iframe in tqdm(range(cube3ini.shape[0]), leave=False):
+        for iframe in tqdm(range(cube3ini.shape[0])):
             cube3ini[iframe] -= med
         # ---------------------------------------------------------------------
         # copy the normalized cube
@@ -2005,7 +2011,7 @@ class Instrument:
         # storage a trace correction array
         trace_corr = np.zeros(nframes, dtype=float)
         # loop around the frames
-        for iframe in tqdm(range(cube.shape[0]), leave=False):
+        for iframe in tqdm(range(cube.shape[0])):
             # find the best combination of scale/dx/dy/rotation
             # amps is a vector with the amplitude of all fitted terms
             # -----------------------------------------------------------------
@@ -2179,11 +2185,11 @@ class Instrument:
         misc.printc(msg, 'info')
         # ---------------------------------------------------------------------
         # loop around x pix
-        for ix in tqdm(range(nbxpix), leave=False):
+        for ix in tqdm(range(nbxpix)):
             # get the slice of the cube
             cube_slice = cube[:, :, ix]
             # if we don't have any valid pixels skip
-            if np.sum(valid_arr[:, :, ix]) == 0:
+            if True not in np.isfinite(cube_slice):
                 continue
             # loop around y pix
             for iy in range(nbypix):
@@ -2193,7 +2199,7 @@ class Instrument:
                 # get the sample column
                 sample = cube_slice[:, iy]
                 # get the out of transit domain in the sample
-                sample_oot = sample[oot_domain, :]
+                sample_oot = sample[oot_domain]
                 # get the indices of the out of transit domain
                 frames_oot = frames[oot_domain]
                 # find any nans in the oot sample
@@ -2444,7 +2450,7 @@ class Instrument:
             mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
                                                            tracemap)
             # loop around frames and mask out order zero (with NaNs)
-            for iframe in tqdm(range(nbframes), leave=False):
+            for iframe in tqdm(range(nbframes)):
                 # set the order zero values to nan
                 model[iframe][mask_order0] = np.nan
         # ---------------------------------------------------------------------
@@ -2484,7 +2490,7 @@ class Instrument:
         spec = np.full([nbframes, nbxpix], np.nan)
         spec_err = np.full([nbframes, nbxpix], np.nan)
         # loop through observations and spectral bins
-        for iframe in tqdm(range(nbframes), leave=False):
+        for iframe in tqdm(range(nbframes)):
             for ix in range(nbxpix):
                 # get width
                 width = self.params['TRACE_WIDTH_EXTRACTION'] // 2
@@ -2895,11 +2901,11 @@ class Instrument:
                 # get the int_mid_bjd_tdb column
                 time_arr.append(np.array(tmp_table['int_mid_BJD_TDB']))
             # convert time_arr into a numpy array
-            time_arr = np.array(time_arr)
+            time_arr = np.concatenate(time_arr)
             # -----------------------------------------------------------------
             # get the filename
             filename = self.get_variable('EUREKA_FILE', func_name)
-            filename = filename.format(trace_order)
+            filename = filename.format(trace_order=trace_order)
             # -----------------------------------------------------------------
             # save eureka format file
             io.save_eureka(filename, wavegrid, flux, flux_err, time_arr)

@@ -124,7 +124,9 @@ def run_time_params(params: Dict[str, Any],
     # -------------------------------------------------------------------------
     # the raw path is where we store all the raw data
     if params['RAWPATH'] is None:
-        params['RAWPATH'] = os.path.join(params['MODEPATH'], 'rawdata')
+        params['RAWPATH'] = os.path.join(params['MODEPATH'],
+                                         params['OBJECTNAME'],
+                                         'rawdata')
         sources['RAWPATH'] = func_name
     io.create_directory(params['RAWPATH'])
     # -------------------------------------------------------------------------
@@ -199,6 +201,10 @@ def run_time_params(params: Dict[str, Any],
         absposfile = str(os.path.join(params['CALIBPATH'], params['POS_FILE']))
         params['POS_FILE'] = io.get_file(absposfile, 'trace', required=False)
         sources['POS_FILE'] = func_name
+        # deal with no background file given - other we use that the user set
+        if params['BKGFILE'] is None:
+            params['DO_BACKGROUND'] = False
+            sources['DO_BACKGROUND'] = func_name
     # return the updated parameters
     return params, sources
 

@@ -47,7 +47,7 @@ def save_show_plot(params: Dict[str, Any], outname: str):
         # contstruct the full path
         abspath = os.path.join(params['PLOT_PATH'], basename)
         # say that we are plotting graph
-        msg = f'Plotting graph: {abspath}'
+        msg = f'Plotting graph: {basename}'
         misc.printc(msg, msg_type='info')
         # save the figure
         plt.savefig(abspath)

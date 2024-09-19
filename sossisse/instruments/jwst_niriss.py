@@ -9,6 +9,7 @@ Created on 2024-08-13 at 11:29
 
 @author: cook
 """
+import warnings
 from typing import List, Tuple
 
 import numpy as np
@@ -183,8 +184,9 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         diff -= diff2
         # ---------------------------------------------------------------------
         # take of the median of each row
-        for ix in range(nbxpix):
-            diff[:, ix] -= np.nanmedian(diff[:, ix])
+        with warnings.catch_warnings(record=True) as _:
+            for ix in range(nbxpix):
+                diff[:, ix] -= np.nanmedian(diff[:, ix])
         # ---------------------------------------------------------------------
         # work out the sigma away from median
         nsig = np.array(diff)
@@ -202,7 +204,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         unique_labels = np.unique(all_labels)
         # loop around cluster (labels) and find clusters with at least
         #   100 points
-        for ulabel in tqdm(unique_labels, leave=False):
+        for ulabel in tqdm(unique_labels):
             # find all points that are in this cluster (label)
             good = all_labels == ulabel
             # filter out if the first element is False

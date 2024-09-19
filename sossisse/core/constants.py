@@ -139,13 +139,22 @@ CDICT['FILES'] = Const('FILES', value=None, dtype=list, dtypei=str,
                        required=True, comment=comment, active=True)
 # -----------------------------------------------------------------------------
 # background file --> leave as None if the is no background available for
-#                     the mode
+#                     the mode - if empty DO_BACKGROUND is set to False
+#                     regardless of the value
 comment = """
 background file --> leave as None if the is no background available for
-   the mode
+   the mode - if empty DO_BACKGROUND is set to False regardless of the value
 """
 CDICT['BKGFILE'] = Const('BKGFILE', value=None, dtype=str, comment=comment, 
                          active=True)
+# -----------------------------------------------------------------------------
+# do background correction - must have BKGFILE defined to do this
+comment = """
+do background correction - must have BKGFILE defined to do this
+"""
+CDICT['DO_BACKGROUND'] = Const('DO_BACKGROUND', value=False,
+                               dtype=bool, comment=comment, active=True)
+
 # -----------------------------------------------------------------------------
 # flat field file --> leave as None if there is no flat field available
 #                     for the mode

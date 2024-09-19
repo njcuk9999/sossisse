@@ -170,6 +170,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # loop around trace orders
     for trace_order in inst.params['TRACE_ORDERS']:
+        # for future reference in the code, we keep track of data size
+        inst.set_variable('DATA_X_SIZE', med.shape[1], func_name)
+        inst.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
         # get the trace position
         posmax, throughput = inst.get_trace_pos(order_num=trace_order)
         # get wave grid
