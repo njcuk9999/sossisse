@@ -148,8 +148,9 @@ def sossart():
     # version string
     vstring = f'SOSSISSE: v{__version__} - {__date__}'
     # print date and version
+    header_line()
     printc(vstring, 'ALERT', print_time=False)
-
+    header_line()
 
 def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     """
@@ -385,6 +386,15 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
         # ----------------------------------------------------------------------
         return value
 
+
+def header_line():
+    printc('*' * base.CONSOLE_WIDTH, 'alert', print_time=False)
+
+
+def end_recipe():
+    header_line()
+    printc('Code finished successfully', 'alert')
+    header_line()
 
 # =============================================================================
 # Start of code

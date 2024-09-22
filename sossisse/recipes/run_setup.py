@@ -9,11 +9,15 @@ Created on 2024-08-13 at 12:50
 
 @author: cook
 """
+from typing import Union
+
 import sossisse
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
 from sossisse.instruments import select
+from sossisse.instruments.default import Instrument
+
 
 # =============================================================================
 # Define variables
@@ -29,7 +33,7 @@ INSTRUMENTMODES = select.INSTRUMENTS.keys()
 # =============================================================================
 # Define functions
 # =============================================================================
-def main(param_file: str = None, **kwargs):
+def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     # get log level
     misc.LOG_LEVEL = 'SETUP'
     # print message
@@ -69,7 +73,7 @@ def main(param_file: str = None, **kwargs):
                                        **kwargs)
     except exceptions.SossisseException as e:
         misc.printc(e.message, msg_type='error')
-        return
+        return None
     # ----------------------------------------------------------------------
     # give user some instructions on what to do next
     # ----------------------------------------------------------------------
@@ -88,8 +92,11 @@ def main(param_file: str = None, **kwargs):
     msg += '\n3. Check every other value in the yaml file before running.'
     # print message
     misc.printc(msg, msg_type='setup')
+
+    # end script
+    misc.end_recipe()
     # return locals
-    return locals()
+    return inst
 
 
 # =============================================================================

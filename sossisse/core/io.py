@@ -428,10 +428,11 @@ def save_eureka(filename: str, flux: np.ndarray, flux_err: np.ndarray,
     outdata['opterr'].attrs['time_units'] = 'BJD_TBD'
     # add the wave extension
     outdata['wave_1d'] = (['x'], wavegrid)
+    outdata['wave_1d'].attrs['wave_units'] = 'micron'
     # add the time array
     outdata.coords['time'] = time_arr
     # write file
-    xrio.writeXR(filename, outdata)
+    xrio.writeXR(filename, outdata, verbose=False)
 
 
 # =============================================================================

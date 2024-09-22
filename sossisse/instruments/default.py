@@ -864,6 +864,7 @@ class Instrument:
             xvalues = background2[box[2]:box[3], box[0]:box[1]].ravel()
             yvalues = mcube[box[2]:box[3], box[0]:box[1]].ravel()
             # get the background fit
+            # TODO: robust polyfit different between old and new version
             bfit, _ = mp.robust_polyfit(xvalues, yvalues, 1, 5)
             # get the residuals between background and background fit
             residuals = mcube - np.polyval(bfit, background2)
@@ -2006,7 +2007,7 @@ class Instrument:
         # add the amplitude without the model error
         outputs['amplitude_no_model error'] = np.zeros(cube.shape[0])
         # storage of a mask cube of bad pixels
-        valid_arr = np.ones_like(cube).astype(bool)
+        valid_arr = np.ones_like(cube).astype(float)
         # ---------------------------------------------------------------------
         # storage a trace correction array
         trace_corr = np.zeros(nframes, dtype=float)
@@ -2183,18 +2184,22 @@ class Instrument:
         # print progress
         msg = 'Correcting the per pixel transit baseline'
         misc.printc(msg, 'info')
+        # Precompute finite mask for the entire cube
+        finite_mask_cube = np.isfinite(cube)
         # ---------------------------------------------------------------------
         # loop around x pix
         for ix in tqdm(range(nbxpix)):
             # get the slice of the cube
             cube_slice = cube[:, :, ix]
-            # if we don't have any valid pixels skip
-            if True not in np.isfinite(cube_slice):
+            valid_slice = valid_arr[:, :, ix]
+            finite_mask_slice = finite_mask_cube[:, :, ix]
+            # Skip if no valid pixels
+            if not np.any(finite_mask_slice):
                 continue
             # loop around y pix
             for iy in range(nbypix):
-                # if pixel is not valid we skip
-                if np.sum(valid_arr[:, iy, ix]) == 0:
+                # Skip if slice  if no pixels are finite
+                if np.sum(np.isfinite(valid_slice[:, iy])) == 0:
                     continue
                 # get the sample column
                 sample = cube_slice[:, iy]
@@ -2203,14 +2208,14 @@ class Instrument:
                 # get the indices of the out of transit domain
                 frames_oot = frames[oot_domain]
                 # find any nans in the oot sample
-                finite_mask = np.isfinite(sample_oot)
+                finite_mask = finite_mask_slice[:, iy][oot_domain]
                 # -------------------------------------------------------------
                 # only fit the polynomial if we have enough points
                 if np.sum(finite_mask) <= poly_order:
                     continue
                 # -------------------------------------------------------------
                 # deal with having NaNs in the sample
-                if np.sum(~finite_mask) > 0:
+                if False in finite_mask:
                     # remove non-finite values
                     sample_oot = sample_oot[finite_mask]
                     frames_oot = frames_oot[finite_mask]
@@ -2875,9 +2880,9 @@ class Instrument:
             msg = f'Processing order {trace_order}'
             misc.printc(msg, 'info')
             # get variables from storage
-            flux = storage[trace_order]['amp_image']
-            flux_err = storage[trace_order]['spec_err']
-            wavegrid = storage[trace_order]['wavegrid']
+            flux = np.array(storage[trace_order]['amp_image'])
+            flux_err = np.array(storage[trace_order]['spec_err'])
+            wavegrid = np.array(storage[trace_order]['wavegrid'])
             # ----------------------------------------------------------------
             # print progress
             msg = 'Sorting in decreasing wavelength order'
@@ -2908,7 +2913,7 @@ class Instrument:
             filename = filename.format(trace_order=trace_order)
             # -----------------------------------------------------------------
             # save eureka format file
-            io.save_eureka(filename, wavegrid, flux, flux_err, time_arr)
+            io.save_eureka(filename, flux, flux_err, wavegrid, time_arr)
 
 
 # =============================================================================

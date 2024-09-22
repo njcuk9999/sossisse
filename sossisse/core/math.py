@@ -102,6 +102,36 @@ def lowpassfilter(input_vect: np.ndarray, width: int = 101) -> np.ndarray:
     return lowpass
 
 
+def robust_polyfit1(x, y, degree: int, nsigcut):
+    x = np.array(x, dtype=float)
+    y = np.array(y, dtype=float)
+
+    keep = np.isfinite(y)
+    # set the nsigmax to infinite
+    nsigmax = np.inf
+    # set the fit as unset at first
+    fit = None
+    # while sigma is greater than sigma cut keep fitting
+    while nsigmax > nsigcut:
+        # calculate the polynomial fit (of the non-NaNs)
+        fit = np.polyfit(x[keep], y[keep], degree)
+        # calculate the residuals of the polynomial fit
+        res = y - np.polyval(fit, x)
+        # work out the new sigma values
+        sig = np.nanmedian(np.abs(res))
+        if sig == 0:
+            nsig = np.zeros_like(res)
+            nsig[res != 0] = np.inf
+        else:
+            nsig = np.abs(res) / sig
+        # work out the maximum sigma
+        nsigmax = np.max(nsig[keep])
+        # re-work out the keep criteria
+        keep = nsig < nsigcut
+    # return the fit and the mask of good values
+    return fit, keep
+
+
 def robust_polyfit(xvector: np.ndarray, yvector: np.ndarray, degree: int,
                    nsigcut: float) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -129,6 +159,8 @@ def robust_polyfit(xvector: np.ndarray, yvector: np.ndarray, degree: int,
     # Set the maximum number of iterations and initialize the iteration counter
     nite_max = 20
     count = 0
+    # remove nans
+    keep = np.isfinite(xvector) & np.isfinite(yvector)
     # Enter a loop that will iterate until either the maximum difference
     # between the current and previous weights
     # becomes smaller than a certain threshold, or until the maximum number of
@@ -137,7 +169,7 @@ def robust_polyfit(xvector: np.ndarray, yvector: np.ndarray, degree: int,
         # Calculate the polynomial fit using the x- and y-values, and the
         # given degree, weighting the fit by the weights. Weights are computed
         # from the dispersion to the fit and the sigmax
-        fit = np.polyfit(xvector, yvector, degree, w=weight)
+        fit = np.polyfit(xvector[keep], yvector[keep], degree, w=weight[keep])
         # Calculate the residuals of the polynomial fit by subtracting the
         # result of np.polyval from the original y-values
         res = yvector - np.polyval(fit, xvector)

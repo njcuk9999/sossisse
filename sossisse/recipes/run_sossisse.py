@@ -54,6 +54,8 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
         inst = sossisse.spectral_extraction(inst)
 
     # -------------------------------------------------------------------------
+    # end script
+    misc.end_recipe()
     # return the instrument object
     return inst
 

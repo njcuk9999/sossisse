@@ -84,7 +84,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         """
         if self.params['FLATFILE'] is None:
             # flat field is a single frame
-            return np.ones(image_shape), False
+            return np.ones(image_shape), True
         else:
             # load the flat field
             flat = self.load_data(self.params['FLATFILE'])
@@ -104,7 +104,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             flat[flat <= 0.5 * np.nanmedian(flat)] = np.nan
             flat[flat >= 1.5 * np.nanmedian(flat)] = np.nan
             # return the flat field
-            return flat, True
+            return flat, False
 
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
