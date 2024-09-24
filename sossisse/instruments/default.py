@@ -74,6 +74,8 @@ class Instrument:
         # temp files
         self._variables['TEMP_INI_CUBE'] = None
         self._variables['TEMP_INI_ERR'] = None
+        self._variables['TEMP_INI_CUBE_BKGRND'] = None
+        self._variables['TEMP_INI_ERR_BKGRND'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
@@ -123,6 +125,8 @@ class Instrument:
         # temp files
         self.vsources['TEMP_INI_CUBE'] = define_func
         self.vsources['TEMP_INI_ERR'] = define_func
+        self.vsources['TEMP_INI_CUBE_BKGRND'] = define_func
+        self.vsources['TEMP_INI_ERR_BKGRND'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
@@ -389,8 +393,15 @@ class Instrument:
         # ---------------------------------------------------------------------
         temp_ini_cube = 'temporary_initial_cube.fits'
         temp_ini_cube = os.path.join(temppath, temp_ini_cube)
+        # ---------------------------------------------------------------------
         temp_ini_err = 'temporary_initial_err.fits'
         temp_ini_err = os.path.join(temppath, temp_ini_err)
+        # ---------------------------------------------------------------------
+        tmp_ini_cube_bkgrnd = 'temporary_initial_cube_bkgrnd.fits'
+        tmp_ini_cube_bkgrnd = os.path.join(temppath, tmp_ini_cube_bkgrnd)
+        # ---------------------------------------------------------------------
+        tmp_ini_err_bkgrnd = 'temporary_initial_err_bkgrnd.fits'
+        tmp_ini_err_bkgrnd = os.path.join(temppath, tmp_ini_err_bkgrnd)
         # ---------------------------------------------------------------------
         errfile = os.path.join(temppath, 'errormap{}.fits'.format(tag1))
         # ---------------------------------------------------------------------
@@ -431,6 +442,8 @@ class Instrument:
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
         self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
         self.set_variable('TEMP_INI_ERR', temp_ini_err)
+        self.set_variable('TEMP_INI_CUBE_BKGRND', tmp_ini_cube_bkgrnd)
+        self.set_variable('TEMP_INI_ERR_BKGRND', tmp_ini_err_bkgrnd)
         # WLC files
         self.set_variable('WLC_ERR_FILE', errfile)
         self.set_variable('WLC_RES_FILE', resfile)
@@ -583,7 +596,7 @@ class Instrument:
                 self.set_variable('DATA_Y_SIZE', cube.shape[1])
                 self.set_variable('DATA_N_FRAMES', cube.shape[0])
                 # return
-                return cube, err
+                return cube, err, None
         # ---------------------------------------------------------------------
         # number of slices in the final cube
         n_slices = 0
@@ -813,10 +826,24 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.remove_background()'
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['ALLOW_TEMPORARY']
+        use_temp = self.params['USE_TEMPORARY']
         # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
         # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp and use_temp:
+            if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
+                # print that we are reading files
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
+                            'info')
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
+                            'info')
+                # load the data
+                cube = self.load_data(temp_ini_cube)
+                err = self.load_data(temp_ini_err)
+                # return
+                return cube, err
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
         # deal with not doing background correction
@@ -868,7 +895,6 @@ class Instrument:
             xvalues = background2[box[2]:box[3], box[0]:box[1]].ravel()
             yvalues = mcube[box[2]:box[3], box[0]:box[1]].ravel()
             # get the background fit
-            # TODO: robust polyfit different between old and new version
             bfit, _ = mp.robust_polyfit(xvalues, yvalues, 1, 5)
             # get the residuals between background and background fit
             residuals = mcube - np.polyval(bfit, background2)
@@ -952,11 +978,6 @@ class Instrument:
             # save the data
             fits.writeto(temp_ini_cube, cube, overwrite=True)
             fits.writeto(temp_ini_err, err, overwrite=True)
-        # ---------------------------------------------------------------------
-        # for future reference in the code, we keep track of data size
-        self.set_variable('DATA_X_SIZE', cube.shape[2])
-        self.set_variable('DATA_Y_SIZE', cube.shape[1])
-        self.set_variable('DATA_N_FRAMES', cube.shape[0])
         # ---------------------------------------------------------------------
         # return the background corrected cube
         return cube, err
@@ -1108,8 +1129,8 @@ class Instrument:
         tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
         # ---------------------------------------------------------------------
         # get columns
-        xpos = tbl_ref['X']
-        ypos = tbl_ref['Y']
+        xpos = np.array(tbl_ref['X'])
+        ypos = np.array(tbl_ref['Y'])
         # ---------------------------------------------------------------------
         # if we don't have throughput we assume it is all ones
         if 'THROUGHPUT' not in tbl_ref.colnames:
@@ -1120,10 +1141,10 @@ class Instrument:
             # add the throughput column of ones
             throughput = np.ones(len(xpos))
         else:
-            throughput = tbl_ref['THROUGHPUT']
+            throughput = np.array(tbl_ref['THROUGHPUT'])
         # ---------------------------------------------------------------------
         # get the valid trace positions
-        valid = (xpos > 0) & (xpos < xsize)
+        valid = (xpos > 0) & (xpos < xsize - 1)
         # mask the table by these valid positions
         xpos, ypos, throughput = xpos[valid], ypos[valid], throughput[valid]
         # ---------------------------------------------------------------------
@@ -1143,7 +1164,7 @@ class Instrument:
         # define the required x positions
         rxpos = np.arange(xsize, dtype=dtype)
         # get the positions and throughput
-        posmax = np.array(spline_y(rxpos - 0.5), dtype=dtype)
+        posmax = np.array(spline_y(rxpos) - 0.5, dtype=dtype)
         throughput = np.array(spline_throughput(rxpos), dtype=float)
         # ---------------------------------------------------------------------
         # deal with map2d
@@ -1439,7 +1460,8 @@ class Instrument:
         # if we don't have out-of-transit domain work it out
         valid_oot = np.ones(data_n_frames, dtype=bool)
         # set the frames in the transit to False
-        valid_oot[cframes[0]:cframes[3]] = False
+        # note +1 as the last point of contact is deemed part of the transit
+        valid_oot[cframes[0]:cframes[3] + 1] = False
         # deal with the rejection of domain
         if rej_domain is not None:
             # get the rejection domain
@@ -1454,7 +1476,8 @@ class Instrument:
         valid_oot_before[cframes[0]:] = False
         # get the frames after
         valid_oot_after = np.array(valid_oot)
-        valid_oot_after[:cframes[3]] = False
+        # note +1 as the last point of contact is deemd part of the transit
+        valid_oot_after[:cframes[3] + 1] = False
         # ---------------------------------------------------------------------
         # get the valid in transit domain
         valid_int = np.ones(data_n_frames, dtype=bool)
