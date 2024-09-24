@@ -71,8 +71,8 @@ def white_light_curve(param_file_or_params, force=False):
         best_dx = 0
         best_dy = 0
         best_sum = 0
-        for ix in tqdm(range(len(dxs)), leave=False):
-            for iy in tqdm(range(len(dys)), leave=False):
+        for ix in tqdm(range(len(dxs))):
+            for iy in tqdm(range(len(dys))):
                 params['x_trace_offset'] = dxs[ix]
                 params['y_trace_offset'] = dys[iy]
                 params = science.get_trace_map(params, silent=True)
@@ -214,7 +214,7 @@ def white_light_curve(param_file_or_params, force=False):
     # i = 6976
 
     trace_corr = np.zeros(params['DATA_Z_SIZE'], dtype=float)
-    for i in tqdm(range(cube.shape[0]), leave=False):
+    for i in tqdm(range(cube.shape[0])):
         # find the best combination of scale/dx/dy/rotation
         # amps is a vector with the amplitude of all 4 fitted terms
         # amps[0] -> amplitude of trace
@@ -325,6 +325,7 @@ def white_light_curve(param_file_or_params, force=False):
     tbl['sum_trace'] /= norm_factor
     tbl['sum_trace_error'] /= norm_factor
 
+    # Question: This is just weird
     if ['per_pixel_baseline_correction']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
         cube = science.per_pixel_baseline(cube, mask, params)
@@ -577,7 +578,7 @@ def spectral_extraction(param_file_or_params, force=False):
         if params['mask_order_0']:
             misc.printc('masking order 0', 'info')
             mask_order0, x, y = science.get_mask_order0(params)
-            for nth_obs in tqdm(range(residual.shape[0]), leave=False):
+            for nth_obs in tqdm(range(residual.shape[0])):
                 tmp = np.array(model[nth_obs])
                 tmp[mask_order0] = np.nan
                 model[nth_obs] = tmp
@@ -589,7 +590,7 @@ def spectral_extraction(param_file_or_params, force=False):
         sp_err = np.zeros([residual.shape[0], residual.shape[2]]) + np.nan
 
         # loop through observations and spectral bins
-        for nth_obs in tqdm(range(residual.shape[0]), leave=False):
+        for nth_obs in tqdm(range(residual.shape[0])):
             for spectral_bin in range(med.shape[1]):
                 # get a ribbon on the trace that extends over the input width
                 y1 = posmax[spectral_bin] - params['trace_width_extraction'] // 2
@@ -646,6 +647,10 @@ def spectral_extraction(param_file_or_params, force=False):
                                  params['transit_baseline_polyord'])
                 sp[:, i] -= np.polyval(fit, np.arange(sp.shape[0]))
 
+        # TODO =================================================================
+        # TODO:   GOT TO HERE IN UPDATE
+        # TODO =================================================================
+
         if params['saveresults']:
             # TODO: you shouldn't use '/'  as it is OS dependent
             # TODO: use os.path.join(1, 2, 3)
@@ -673,9 +678,11 @@ def spectral_extraction(param_file_or_params, force=False):
                          overwrite=True)
 
         # do the same on the photometric time series
-        v1 = np.array(tbl['amplitude'][~in_transit_reject])
-        fit = np.polyfit(np.arange(sp.shape[0])[~in_transit_reject], v1, 1)
-        tbl['amplitude'] /= np.polyval(fit, np.arange(sp.shape[0]))
+        if params['remove_trend']:
+            v1 = np.array(tbl['amplitude'][~in_transit_reject])
+            fit = np.polyfit(np.arange(sp.shape[0])[~in_transit_reject], v1, 1)
+            tbl['amplitude'] /= np.polyval(fit, np.arange(sp.shape[0]))
+
         if params['tdepth'] == "compute":
             with warnings.catch_warnings(record=True) as _:
                 transit_depth = np.nanmedian(tbl["amplitude"][~in_transit_reject]) \

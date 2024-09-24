@@ -187,11 +187,11 @@ def clean_doublets():
     # TODO: use os.path.join(1, 2, 3)
     files = glob.glob('*/*/*/*.fits')
     cs = []
-    for file in tqdm(files, leave=False):
+    for file in tqdm(files):
         cs = np.append(cs, get_checksum(file))
     cs = np.array(cs)
 
-    for ucs in tqdm(np.unique(cs), leave=False):
+    for ucs in tqdm(np.unique(cs)):
         g = np.where(cs == ucs)[0]
         if len(g) == 1:
             continue

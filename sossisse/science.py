@@ -29,7 +29,7 @@ def per_pixel_baseline(cube, mask, params):
     mid_transit = int(np.nanmean(params['it']))
     rms0 = math.sigma(cube[mid_transit] * mask)
 
-    for ix in tqdm(range(params['DATA_X_SIZE']), leave=False):
+    for ix in tqdm(range(params['DATA_X_SIZE'])):
         cube_slice = np.array(cube[:, :, ix])
 
         if True not in np.isfinite(cube_slice):
@@ -100,14 +100,14 @@ def get_mask_order0(params):
 
     nsig = np.array(diff)
 
-    for i in tqdm(range(diff.shape[0]), leave=False):
+    for i in tqdm(range(diff.shape[0])):
         nsig[i] /= math.lowpassfilter(np.abs(diff[i]))
 
     mask = nsig > 1  # we look for a consistent set of >2 sigma pixels
 
     mask2 = np.zeros_like(mask)
     all_labels1 = measure.label(mask, connectivity=2)
-    for u in tqdm(np.unique(all_labels1), leave=False):
+    for u in tqdm(np.unique(all_labels1)):
 
         g = (u == all_labels1)
         if not mask[g][0]:
@@ -153,10 +153,10 @@ def pixeldetrending(cube, params):
         sample[:, ikey] -= math.lowpassfilter(sample[:, ikey], 15)
 
     misc.printc('We perform pixel-level decorrelation', 'info')
-    for iy in tqdm(range(cube.shape[1]), leave=False):
+    for iy in tqdm(range(cube.shape[1])):
         tmp = np.array(cube[:, iy, :])
 
-        for ix in tqdm(range(cube.shape[2]), leave=False):
+        for ix in tqdm(range(cube.shape[2])):
             v = np.array(tmp[:, ix], dtype=float)
             with warnings.catch_warnings(record=True) as _:
                 mean_finite = np.nanmean(np.isfinite(v))
@@ -220,7 +220,7 @@ def get_effective_wavelength(params):
 
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
-    med = fits.getdata('{}/median{}.fits'.format(params['TEMP_PATH'], params['tag']))
+    med  = fits.getdata('{}/median{}.fits'.format(params['TEMP_PATH'], params['tag']))
     params = get_trace_map(params)
     wavegrid = get_wavegrid(params, order=1)
 
@@ -290,7 +290,7 @@ def patch_isolated_bads(cube, params):
             # np.array(fits.getdata(params['file_temporary_clean_cube_mask']), dtype=bool)
 
     misc.printc('Removing isolated NaNs', 'info')
-    for islice in tqdm(range(cube.shape[0]), leave=False):
+    for islice in tqdm(range(cube.shape[0])):
         cube_slice = np.array(cube[islice, :, :])
         mask_slice = np.isfinite(cube_slice)
         ker = np.zeros([3, 3], dtype=float)
@@ -343,7 +343,7 @@ def remove_background(cube, params):
         bgnd_shifts = np.arange(-5.0, 5.0, .2)
         rms = np.zeros_like(bgnd_shifts)
         misc.printc('Tweaking the position of the background', 'info')
-        for ishift in tqdm(range(len(bgnd_shifts)), leave=False):
+        for ishift in tqdm(range(len(bgnd_shifts))):
             bgnd_shift = bgnd_shifts[ishift]
             bgnd2 = shift(bgnd, (0, bgnd_shift))
             xvalues = bgnd2[box[2]:box[3], box[0]:box[1]].ravel()
@@ -365,14 +365,14 @@ def remove_background(cube, params):
                                 1,
                                 5)[0]
         bgnd = np.polyval(fit, bgnd2)
-        for i in tqdm(range(cube.shape[0]), leave=False):
+        for i in tqdm(range(cube.shape[0])):
             cube[i] -= bgnd
 
         with warnings.catch_warnings(record=True) as _:
             moy = np.nanmean(cube, axis=0)
 
         mask = np.zeros_like(moy, dtype=float)
-        for i in tqdm(range(2048), leave=False):
+        for i in tqdm(range(2048)):
             with warnings.catch_warnings(record=True) as _:
                 mask[:, i] = moy[:, i] < np.nanpercentile(moy[:, i], 50)
         mask[mask != 1.0] = np.nan
@@ -386,10 +386,10 @@ def remove_background(cube, params):
         # bgnd -= np.tile(lowp, 256).reshape(moy.shape)
 
         # printc('Background ratio : {:.3f}'.format(ratio), 'number')
-        # for i in tqdm(range(cube.shape[0]), leave=False):
+        # for i in tqdm(range(cube.shape[0])):
         #    cube[i] -= (ratio * bgnd)
 
-        for i in tqdm(range(cube.shape[0]), leave=False):
+        for i in tqdm(range(cube.shape[0])):
             with warnings.catch_warnings(record=True) as _:
                 lowp = math.lowpassfilter(np.nanmedian(mask * cube[i], axis=0), 25)
             cube[i] -= np.tile(lowp, 256).reshape(moy.shape)
@@ -405,7 +405,7 @@ def get_gradients(med, params, doplot=False):
 
     med2 = np.array(med)
 
-    for _ in tqdm(range(4), leave=False):
+    for _ in tqdm(range(4)):
         med_filter = medfilt2d(med2, kernel_size=[1, 5])
         bad = ~np.isfinite(med2)
         med2[bad] = med_filter[bad]
@@ -518,7 +518,7 @@ def clean_1f(cube, err, params):
     # do a dot product of each trace to the median and adjust amplitude so that
     # they all match
     amps = np.zeros(cube2.shape[0])
-    for i in tqdm(range(cube2.shape[0]), leave=False):
+    for i in tqdm(range(cube2.shape[0])):
         mask = np.isfinite(cube[i]) * np.isfinite(med)
         amps[i] = np.nansum(cube2[i][mask] * med[mask]) / np.nansum(med[mask] ** 2)
         cube2[i] /= amps[i]
@@ -550,7 +550,7 @@ def clean_1f(cube, err, params):
         diff_in_out = med_in - med_out
 
     residuals = np.zeros_like(cube)
-    for i in tqdm(range(params['DATA_Z_SIZE']), leave=False):
+    for i in tqdm(range(params['DATA_Z_SIZE'])):
         mask = np.isfinite(cube[i]) * np.isfinite(med) * params['TRACEMAP']
         amps[i] = np.nansum(cube[i][mask] * med[mask]) / np.nansum(med[mask] ** 2)
 
@@ -564,13 +564,13 @@ def clean_1f(cube, err, params):
 
     if params['degree_1f_corr'] == 0:
         noise_1f = np.nanmedian(residuals, axis=1)
-        for i in tqdm(range(params['DATA_Z_SIZE']), leave=False):
+        for i in tqdm(range(params['DATA_Z_SIZE'])):
             for col in range(params['DATA_X_SIZE']):
                 cube[i, :, col] -= noise_1f[i, col]
     else:
 
         tracemap = np.array(params['TRACEMAP'])
-        for i in tqdm(range(cube2.shape[0]), leave=False):
+        for i in tqdm(range(cube2.shape[0])):
             residual = residuals[i]
             err2 = err[i]
             for col in range(err2.shape[1]):
@@ -596,15 +596,16 @@ def clean_1f(cube, err, params):
         nanmask = np.ones_like(params['TRACEMAP'], dtype=float)
         nanmask[~params['TRACEMAP']] = np.nan
 
+        # Question: cube2 is not corrected for 1/f
         cube3ini = cube2[params['oot_domain']]
-        for iframe in tqdm(range(cube3ini.shape[0]), leave=False):
+        for iframe in tqdm(range(cube3ini.shape[0])):
             cube3ini[iframe] -= med
 
         cube3 = np.array(cube3ini)
 
         err3 = err[params['oot_domain']]
 
-        for i in tqdm(range(len(cube3)), leave=False):
+        for i in tqdm(range(len(cube3))):
             cube3[i] *= nanmask
 
         cube3 = cube3.reshape([cube3.shape[0], params['DATA_Y_SIZE'] * params['DATA_X_SIZE']])
@@ -624,8 +625,10 @@ def clean_1f(cube, err, params):
             variance_ratio = np.array(pca.explained_variance_ratio_)
         variance_ratio /= variance_ratio[0]
 
+        # TODO: Got to here
+
         amps = np.zeros([params['n_pca'], cube3.shape[0]])
-        for iframe in tqdm(range(cube3.shape[0]), leave=False):
+        for iframe in tqdm(range(cube3.shape[0])):
             for ipca in range(params['n_pca']):
                 amps[ipca, iframe] = np.nansum(fit_pca.components_[ipca] * cube3[iframe, valid]
                                                / err3[iframe, valid] ** 2) / np.nansum(1 / err3[iframe, valid] ** 2)
@@ -639,7 +642,7 @@ def clean_1f(cube, err, params):
 
         fig, ax = plt.subplots(nrows=params['n_pca'], ncols=1, sharex='all',
                                sharey='all', figsize=[8, 4 * params['n_pca']])
-        for ipca in tqdm(range(params['n_pca']), leave=False):
+        for ipca in tqdm(range(params['n_pca'])):
 
             for iframe in range(cube3.shape[0]):
                 pcas[ipca] += (amps[ipca, iframe] * cube3[iframe])
@@ -784,7 +787,7 @@ def bin_cube(cube, params, bin_type='Flux'):
     dims_bin[0] = dims_bin[0] // params['n_time_bin']
     cube2 = np.zeros(dims_bin)
     misc.printc('We bin data by a factor {}'.format(params['n_time_bin']), 'number')
-    for i in tqdm(range(dims_bin[0]), leave=False):
+    for i in tqdm(range(dims_bin[0])):
         if bin_type == "Flux":
             cube2[i] = np.nansum(cube[i * params['n_time_bin']:(i + 1) * params['n_time_bin']], axis=0)
         if bin_type == "Error":
@@ -886,7 +889,7 @@ def load_data_with_dq(params):
 
     if 'flatfile' in params.keys():
         misc.printc('We apply the flat field', 'info')
-        for iframe in tqdm(range(cube.shape[0]), leave=False):
+        for iframe in tqdm(range(cube.shape[0])):
             cube[iframe] /= flat
             err[iframe] /= flat
 

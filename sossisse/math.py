@@ -1,6 +1,7 @@
 import numpy as np
 import statsmodels.api as sm
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from typing import Tuple
 
 
 def lowpassfilter(input_vect, width=101):
@@ -76,33 +77,65 @@ def lowpassfilter(input_vect, width=101):
     return lowpass
 
 
-def robust_polyfit(x, y, degree: int, nsigcut):
-    x = np.array(x, dtype=float)
-    y = np.array(y, dtype=float)
+def robust_polyfit(xvector: np.ndarray, yvector: np.ndarray, degree: int,
+                   nsigcut: float) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    A robust polyfit function that iteratively fits a polynomial to the data until
+    the dispersion of values is accounted for by a weight vector. This is
+    equivalent to a soft-edged sigma-clipping
 
-    keep = np.isfinite(y)
-    # set the nsigmax to infinite
-    nsigmax = np.inf
-    # set the fit as unset at first
+    :param xvector: np.ndarray, the x array to pass to np.polyval
+    :param yvector: np.ndarray, the y array to pass to np.polyval
+    :param degree: int, the degree of polynomial fit passed to np.polyval
+    :param nsigcut: float, the threshold sigma above which a point is considered
+    and outlier
+    :return: a tuple containing the polynomial fit (as a NumPy array)
+    and a boolean mask of the good values (p>50% of valid)
+    """
+    # Initialize the fit to None
     fit = None
-    # while sigma is greater than sigma cut keep fitting
-    while nsigmax > nsigcut:
-        # calculate the polynomial fit (of the non-NaNs)
-        fit = np.polyfit(x[keep], y[keep], degree)
-        # calculate the residuals of the polynomial fit
-        res = y - np.polyval(fit, x)
-        # work out the new sigma values
+    # Create an array of weights, initialized to 1 for all values
+    weight = np.ones_like(xvector)
+    # Pre-compute the odd_cut value
+    odd_cut = np.exp(-.5 * nsigcut ** 2)
+    # Initialize an array of weights from the previous iteration,
+    # set to 0 for all values
+    weight_before = np.zeros_like(weight)
+    # Set the maximum number of iterations and initialize the iteration counter
+    nite_max = 20
+    count = 0
+    # remove nans
+    keep = np.isfinite(xvector) & np.isfinite(yvector)
+    # Enter a loop that will iterate until either the maximum difference
+    # between the current and previous weights
+    # becomes smaller than a certain threshold, or until the maximum number of
+    # iterations is reached
+    while (np.max(abs(weight - weight_before)) > 1e-9) and (count < nite_max):
+        # Calculate the polynomial fit using the x- and y-values, and the
+        # given degree, weighting the fit by the weights. Weights are computed
+        # from the dispersion to the fit and the sigmax
+        fit = np.polyfit(xvector[keep], yvector[keep], degree, w=weight[keep])
+        # Calculate the residuals of the polynomial fit by subtracting the
+        # result of np.polyval from the original y-values
+        res = yvector - np.polyval(fit, xvector)
+        # Calculate the new sigma values as the median absolute deviation of
+        # the residuals
         sig = np.nanmedian(np.abs(res))
-        if sig == 0:
-            nsig = np.zeros_like(res)
-            nsig[res != 0] = np.inf
-        else:
-            nsig = np.abs(res) / sig
-        # work out the maximum sigma
-        nsigmax = np.max(nsig[keep])
-        # re-work out the keep criteria
-        keep = nsig < nsigcut
-    # return the fit and the mask of good values
+        # Calculate the odds of being part of the "valid" values
+        num = np.exp(-0.5 * (res / sig) ** 2) * (1 - odd_cut)
+        # Calculate the odds of being an outlier
+        den = odd_cut + num
+        # Update the weights from the previous iteration
+        weight_before = np.array(weight)
+        # Calculate the new weights as the odds ratio that is fed back to
+        # the fit
+        weight = num / den
+        # Increment the iteration counter
+        count += 1
+    # Set the mask of good values to be those for which there is a 50%
+    # likelihood of being valid
+    keep = np.array(weight > 0.5)
+    # return the fit and keep vectors
     return fit, keep
 
 
