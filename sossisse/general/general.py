@@ -63,6 +63,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
+    # TODO: TESTED TO HERE
     out_c1f = inst.clean_1f(cube, err, tracemap)
     cube, med, med_diff, transit_invsout, pcas = out_c1f
     # -------------------------------------------------------------------------
