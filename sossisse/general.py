@@ -52,6 +52,7 @@ def white_light_curve(param_file_or_params, force=False):
 
     params = science.get_trace_map(params)
 
+    # TODO: This step is removed - don't add
     if params['pixel_level_detrending']:
         cube = science.pixeldetrending(cube, params)
 

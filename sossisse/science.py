@@ -452,7 +452,8 @@ def get_valid_oot(params):
         return params
 
     valid_oot = np.ones(params['DATA_Z_SIZE'], dtype=bool)
-    valid_oot[params['it'][0]:params['it'][3]] = False
+    # Added + 1 for last transit point
+    valid_oot[params['it'][0]:params['it'][3] + 1] = False
     if 'reject domain' in params.keys():
         for i_reject in range(len(params['reject_domain']) // 2):
             valid_oot[params['reject_domain'][2 * i_reject]:params['reject_domain'][2 * i_reject + 1]] = False
