@@ -553,7 +553,7 @@ class Instrument:
         # return the data, err, dq
         return tmp_data, tmp_err, tmp_dq
 
-    def load_data_with_dq(self) -> Tuple[np.ndarray, np.ndarray]:
+    def load_data_with_dq(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Load and correct the data
         :return:
@@ -630,21 +630,6 @@ class Instrument:
         with warnings.catch_warnings(record=True) as _:
             err[err == 0] = np.nanmin(err[err != 0])
         # ---------------------------------------------------------------------
-        # trick to get a mask where True is valid
-        cube_mask = np.zeros_like(cube, dtype=bool)
-        for valid_dq in self.params['VALID_DQ']:
-            # print DQ values
-            misc.printc(f'Accepting DQ = {valid_dq}', 'number')
-            # get the mask
-            cube_mask[dq == valid_dq] = True
-        # ---------------------------------------------------------------------
-        # remove the background
-        cube = self.remove_background(cube)
-        # ---------------------------------------------------------------------
-        # mask the values in cube_mask
-        cube[~cube_mask] = np.nan
-        err[~cube_mask] = np.inf
-        # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         if allow_temp:
             # print progress
@@ -665,7 +650,7 @@ class Instrument:
         self.set_variable('DATA_N_FRAMES', cube.shape[0])
         # ---------------------------------------------------------------------
         # return the cube and error
-        return cube, err
+        return cube, err, dq
 
     def id_image_shape(self, raw_shapes: List[List[int]]
                        ) -> Tuple[List[int], bool]:
@@ -808,7 +793,9 @@ class Instrument:
             # return the flat field
             return flat, False
 
-    def remove_background(self, cube: np.ndarray) -> np.ndarray:
+    def remove_background(self, cube: np.ndarray, err: np.ndarray,
+                          dq: np.ndarray
+                          ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Removes the background with a 3 DOF model. It's the background image
         times a slope + a DC offset (1 amp, 1 slope, 1 DC)
@@ -816,11 +803,20 @@ class Instrument:
         Background file is loaded from params['BKGFILE']
 
         :param cube: np.ndarray, the cube to remove the background from
+        :param err: np.ndarray, the error cube
+        :param dq: np.ndarray, the data quality cube
 
-        :return: np.ndarray, the background corrected cube
+        :return: tuple, 1. np.ndarray, the background corrected cube
+                        2. np.ndarray, the background corrected error cube
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_background()'
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['ALLOW_TEMPORARY']
+        # construct temporary file names
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
+        # ---------------------------------------------------------------------
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
         # deal with not doing background correction
@@ -829,9 +825,17 @@ class Instrument:
             msg = 'We do not clean background. BKGFILE is not set.'
             misc.printc(msg, 'warning')
             # return the cube (unchanged)
-            return cube
+            return cube, err
         # update the meta data
         self.update_meta_data()
+        # ---------------------------------------------------------------------
+        # trick to get a mask where True is valid
+        cube_mask = np.zeros_like(cube, dtype=bool)
+        for valid_dq in self.params['VALID_DQ']:
+            # print DQ values
+            misc.printc(f'Accepting DQ = {valid_dq}', 'number')
+            # get the mask
+            cube_mask[dq == valid_dq] = True
         # ---------------------------------------------------------------------
         # optimal background correction
         # ---------------------------------------------------------------------
@@ -878,7 +882,7 @@ class Instrument:
         rms_min = np.argmin(rms)
         # fit this rms
         bstart = rms_min - 1
-        bend = rms_min + 1
+        bend = rms_min + 2
         # TODO: Deal with pooly conditioned polyfit (RankWarning)
         with warnings.catch_warnings(record=True) as _:
             rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
@@ -929,8 +933,33 @@ class Instrument:
             # subtract the low pass filter from this frame of the cube
             cubetile = np.tile(lowp, mcube.shape[0]).reshape(mcube.shape)
             cube[iframe] -= cubetile
+        # ---------------------------------------------------------------------
+        # mask the values in cube_mask
+        cube[~cube_mask] = np.nan
+        err[~cube_mask] = np.inf
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then save them
+        # we re-save these with the background removed
+        if allow_temp:
+            # print progress
+            msg = ('We write intermediate files, they will be read to speed '
+                   'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
+            margs = [temp_ini_cube, temp_ini_err]
+            misc.printc(msg.format(*margs), 'info')
+            # force cubes to be float
+            cube = cube.astype(float)
+            err = err.astype(float)
+            # save the data
+            fits.writeto(temp_ini_cube, cube, overwrite=True)
+            fits.writeto(temp_ini_err, err, overwrite=True)
+        # ---------------------------------------------------------------------
+        # for future reference in the code, we keep track of data size
+        self.set_variable('DATA_X_SIZE', cube.shape[2])
+        self.set_variable('DATA_Y_SIZE', cube.shape[1])
+        self.set_variable('DATA_N_FRAMES', cube.shape[0])
+        # ---------------------------------------------------------------------
         # return the background corrected cube
-        return cube
+        return cube, err
 
     def patch_isolated_bads(self, cube: np.ndarray) -> np.ndarray:
         """

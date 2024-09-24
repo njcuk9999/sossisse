@@ -49,7 +49,10 @@ def white_light_curve(inst: Instrument) -> Instrument:
     inst.define_filenames()
     # -------------------------------------------------------------------------
     # load the image, error and data quality
-    cube, err = inst.load_data_with_dq()
+    cube, err, dq = inst.load_data_with_dq()
+    # -------------------------------------------------------------------------
+    # remove the background
+    cube, err = inst.remove_background(cube, err, dq)
     # -------------------------------------------------------------------------
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
