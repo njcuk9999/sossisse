@@ -63,7 +63,6 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    # TODO: TESTED TO HERE
     out_c1f = inst.clean_1f(cube, err, tracemap)
     cube, med, med_diff, transit_invsout, pcas = out_c1f
     # -------------------------------------------------------------------------
@@ -77,6 +76,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # set up the mask for trace position
     mask_out = inst.get_mask_trace_pos(med, tracemap)
     mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos = mask_out
+
     # setup the linear reconstruction vector based on the input parameters
     lvector = inst.setup_linear_reconstruction(med, dx, dy, rotxy, ddy,
                                                pcas, med_diff)
@@ -102,6 +102,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     if inst.params['PER_PIXEL_BASELINE_CORRECTION']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
         cube = inst.per_pixel_baseline(cube, valid_cube)
+    # TODO: Got to here in testing
     # -------------------------------------------------------------------------
     # print the rms baseline for all methods
     for method in inst.get_rms_baseline():

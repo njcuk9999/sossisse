@@ -167,7 +167,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             spline = ius(ypix[valid] - posmax[ix], diff[:, ix][valid],
                          k=3, ext=1)
             # update the diff2
-            diff2[:, ix] = spline(ypix - posmax[ix])
+            diff2[:, ix] = spline(ypix)
         # ---------------------------------------------------------------------
         # apply a low pass filter to the diff2
         for iy in range(diff.shape[0]):

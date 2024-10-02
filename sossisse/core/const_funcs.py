@@ -275,6 +275,9 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
         emsg = f"Yaml file {param_file} does not exist"
         raise exceptions.SossisseFileException(emsg)
     # -------------------------------------------------------------------------
+    # print that we are using yaml file
+    misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
+    # -------------------------------------------------------------------------
     # we load the yaml file
     with open(param_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)

@@ -1383,10 +1383,10 @@ class Instrument:
         # loop around frames
         for iframe in tqdm(range(nframes)):
             # mask the nans and apply trace map
-            valid = np.isfinite(cube2[iframe]) & np.isfinite(med)
+            valid = np.isfinite(cube[iframe]) & np.isfinite(med)
             valid &= tracemap
             # work out the amplitudes in the valid regions
-            part1b = np.nansum(cube2[iframe][valid] * med[valid])
+            part1b = np.nansum(cube[iframe][valid] * med[valid])
             part2b = np.nansum(med[valid] ** 2)
             amps[iframe] = part1b / part2b
             # we get the appropriate slice of the error cube
@@ -1399,7 +1399,7 @@ class Instrument:
         # fit the pca
         # ---------------------------------------------------------------------
         # fit the pca
-        pcas = self.fit_pca(cube, err, med, tracemap)
+        pcas = self.fit_pca(cube2, err, med, tracemap)
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
@@ -1550,7 +1550,7 @@ class Instrument:
                         continue
 
                     # otherwise try to fit the 1/f noise with a polynomial
-                    v1 = residuals[:, col]
+                    v1 = res[:, col]
                     err1 = err2[:, col]
                     index = np.arange(res.shape[0], dtype=float)
                     # find valid pixels
@@ -1601,7 +1601,7 @@ class Instrument:
         flag_fit_pca = self.params['FIT_PCA']
         n_comp = self.params['FIT_N_PCA']
         # if we aren't fitting or we fit no components return None
-        if flag_fit_pca or n_comp == 0:
+        if (not flag_fit_pca) or n_comp == 0:
             return None
         # get the shape of the data
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
@@ -1641,7 +1641,7 @@ class Instrument:
         cube3 = cube3.reshape([cube3.shape[0], nbypix * nbxpix])
         err3 = err3.reshape([err3.shape[0], nbypix * nbxpix])
         # find the bad pixels
-        badpix = np.isfinite(cube3) & np.isfinite(err3)
+        badpix = ~(np.isfinite(cube3) & np.isfinite(err3))
         # work out the weights
         weights = 1 / err3
         # set the bad weights to zero
@@ -1652,6 +1652,8 @@ class Instrument:
         with warnings.catch_warnings(record=True) as _:
             valid = np.where(np.nanmean(weights != 0, axis=0) > 0.95)[0]
         # ---------------------------------------------------------------------
+        # print process
+        misc.printc('\tComputing principle components...', 'info')
         # compute the principle components
         with warnings.catch_warnings(record=True) as _:
             # set up the pca class
@@ -1801,7 +1803,7 @@ class Instrument:
             med2[bad] = med_filter[bad]
         # ---------------------------------------------------------------------
         # find gradients along the x and y direction
-        dx, dy = np.gradient(med2)
+        dy, dx = np.gradient(med2)
         # find the second derivative
         ddy = np.gradient(dy, axis=0)
         # ---------------------------------------------------------------------
@@ -1831,6 +1833,7 @@ class Instrument:
 
         :param med: np.ndarray, the median image
         :param tracemap: np.ndarray, the trace map
+        :param return_pos: bool, if True return the x and y trace positions
 
         :return: list, 1. the mask trace positions, 2. the x order 0 positions,
                        3. the y order 0 positions, 4. the x trace positions,
@@ -1968,7 +1971,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # deal with fit before / after
         if self.params['FIT_BEFORE_AFTER']:
-            vector.append(np.zeros_like(med).ravel())
+            vector.append(med_diff.ravel())
             output_names.append('before_after')
             output_units.append('ppm')
             output_factor.append(1e6)
