@@ -24,7 +24,7 @@ __authors__ = 'Etienne Artigau, Neil James Cook'
 BASIC_TYPES = (int, float, bool, str)
 
 # Define console width
-CONSOLE_WIDTH = 80
+CONSOLE_WIDTH = 120
 
 # =============================================================================
 # Define functions

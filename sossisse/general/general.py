@@ -9,6 +9,8 @@ Created on 2022-09-20
 
 @author: cook
 """
+import os
+
 import numpy as np
 
 from sossisse.core import base
@@ -47,6 +49,14 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
+    # -------------------------------------------------------------------------
+    # get the stabiblity table file name
+    wlc_ltbl_file = inst.get_variable('WLC_LTBL_FILE', func_name)
+    # return if we have the soss_stablity file
+    if os.path.exists(wlc_ltbl_file):
+        msg = 'File {0} exists we skip white light curve step'
+        misc.printc(msg.format(wlc_ltbl_file), 'info')
+        return inst
     # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err, dq = inst.load_data_with_dq()

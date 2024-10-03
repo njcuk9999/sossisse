@@ -13,6 +13,7 @@ import os
 import random
 import string
 from datetime import datetime
+import textwrap
 import time
 from typing import Any, List, Tuple
 
@@ -238,6 +239,15 @@ def printc(message: str, msg_type: str, print_time: bool = True):
 
     :return: None, prints to screen
     """
+    # get time now
+    time = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│ '
+
+    subsequent_indent = ' ' * (len(time) - 2) + '| '
+    # wrap messages
+    message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(time),
+                            break_long_words=False, break_on_hyphens=False,
+                            initial_indent='',
+                            subsequent_indent=subsequent_indent)
     # formally bad1
     if msg_type.lower() in 'warning':
         msg_color = 'yellow'
@@ -253,9 +263,7 @@ def printc(message: str, msg_type: str, print_time: bool = True):
     else:
         msg_color = 'green'
     # get the time message
-    if print_time:
-        time = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│'
-    else:
+    if not print_time:
         time = ''
     # at this point we set everything else at the info level
     if msg_type.upper() not in LOG_LEVELS:

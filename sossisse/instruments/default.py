@@ -111,6 +111,7 @@ class Instrument:
         self._variables['OOT_DOMAIN_BEFORE'] = None
         self._variables['OOT_DOMAIN_AFTER'] = None
         self._variables['INT_DOMAIN'] = None
+        self._variables['IN_TRANSIT_INTEGRATE'] = None
         self._variables['PHOTO_WEIGHTED_MEAN'] = None
         self._variables['ENERGY_WEIGHTED_MEAN'] = None
         # ---------------------------------------------------------------------
@@ -162,6 +163,7 @@ class Instrument:
         self.vsources['OOT_DOMAIN_BEFORE'] = f'{self.name}.get_valid_oot()'
         self.vsources['OOT_DOMAIN_AFTER'] = f'{self.name}.get_valid_oot()'
         self.vsources['INT_DOMAIN'] = f'{self.name}.get_valid_int()'
+        self.vsources['IN_TRANSIT_INTEGRATE'] = f'{self.name}.get_valid_int()'
         self.vsources['PHOTO_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
         self.vsources['ENERGY_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
 
@@ -432,6 +434,7 @@ class Instrument:
         tspec_ord_bin = os.path.join(otherpath, tspec_ord_bin)
         # ---------------------------------------------------------------------
         eureka_file = 'spectra_ord{trace_order}' + tag2 + '.h5'
+        eureka_file = os.path.join(fitspath, eureka_file)
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
@@ -874,7 +877,8 @@ class Instrument:
         # force the background to floats
         background = background.astype(float)
         # calculate the mean of the cube (along time axis)
-        mcube = np.nanmean(cube, axis=0)
+        with warnings.catch_warnings(record=True) as _:
+            mcube = np.nanmean(cube, axis=0)
         # get the box size from params
         box = self.params['BACKGROUND_GLITCH_BOX']
         # get the background shifts
@@ -1446,14 +1450,16 @@ class Instrument:
         if cframes is None:
             # set flag
             self.set_variable('HAS_OOT', False)
+            # define sum dummy empty arrays
+            zero_fill = np.zeros(data_n_frames, dtype=bool)
+            one_fill = np.ones(data_n_frames, dtype=bool)
             # update variables
-            self.set_variable('OOT_DOMAIN',
-                              np.zeros(data_n_frames, dtype=bool))
-            self.set_variable('OOT_DOMAIN_BEFORE',
-                              np.zeros(data_n_frames, dtype=bool))
-            self.set_variable('OOT_DOMAIN_AFTER',
-                              np.zeros(data_n_frames, dtype=bool))
-            self.set_variable('INT_DOMAIN', np.ones(data_n_frames, dtype=bool))
+            self.set_variable('OOT_DOMAIN', zero_fill)
+            self.set_variable('OOT_DOMAIN_BEFORE', zero_fill)
+            self.set_variable('OOT_DOMAIN_AFTER', zero_fill)
+            self.set_variable('INT_DOMAIN', one_fill)
+            self.set_variable('IN_TRANSIT_INTEGRATE', one_fill)
+
             return
         # get the rejection domain
         rej_domain = self.params['REJECT_DOMAIN']
@@ -1476,14 +1482,20 @@ class Instrument:
         valid_oot_before[cframes[0]:] = False
         # get the frames after
         valid_oot_after = np.array(valid_oot)
-        # note +1 as the last point of contact is deemd part of the transit
+        # note +1 as the last point of contact is deemed part of the transit
         valid_oot_after[:cframes[3] + 1] = False
         # ---------------------------------------------------------------------
         # get the valid in transit domain
         valid_int = np.ones(data_n_frames, dtype=bool)
+        valid_int_integrate = np.ones(data_n_frames, dtype=bool)
         # set the frames out of transit to False
+        #  note +1 as the last point of contact is deemed part of the transit
         valid_int[:cframes[0]] = False
-        valid_int[cframes[3]:] = False
+        valid_int[cframes[3] + 1:] = False
+        # set the frames out of integration window to False
+        #  note +1 as the last point of contact is deemed part of the transit
+        valid_int_integrate[:cframes[1]] = False
+        valid_int_integrate[cframes[2] + 1:] = False
         # deal with rejection of domain
         if rej_domain is not None:
             # get the rejection domain
@@ -1493,6 +1505,7 @@ class Instrument:
                 end = rej_domain[ireject * 2 + 1]
                 # set to False in valid_int
                 valid_int[start:end] = False
+                valid_int_integrate[start:end] = False
         # ---------------------------------------------------------------------
         # set flag
         self.set_variable('HAS_OOT', True)
@@ -1501,6 +1514,7 @@ class Instrument:
         self.set_variable('OOT_DOMAIN_BEFORE', valid_oot_before)
         self.set_variable('OOT_DOMAIN_AFTER', valid_oot_after)
         self.set_variable('INT_DOMAIN', valid_int)
+        self.set_variable('IN_TRANSIT_INTEGRATE', valid_int_integrate)
 
     def subtract_1f(self, residuals: np.ndarray,
                     cube: np.ndarray, err: np.ndarray,
@@ -2563,6 +2577,9 @@ class Instrument:
                 v1 = residual[iframe, ystart:yend, ix]
                 # corresponding error
                 v2 = err[iframe, ystart:yend, ix]
+                # don't continue if we have all nans in v0
+                if np.sum(np.isfinite(v0)) == 0:
+                    continue
                 # calculate the ratio
                 with warnings.catch_warnings(record=True) as _:
                     # noinspection PyBroadException
@@ -2638,7 +2655,7 @@ class Instrument:
         # fit the out-of-transit trend
         tfit = np.polyfit(index[oot_domain], v1[oot_domain], 1)
         # remove this off the ampliduteds
-        ltable['amplitude'] -= np.polyval(tfit, index)
+        ltable['amplitude'] /= np.polyval(tfit, index)
         # ---------------------------------------------------------------------
         # return the updated spec and ltable
         return spec, ltable
@@ -2678,7 +2695,7 @@ class Instrument:
         self.get_valid_oot()
         has_oot = self.get_variable('HAS_OOT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        int_domain = self.get_variable('INT_DOMAIN', func_name)
+        in_domain_int = self.get_variable('IN_TRANSIT_INTEGRATE', func_name)
         # deal with out of transit domain not set
         if not has_oot:
             wmsg = ('Cannot calculate transit depth trend without '
@@ -2691,7 +2708,7 @@ class Instrument:
         # get the transit depth
         with warnings.catch_warnings(record=True) as _:
             part1 = np.nanmedian(ltable['amplitude'][oot_domain])
-            part2 = np.nanmean(ltable['amplitude'][int_domain])
+            part2 = np.nanmean(ltable['amplitude'][in_domain_int])
             # transit depth is the median out-of-transit amplitudes
             # minus the mean of the in transit amplitudes
             transit_depth = part1 - part2
@@ -2720,7 +2737,8 @@ class Instrument:
         self.get_valid_oot()
         has_oot = self.get_variable('HAS_OOT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        int_domain = self.get_variable('INT_DOMAIN', func_name)
+        in_domain_int = self.get_variable('IN_TRANSIT_INTEGRATE',
+                                                 func_name)
         # ---------------------------------------------------------------------
         # deal with no out-of-transit domain defined
         if not has_oot:
@@ -2736,20 +2754,21 @@ class Instrument:
         # in transit spectrum and error
         with warnings.catch_warnings(record=True) as _:
             # calculate the weighted sum of the spectrum - in transit
-            sumspec_in = np.nansum(spec[int_domain] * weight[int_domain],
+            sumspec_in = np.nansum(spec[in_domain_int] * weight[in_domain_int],
                                    axis=0)
             # calculate the sum of the weights - in transit
-            sumweight_in = np.nansum(weight[int_domain], axis=0)
+            sumweight_in = np.nansum(weight[in_domain_int], axis=0)
             # calculate the in transit spectrum
             spec_in = sumspec_in / sumweight_in
             # calculate the in transit spectrum error
-            spec_err_in = np.sqrt(1 / sumweight_in ** 2)
+            ispec_err2_in = np.nansum(1 / spec_err[in_domain_int] ** 2, axis=0)
+            spec_err_in = 1 / np.sqrt(ispec_err2_in)
 
         with warnings.catch_warnings(record=True) as _:
             # calculate the sum of the weights - out of transit
-            sumweight_out = np.nansum(weight[oot_domain], axis=0)
+            ispec_err2_out = np.nansum(1 / spec_err[oot_domain] ** 2, axis=0)
             # calculate the out-of-transit spectrum error
-            spec_err_out = 1 / np.sqrt(sumweight_out ** 2)
+            spec_err_out = 1 / np.sqrt(ispec_err2_out)
         # ---------------------------------------------------------------------
         # if we have removed a trend, we need to add in quadrature
         #  out-of-transit  errors to in-transit
@@ -2778,7 +2797,7 @@ class Instrument:
             # log the wavelength
             logwave = np.log(wavegrid / np.nanmin(wavegrid))
             # get the wavelength binning
-            wbin = np.floor(logwave) * self.params['RESOLUTION_BIN']
+            wbin = np.floor(logwave * self.params['RESOLUTION_BIN'])
         # create a wavebin, fluxbin and corresponding error vectors for output
         wave_bin = np.array(list(set(wbin)))
         flux_bin = np.zeros_like(wave_bin)
