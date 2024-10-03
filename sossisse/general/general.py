@@ -112,7 +112,6 @@ def white_light_curve(inst: Instrument) -> Instrument:
     if inst.params['PER_PIXEL_BASELINE_CORRECTION']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
         cube = inst.per_pixel_baseline(cube, valid_cube)
-    # TODO: Got to here in testing
     # -------------------------------------------------------------------------
     # print the rms baseline for all methods
     for method in inst.get_rms_baseline():
@@ -207,12 +206,6 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         if inst.params['REMOVE_TREND']:
             spec, ltable = inst.remove_trend(spec, ltable)
         # ---------------------------------------------------------------------
-        # reshape the amplitudes into an image
-        amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
-        amp_image = amp_image.reshape(spec.shape)
-        # reshape the wave grid into an image
-        wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
-        # ---------------------------------------------------------------------
         # compute or set transit depth
         transit_depth = inst.get_transit_depth(ltable)
         # ---------------------------------------------------------------------
@@ -225,6 +218,11 @@ def spectral_extraction(inst: Instrument) -> Instrument:
                                                              spec_in,
                                                              spec_err_in)
         # ---------------------------------------------------------------------
+        # reshape the amplitudes into an image
+        amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
+        amp_image = amp_image.reshape(spec.shape)
+        # reshape the wave grid into an image
+        wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
         # save for plotting (outside the trace_order loop) / saving
         storage_it = dict()
         storage_it['wavegrid'] = wavegrid
