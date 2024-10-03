@@ -214,6 +214,9 @@ def white_light_curve(param_file_or_params, force=False):
 
     # i = 6976
 
+    # storage of a mask cube of bad pixels
+    mask_arr = np.ones_like(cube).astype(float)
+
     trace_corr = np.zeros(params['DATA_Z_SIZE'], dtype=float)
     for i in tqdm(range(cube.shape[0])):
         # find the best combination of scale/dx/dy/rotation
@@ -289,6 +292,8 @@ def white_light_curve(param_file_or_params, force=False):
         cube[i] -= recon
         all_recon[i] = recon / amp_model[0]
 
+        mask_arr[i] = mask
+
         tbl['rms_cube_recon'][i] = math.sigma(np.array(cube[i], dtype=float))
     trace_corr /= np.nanmedian(trace_corr)
 
@@ -329,7 +334,7 @@ def white_light_curve(param_file_or_params, force=False):
     # Question: This is just weird
     if ['per_pixel_baseline_correction']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
-        cube = science.per_pixel_baseline(cube, mask, params)
+        cube = science.per_pixel_baseline(cube, mask_arr, params)
 
     # TODO: you shouldn't use '/'  as it is OS dependent
     # TODO: use os.path.join(1, 2, 3)
@@ -603,7 +608,9 @@ def spectral_extraction(param_file_or_params, force=False):
                 v1 = residual[nth_obs, y1:y2, spectral_bin]
                 # corresponding error
                 v2 = err[nth_obs, y1:y2, spectral_bin]
-
+                # don't continue if we have all nans in v0
+                if np.sum(np.isfinite(v0)) == 0:
+                    continue
                 """
                 we find the ratio of residual to trace. The logic here is that
                 we want to know the mean ratio of the residual to the model trace
@@ -627,7 +634,7 @@ def spectral_extraction(param_file_or_params, force=False):
 
         # binary indexes of when the transit happens
         in_transit_reject = np.zeros(sp.shape[0], dtype=bool)
-        in_transit_reject[params['it'][0]:params['it'][3]] = True
+        in_transit_reject[params['it'][0]:params['it'][3] + 1] = True
 
         if 'reject_domain' in params:
             for i_reject in range(len(params['reject_domain']) // 2):
@@ -636,7 +643,7 @@ def spectral_extraction(param_file_or_params, force=False):
                 in_transit_reject[cut1:cut2] = True
 
         in_transit_integrate = np.zeros(sp.shape[0], dtype=bool)
-        in_transit_integrate[params['it'][1]:params['it'][2]] = True
+        in_transit_integrate[params['it'][1]:params['it'][2] + 1] = True
 
         if params['remove_trend']:
             for i in range(sp.shape[1]):
@@ -647,10 +654,6 @@ def spectral_extraction(param_file_or_params, force=False):
                 fit = np.polyfit(np.arange(sp.shape[0])[~in_transit_reject][g], v1[g],
                                  params['transit_baseline_polyord'])
                 sp[:, i] -= np.polyval(fit, np.arange(sp.shape[0]))
-
-        # TODO =================================================================
-        # TODO:   GOT TO HERE IN UPDATE
-        # TODO =================================================================
 
         if params['saveresults']:
             # TODO: you shouldn't use '/'  as it is OS dependent
@@ -702,6 +705,7 @@ def spectral_extraction(param_file_or_params, force=False):
 
         with warnings.catch_warnings(record=True) as _:
             # out-of-transit spectrum and error.
+            # TODO: is this out of transit? in_Transit_reject is 1-2 not 0-3?
             err_out = 1 / np.sqrt(np.nansum(1 / sp_err[~in_transit_reject] ** 2, axis=0))
 
         if params['remove_trend']:

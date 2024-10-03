@@ -108,7 +108,7 @@ fit_dx: true
 fit_dy: true
 
 # fit the before - after morphological change
-before_after: false
+before_after: true
 
 # fit the rotation in the linear reconstruction of the trace
 fit_rotation: true
@@ -120,7 +120,7 @@ zero_point_offset: true
 ddy: true
 
 fit_pca: false
-n_pca: 0
+n_pca: 2
 
 ########################################################################################################
 ## Inputs related to handling of the data within each frame

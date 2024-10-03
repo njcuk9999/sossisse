@@ -20,14 +20,14 @@ from sossisse import math, misc
 # sosssisse stuff
 
 
-def per_pixel_baseline(cube, mask, params):
+def per_pixel_baseline(cube, mask_arr, params):
     cube = np.array(cube, dtype=float)
     index = np.arange(params['DATA_Z_SIZE'], dtype=float)
     oot = params['oot_domain']
     poly_order = params['transit_baseline_polyord']
 
     mid_transit = int(np.nanmean(params['it']))
-    rms0 = math.sigma(cube[mid_transit] * mask)
+    rms0 = math.sigma(cube[mid_transit] * mask_arr[mid_transit])
 
     for ix in tqdm(range(params['DATA_X_SIZE'])):
         cube_slice = np.array(cube[:, :, ix])
@@ -36,7 +36,7 @@ def per_pixel_baseline(cube, mask, params):
             continue
 
         for iy in range(params['DATA_Y_SIZE']):
-            if np.isfinite(mask[iy, ix]):
+            if np.any(np.isfinite(mask_arr[:, iy, ix])):
                 sample = cube_slice[:, iy]
                 sample2 = sample[oot]
                 index2 = index[oot]
@@ -50,7 +50,7 @@ def per_pixel_baseline(cube, mask, params):
 
         cube[:, :, ix] = np.array(cube_slice)
 
-    rms1 = math.sigma(cube[mid_transit] * mask)
+    rms1 = math.sigma(cube[mid_transit] * mask_arr[mid_transit])
     misc.printc('-- For sample mid-transit frame -- ', '')
     misc.printc('\t rms[before] : {:.3f}'.format(rms0), 'number')
     misc.printc('\t rms[after] : {:.3f}'.format(rms1), 'number')

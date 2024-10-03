@@ -80,13 +80,13 @@ def yaml_to_html(params):
     f.write(out_html)
     f.close()
 
-    outdir = params['object'] + '_' + datetime.now().isoformat('_').replace(':', '-').split('.')[0] + '_' + params[
-        'checksum']
+    # outdir = params['object'] + '_' + datetime.now().isoformat('_').replace(':', '-').split('.')[0] + '_' + params[
+    #     'checksum']
     # TODO: This wont work for anyone but you!
-    cmd = 'rsync -av -e "ssh  -oPort=5822"  {}/* artigau@venus.astro.umontreal.ca:/home/artigau/www/sossisse/{}'.format(
-        params['PLOT_PATH'], outdir)
-
-    os.system(cmd)
+    # cmd = 'rsync -av -e "ssh  -oPort=5822"  {}/* artigau@venus.astro.umontreal.ca:/home/artigau/www/sossisse/{}'.format(
+    #     params['PLOT_PATH'], outdir)
+    #
+    # os.system(cmd)
 
 
 def to_eureka_fmt(flux, flux_error, wave, time, outfile):
