@@ -161,29 +161,31 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
-    # load the median image
-    med_file = inst.get_variable('MEDIAN_IMAGE_FILE', func_name)
-    med = io.load_fits(med_file)
-    # get clean median trace for spectrum
-    dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
-    # load the residuals
-    res_file = inst.get_variable('WLC_RES_FILE', func_name)
-    residual = io.load_fits(res_file)
-    # load the error file
-    err_file = inst.get_variable('WLC_ERR_FILE', func_name)
-    err = io.load_fits(err_file)
-    # load the residuals
-    recon_file = inst.get_variable('WLC_RECON_FILE', func_name)
-    recon = io.load_fits(recon_file)
-    # load the linear fit table
-    ltable_file = inst.get_variable('WLC_LTBL_FILE', func_name)
-    ltable = io.load_table(ltable_file)
     # -------------------------------------------------------------------------
     # plot / save storage
     storage = dict()
     # -------------------------------------------------------------------------
     # loop around trace orders
     for trace_order in inst.params['TRACE_ORDERS']:
+        # print progress
+        misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
+        # load the median image
+        med_file = inst.get_variable('MEDIAN_IMAGE_FILE', func_name)
+        med = io.load_fits(med_file)
+        # get clean median trace for spectrum
+        dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
+        # load the residuals
+        res_file = inst.get_variable('WLC_RES_FILE', func_name)
+        residual = io.load_fits(res_file)
+        # load the error file
+        err_file = inst.get_variable('WLC_ERR_FILE', func_name)
+        err = io.load_fits(err_file)
+        # load the residuals
+        recon_file = inst.get_variable('WLC_RECON_FILE', func_name)
+        recon = io.load_fits(recon_file)
+        # load the linear fit table
+        ltable_file = inst.get_variable('WLC_LTBL_FILE', func_name)
+        ltable = io.load_table(ltable_file)
         # for future reference in the code, we keep track of data size
         inst.set_variable('DATA_X_SIZE', med.shape[1], func_name)
         inst.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
@@ -202,9 +204,19 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         spec, spec_err = inst.ratio_residual_to_trace(model, err, residual,
                                                       posmax)
         # ---------------------------------------------------------------------
-        # remove the out-of-transit trend
+        # remove the out-of-transit trend on the spectrum
         if inst.params['REMOVE_TREND']:
-            spec, ltable = inst.remove_trend(spec, ltable)
+            spec = inst.remove_trend_spec(spec)
+        # -----------------------------------------------------------------
+        # reshape the amplitudes into an image
+        amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
+        amp_image = amp_image.reshape(spec.shape)
+        # add this gray component onto the spectrum
+        spec2 = spec + amp_image
+        # ---------------------------------------------------------------------
+        # remove the out-of-transit trend on the photometric time series
+        if inst.params['REMOVE_TREND']:
+            ltable = inst.remove_trend_phot(spec, ltable)
         # ---------------------------------------------------------------------
         # compute or set transit depth
         transit_depth = inst.get_transit_depth(ltable)
@@ -218,9 +230,6 @@ def spectral_extraction(inst: Instrument) -> Instrument:
                                                              spec_in,
                                                              spec_err_in)
         # ---------------------------------------------------------------------
-        # reshape the amplitudes into an image
-        amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
-        amp_image = amp_image.reshape(spec.shape)
         # reshape the wave grid into an image
         wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
         # save for plotting (outside the trace_order loop) / saving
@@ -231,7 +240,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         storage_it['spec'] = spec
         storage_it['spec_err'] = spec_err
         storage_it['ltable'] = ltable
-        storage_it['amp_image'] = amp_image
+        storage_it['spec2'] = spec2
         storage_it['wavegrid_2d'] = wavegrid_2d
         storage_it['spec_in'] = spec_in
         storage_it['spec_err_in'] = spec_err_in

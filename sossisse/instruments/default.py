@@ -314,8 +314,8 @@ class Instrument:
         # add the transit points
         # ---------------------------------------------------------------------
         # add to tag 1
-        tag1 += '_it1{0}-it4{1}'.format(*self.params['CONTACT_FRAMES'])
-        tag2 += tag1 + '_it2{0}-it3{1}'.format(*self.params['CONTACT_FRAMES'])
+        tag1 += '_it1-{0}-it4-{3}'.format(*self.params['CONTACT_FRAMES'])
+        tag2 += tag1 + '_it2-{1}-it3-{2}'.format(*self.params['CONTACT_FRAMES'])
         # add to meta data
         meta_data['IT1'] = (self.params['CONTACT_FRAMES'][0],
                             '1st contact frame')
@@ -2597,8 +2597,7 @@ class Instrument:
         # return the spectrum and corresponding error
         return spec, spec_err
 
-    def remove_trend(self, spec: np.ndarray, ltable: Table
-                     ) -> Tuple[np.ndarray, Table]:
+    def remove_trend_spec(self, spec: np.ndarray) -> np.ndarray:
         """
         Remove the out-of-transit trend from the spectrum and the linear fit
         table
@@ -2608,7 +2607,7 @@ class Instrument:
         :return:
         """
         # set function name
-        func_name = f'{__NAME__}.{self.name}.binary_transit_masks()'
+        func_name = f'{__NAME__}.{self.name}.remove_trend_spec()'
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
@@ -2627,7 +2626,7 @@ class Instrument:
                     '\n\tPlease set CONTACT_FRAMES to remove_trend.')
             misc.printc(wmsg, 'warning')
             # return the spec and ltable without removing trend
-            return spec, ltable
+            return spec
         # ---------------------------------------------------------------------
         # loop around
         for ix in range(nbxpix):
@@ -2646,6 +2645,34 @@ class Instrument:
             # remove the trend and update the spectrum
             spec[:, ix] -= np.polyval(tfit, np.arange(nbframes))
         # ---------------------------------------------------------------------
+        # return the updated spec and ltable
+        return spec
+
+    def remove_trend_phot(self, spec: np.ndarray, ltable: Table) -> Table:
+        """
+        Remove the out-of-transit trend from the spectrum and the linear fit
+        table
+
+        :param spec: np.ndarray, the spectrum
+        :param ltable: Table, the linear fit table
+        :return:
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.remove_trend_phot()'
+        # get the out-of-transit domain
+        self.get_valid_oot()
+        has_oot = self.get_variable('HAS_OOT', func_name)
+        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        # ---------------------------------------------------------------------
+        # deal with no out-of-transit domain defined
+        if not has_oot:
+            wmsg = ('Cannot remove trend without '
+                    'out-of-transit domain.'
+                    '\n\tPlease set CONTACT_FRAMES to remove_trend.')
+            misc.printc(wmsg, 'warning')
+            # return the spec and ltable without removing trend
+            return ltable
+        # ---------------------------------------------------------------------
         # do the same for the photometric time series
         # ---------------------------------------------------------------------
         # to the same as we did on the spectrum on the photometric time series
@@ -2654,11 +2681,11 @@ class Instrument:
         index = np.arange(spec.shape[0])
         # fit the out-of-transit trend
         tfit = np.polyfit(index[oot_domain], v1[oot_domain], 1)
-        # remove this off the ampliduteds
+        # remove this off the amplitudes
         ltable['amplitude'] /= np.polyval(tfit, index)
         # ---------------------------------------------------------------------
         # return the updated spec and ltable
-        return spec, ltable
+        return ltable
 
     def get_transit_depth(self, ltable: Table) -> Union[float, None]:
         """
@@ -2836,7 +2863,7 @@ class Instrument:
         throughput = storage['throughput']
         spec = storage['spec']
         spec_err = storage['spec_err']
-        amp_image = storage['amp_image']
+        spec2 = storage['spec2']
         wavegrid_2d = storage['wavegrid_2d']
         spec_in = storage['spec_in']
         spec_err_in = storage['spec_err_in']
@@ -2877,7 +2904,7 @@ class Instrument:
         res_grey_ord = self.get_variable('RES_GREY_ORD', func_name)
         res_grey_ord = res_grey_ord.format(trace_order=trace_order)
         # write the residual grey order tile
-        io.save_fits(res_grey_ord, datalist=[amp_image, spec_err],
+        io.save_fits(res_grey_ord, datalist=[spec2, spec_err],
                      datatypes=['image', 'image'],
                      datanames=['spec', 'spec_err'],
                      meta=meta_data)
@@ -2888,7 +2915,7 @@ class Instrument:
         spec_file = self.get_variable('SPECTRA_ORD', func_name)
         spec_file = spec_file.format(trace_order=trace_order)
         # get the data list
-        datalist = [wavegrid_2d, amp_image, spec_err]
+        datalist = [wavegrid_2d, spec2, spec_err]
         # get the data type list
         datatypes = ['image', 'image', 'image']
         # get the data names
@@ -2954,7 +2981,7 @@ class Instrument:
             msg = f'Processing order {trace_order}'
             misc.printc(msg, 'info')
             # get variables from storage
-            flux = np.array(storage[trace_order]['amp_image'])
+            flux = np.array(storage[trace_order]['spec2'])
             flux_err = np.array(storage[trace_order]['spec_err'])
             wavegrid = np.array(storage[trace_order]['wavegrid'])
             # ----------------------------------------------------------------

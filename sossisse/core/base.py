@@ -15,8 +15,8 @@ Rules: no sosssise imports
 # Define variables
 # =============================================================================
 __NAME__ = 'sossisse.core.base'
-__version__ = '0.1'
-__date__ = '2024-08-13'
+__version__ = '0.1.037'
+__date__ = '2024-10-04'
 __authors__ = 'Etienne Artigau, Neil James Cook'
 
 

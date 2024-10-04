@@ -10,7 +10,7 @@ Created on 2024-08-13 at 11:29
 @author: cook
 """
 import warnings
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 from astropy.io import fits
@@ -124,6 +124,70 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             tracemap = tracemap1 | tracemap2
         # return the trace positions
         return tracemap
+
+    def get_wavegrid(self, order_num: Union[int, None] = None,
+                     return_xpix: bool = False
+                     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """
+        Get the wave grid for the instrument
+
+        :param order_num: int, the order number to use (if source is pos)
+        :param return_xpix: bool, if True return xpix as well as wave
+
+        :return: np.ndarray, the wave grid
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.get_wavegrid()'
+        # get x size from cube
+        xsize = self.get_variable('DATA_X_SIZE', func_name)
+        # deal with case where we need POS_FILE and it is not given
+        if self.params['POS_FILE'] is None:
+            emsg = (f'POS_FILE must be defined for {self.name}'
+                    f'\n\tfunction = {func_name}')
+            raise exceptions.SossisseInstException(emsg, self.name)
+        # deal with order num not being set
+        elif order_num is None:
+            emsg = ('order_num must be defined when using source="pos"'
+                    '\n\tfunction = {0}')
+            raise exceptions.SossisseInstException(emsg.format(func_name),
+                                                   self.name)
+        # otherwise we use POS_FILE
+        else:
+            # get the trace position file
+            tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
+            # get the valid pixels
+            valid = tbl_ref['X'] > 0
+            valid &= tbl_ref['X'] < xsize - 1
+            valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
+            # mask the table by these valid positions
+            tbl_ref = tbl_ref[valid]
+            # sort by the x positions
+            tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
+            # spline the wave grid
+            spl_wave = ius(tbl_ref['X'], tbl_ref['WAVELENGTH'], ext=1, k=1)
+            # push onto our wave grid
+            wavevector = spl_wave(np.arange(xsize))
+            # deal with zeros
+            wavevector[wavevector == 0] = np.nan
+            # get xpix
+            xpix = np.arange(xsize)
+            # deal with the overlap between order 1 and 2
+            # assume all flux belongs to order 1
+            # Question: Is this a good idea?
+            if order_num == 2:
+                # get the trace positions for order 1
+                tracemap1, _ = self.get_trace_pos(map2d=True, order_num=1)
+                # get the trace positions for order 2
+                tracemap2, _ = self.get_trace_pos(map2d=True, order_num=2)
+                # find the overlap between the two trace maps
+                overlap = np.nansum(tracemap1 * tracemap2, axis=0) != 0
+                # set these wave values to nan
+                wavevector[overlap] = np.nan
+        # return the wave grid
+        if return_xpix:
+            return xpix, wavevector
+        else:
+            return wavevector
 
     def get_mask_order0(self, mask_trace_pos: np.ndarray, tracemap: np.ndarray
                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
