@@ -509,7 +509,6 @@ def spectral_extraction(param_file_or_params, force=False):
 
     for trace_order in params['trace_orders']:
         # Used for scaling residuals
-
         # TODO: you shouldn't use '/'  as it is OS dependent
         # TODO: use os.path.join(1, 2, 3)
         tbl = Table.read('{}/soss_stability{}.csv'.format(params['CSV_PATH'], params['tag']))
