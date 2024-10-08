@@ -84,27 +84,13 @@ def run_time_params(params: Dict[str, Any],
     """
     # set the function name (for sources)
     func_name = f'{__NAME__}.run_time_params()'
-    # get the sossisse unique id (sid) for this run
-    if params['SID'] is None:
-        
-        # check whether we have a hash that matches the current yaml file
-        # if so this gives us our SID
-        sid = hash_match(params)
-        # deal with having a yaml that matches a previous run
-        if sid is None:
-            params['SID'] = misc.sossice_unique_id(params['PARAM_FILE'])
-            sources['SID'] = func_name
-        else:
-            params['SID'] = sid
-            sources['SID'] = func_name
-
+    # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
     if not params['SHOW_PLOTS']:
         params['SHOW_PLOTS'] = os.getlogin() in params['USER_SHOW_PLOTS']
         sources['SHOW_PLOTS'] = func_name
-
     # -------------------------------------------------------------------------
-    # set up paths
+    # set up core paths
     # -------------------------------------------------------------------------
     # lets create the sossiopath directory if it doesn't exist
     io.create_directory(params['SOSSIOPATH'])
@@ -134,35 +120,59 @@ def run_time_params(params: Dict[str, Any],
     #   note we add the sid to the path for multiple reductions
     if params['OBJECTPATH'] is None:
         params['OBJECTPATH'] = os.path.join(params['MODEPATH'],
-                                            params['OBJECTNAME'],
-                                            params['SID'])
+                                            params['OBJECTNAME'])
         sources['OBJECTPATH'] = func_name
+    io.create_directory(params['OBJECTPATH'])
+    # -------------------------------------------------------------------------
+    # deal with the SID
+    # -------------------------------------------------------------------------
+    # get the sossisse unique id (sid) for this run
+    if params['SID'] is None:
+        # check whether we have a hash that matches the current yaml file
+        # if so this gives us our SID
+        sid = hash_match(params)
+        # deal with having a yaml that matches a previous run
+        if sid is None:
+            params['SID'] = misc.sossice_unique_id(params['PARAM_FILE'])
+            sources['SID'] = func_name
+        else:
+            params['SID'] = sid
+            sources['SID'] = func_name
+    # -------------------------------------------------------------------------
+    # set up other paths
+    # -------------------------------------------------------------------------
+    # the object path is where we store all the object data
+    #   note we add the sid to the path for multiple reductions
+    if params['SID_PATH'] is None:
+        params['SID_PATH'] = os.path.join(params['OBJECTPATH'], params['SID'])
+        sources['SID_PATH'] = func_name
     io.create_directory(params['OBJECTPATH'])
     # -------------------------------------------------------------------------
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
     if params['TEMP_PATH'] is None:
-        params['TEMP_PATH'] = os.path.join(params['OBJECTPATH'], 'temporary')
+        params['TEMP_PATH'] = os.path.join(params['SID_PATH'], 'temporary')
         sources['TEMP_PATH'] = func_name
     io.create_directory(params['TEMP_PATH'])
     # -------------------------------------------------------------------------
     # the plot path
     if params['PLOT_PATH'] is None:
-        params['PLOT_PATH'] = os.path.join(params['OBJECTPATH'], 'plots')
+        params['PLOT_PATH'] = os.path.join(params['SID_PATH'], 'plots')
         sources['PLOT_PATH'] = func_name
     io.create_directory(params['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
     if params['OTHER_PATH'] is None:
-        params['OTHER_PATH'] = os.path.join(params['OBJECTPATH'], 'other')
+        params['OTHER_PATH'] = os.path.join(params['SID_PATH'], 'other')
         sources['OTHER_PATH'] = func_name
     io.create_directory(params['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the fits paths
     if params['FITS_PATH'] is None:
-        params['FITS_PATH'] = os.path.join(params['OBJECTPATH'], 'fits')
+        params['FITS_PATH'] = os.path.join(params['SID_PATH'], 'fits')
         sources['FITS_PATH'] = func_name
     io.create_directory(params['FITS_PATH'])
+
     # -------------------------------------------------------------------------
     # load the raw files
     # -------------------------------------------------------------------------
@@ -254,7 +264,6 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
             # parameters in kwargs overwrite the yaml file
             if key in kwargs and kwargs[key] is not None:
                 value, source = kwargs[key], 'kwargs'
-
             else:
                 value, source = None, None
             # verify the constant - this will raise an exception if the value
@@ -263,8 +272,14 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
             # push into params
             params[key] = const.value
             sources[key] = source
-        # now we create the yaml
-        param_file = create_yaml(params, log=True)
+        # create tmp dir
+        tmp_path = os.path.expanduser('~/.sossisse/')
+        if not os.path.exists(tmp_path):
+            os.makedirs(tmp_path)
+        # add the filename to the tmp_path
+        tmp_path = os.path.join(tmp_path, 'run_setup_params.yaml')
+        # re-create the yaml
+        params['PARAM_FILE'] = create_yaml(params, log=False, outpath=tmp_path)
     # otherwise we should display an error that we require a param file
     elif param_file is None:
         emsg = ('No parameter file defined - must be defined in '
@@ -345,7 +360,8 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     return instrument
 
 
-def create_yaml(params: Dict[str, Any], log: bool = True) -> str:
+def create_yaml(params: Dict[str, Any], log: bool = True,
+                outpath: str = None) -> str:
     """
     Create a yaml file from input parameters
 
@@ -355,7 +371,8 @@ def create_yaml(params: Dict[str, Any], log: bool = True) -> str:
     :return: None writes yaml file
     """
     # get the output path
-    outpath = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
+    if outpath is None:
+        outpath = os.path.join(params['SID_PATH'], 'sossisse_params.yaml')
     # -------------------------------------------------------------------------
     # create a commented map instance
     data = CommentedMap()
@@ -439,7 +456,7 @@ def create_hash(params: Dict[str, Any]):
     # get the current SID
     sid = params['SID']
     # get the current yaml file path
-    yaml_file = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
+    yaml_file = params['PARAM_FILE']
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -483,9 +500,12 @@ def hash_match(params: Dict[str, Any]) -> Union[str, None]:
     :return: None if SID or hashlist.txt not found, otherwise returns the SID
     """
     # get the hash file path
-    hashpath = os.path.join(params['OBJECT'], 'hashlist.txt')
+    hashpath = os.path.join(params['OBJECTPATH'], 'hashlist.txt')
     # get the current yaml file path
-    yaml_file = os.path.join(params['OBJECTPATH'], 'sossisse_params.yaml')
+    yaml_file = params['PARAM_FILE']
+    # if we don't have a current yaml file return
+    if not os.path.exists(yaml_file):
+        return None
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)

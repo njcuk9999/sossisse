@@ -254,6 +254,13 @@ the object path is where we store all the object data
 CDICT['OBJECTPATH'] = Const('OBJECTPATH', value=None, dtype=str, 
                             comment=comment,  active=False)
 # -----------------------------------------------------------------------------
+# the object path is where we store all the object data
+comment = """
+the path within the OBJECTPATH where this SID run is stored
+"""
+CDICT['SID_PATH'] = Const('SID_PATH', value=None, dtype=str,
+                          comment=comment,  active=False)
+# -----------------------------------------------------------------------------
 # the temp path is where we store temporary versions of the raw data
 comment = """
 the temp path is where we store temporary versions of the raw data

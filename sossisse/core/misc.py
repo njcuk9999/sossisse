@@ -340,7 +340,7 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
             for option in options:
                 prompt += f'\n\t - {option}'
         # get user input
-        user_input = input(prompt + '\n')
+        user_input = input(prompt + '\n >> ')
         # ----------------------------------------------------------------------
         if dtype == 'str':
             value = str(user_input).strip()

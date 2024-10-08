@@ -53,7 +53,7 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
                                               options=INSTRUMENTMODES)
     # define the prompt for all constants
     allq = input('Do you want all constants for all modes/settings in the yaml '
-                 'file? [Y]es or [N]o:\t')
+                 'file?\n[Y]es or [N]o >> ')
     # deal with user response to prompt
     if 'Y' in str(allq).upper():
         kwargs['ALL_CONSTANTS'] = True
