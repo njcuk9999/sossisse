@@ -229,7 +229,8 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     return '\n' + '\n'.join(string_list) + '\n'
 
 
-def printc(message: str, msg_type: str, print_time: bool = True):
+def printc(message: str, msg_type: str, print_time: bool = True,
+           wrap: bool = True):
     """
     Print a message with color
 
@@ -244,10 +245,11 @@ def printc(message: str, msg_type: str, print_time: bool = True):
 
     subsequent_indent = ' ' * (len(time) - 2) + '| '
     # wrap messages
-    message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(time),
-                            break_long_words=False, break_on_hyphens=False,
-                            initial_indent='',
-                            subsequent_indent=subsequent_indent)
+    if wrap:
+        message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(time),
+                                break_long_words=False, break_on_hyphens=False,
+                                initial_indent='',
+                                subsequent_indent=subsequent_indent)
     # formally bad1
     if msg_type.lower() in 'warning':
         msg_color = 'yellow'
@@ -336,11 +338,18 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
         prompt = f'\nPlease input {param_name}\n\tDtype: {dtype}'
         # add options if they are given
         if options is not None:
-            prompt += (f'\n\tOptions: {options}')
-            for option in options:
-                prompt += f'\n\t - {option}'
+            prompt += (f'\n\tOptions:')
+            for it, option in enumerate(options):
+                prompt += f'\n\t - {it+1}: {option}'
         # get user input
         user_input = input(prompt + '\n >> ')
+        # ----------------------------------------------------------------------
+        if options is not None:
+            # if user input is an interger we can try to get it from the options
+            options_int = [str(i + 1) for i in range(len(options))]
+            # get the option
+            if user_input in options_int:
+                user_input = options[int(user_input) - 1]
         # ----------------------------------------------------------------------
         if dtype == 'str':
             value = str(user_input).strip()

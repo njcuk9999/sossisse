@@ -27,7 +27,7 @@ __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
 # get the instrument modes
-INSTRUMENTMODES = select.INSTRUMENTS.keys()
+INSTRUMENTMODES = list(select.INSTRUMENTS.keys())
 
 
 # =============================================================================
@@ -77,21 +77,22 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # give user some instructions on what to do next
     # ----------------------------------------------------------------------
-    msg = 'Setup complete.\n\n'
-    msg += '*' * 80 + '\n'
-    msg += 'What to do next:\n'
-    msg += '*' * 80 + '\n'
-    msg += '\n1. Open the yaml file: {0}'.format(inst.params['PARAM_FILE'])
-    msg += '\n2. Copy files to the correct directories:'
-    msg += '\n\t - calibrations: {0}'.format(inst.params['CALIBPATH'])
-    msg += '\n\t - raw data: {0}'.format(inst.params['RAWPATH'])
-    msg += '\n3. Update the yaml parameters, for example:'
-    msg += '\n\t - FILES (raw data dir)'
-    msg += '\n\t - BKGFILE (calib dir, optional)'
-    msg += '\n\t - FLATFILE (calib dir, optional)'
-    msg += '\n3. Check every other value in the yaml file before running.'
+    msgs = ['Setup complete.\n\n']
+    msgs += ['*' * 80 + '\n']
+    msgs += ['What to do next:\n']
+    msgs += ['*' * 80 + '\n']
+    msgs += ['\n1. Open the yaml file: {0}'.format(inst.params['PARAM_FILE'])]
+    msgs += ['\n2. Copy files to the correct directories:']
+    msgs += ['\n\t - calibrations: {0}'.format(inst.params['CALIBPATH'])]
+    msgs += ['\n\t - raw data: {0}'.format(inst.params['RAWPATH'])]
+    msgs += ['\n3. Update the yaml parameters, for example:']
+    msgs += ['\n\t - FILES (raw data dir)']
+    msgs += ['\n\t - BKGFILE (calib dir, optional)']
+    msgs += ['\n\t - FLATFILE (calib dir, optional)']
+    msgs += ['\n3. Check every other value in the yaml file before running.']
     # print message
-    misc.printc(msg, msg_type='setup')
+    for msg in msgs:
+        misc.printc(msg, msg_type='setup')
 
     # end script
     misc.end_recipe()
