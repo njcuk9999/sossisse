@@ -13,7 +13,7 @@
 
 ## 1. Installation
 
-### Step 1: Download the GitHub repository
+#### Step 1: Download the GitHub repository
 
 ```bash
 git clone git@github.com:njcuk9999/sossisse.git
@@ -25,7 +25,7 @@ or if this doesn't work try:
 git clone https://github.com/njcuk9999/sossisse.git
 ```
 
-### Step 2: Make a new environment (recommended)
+#### Step 2: Make a new environment (recommended)
 
 Using conda, create a new environment and activate it.
 
@@ -43,7 +43,7 @@ conda activate sossisse-env
 
 Note you need to activate `sossisse-env` each time before running any sosssise command.
 
-### Step 3: Install sossisse with pip 
+#### Step 3: Install sossisse with pip 
 
 Make sure you are in `sossisse-env` conda environment (or equivalent) and then run:
 
@@ -137,7 +137,38 @@ look for previous setups with the exact same parameter file and use this as the 
 every run creating a new set of directories. A yaml file is copied to each SID directory as a reminder of which parameters
 were used (as the SID alone does not given this information).
 
-### Data structure
+Here are the main steps of the analysis :
+
+- **Step 1** : Read the yaml file and check that all the parameters are present and have the correct format.
+
+- **Step 2** : Read the raw data and the calibration files. The raw data are read as a cube of 3D images. The
+calibration files are read as a cube of 2D images. The calibration files are used to construct a master flat field
+and a master bad pixel mask. The master flat field is used to correct for the pixel-to-pixel variations in the
+detector response. We use the per-pixel QC value to flag bad pixels. We correct the raw 
+data for the flat field and the bad pixels.
+
+- **Step 3** : Construct a normalized reference trace. This is done by medianing all the frames in the raw data 
+cube. This is done iteratively as one expects the amplitude to change slightly from frame to frame.
+
+- **Step 4** : Construct derivatives of the trace with respect to the detrending parameters. This assumes that the 
+trace only in its morphology by very small amounts and that linear perturbations are sufficient to model it through 
+time. Of course this assumption is expected to break at some point, if only because of the chromatic nature of 
+transits, but this will be captured by the residual map.
+
+- **Step 5** : Construct a model of the trace. This is done by adding the perturbation terms to the normalized trace.
+
+- **Step 6** : Construct a residual map. This is done by subtracting the trace model from the raw data.
+
+- **Step 7** : Subtract low-level detector noises (column-wise offset or gradients) from the residual map. This is 
+done by fitting a low-order polynomial to the residual map and subtracting it (see corresponding parameter in yaml).
+
+- **Step 8** : Construct a 1D spectrum of the residuals. This is done by summing the flux in the *y* direction and 
+accounts for the variations in the noise level from pixel to pixel (1/$\sigma^2$ weighting). Errors are also propagated.
+
+- **Step 9** : Construct a 1D spectrum of the trace model. This is done by summing the flux in the *y* direction 
+and provides an SED estimate.
+
+#### Data structure
 
 If one has run the `run_setup` script a folder structure will be created in the directory where the script was run.
 As mentioned in `run_setup` you must:
@@ -190,8 +221,8 @@ Place them for example in the following folder: `/YourPath/Your_SOSSISSE_folder/
 
 ---
 
-## 6. Understanding outputs
 
+## 6. Understanding outputs
 
 #### White light curve
 The first step of the code being a determination of the *grey* lightcurve, we first have a photometric curve with an 
@@ -247,40 +278,6 @@ SOSSISSE is to get a very accurate *differential* extraction of the planet spect
 ![SED-order 2](resources/sed_ord2.png)
 
 **Figure 4.** Spectral energy distribution for each order.
-
-### Description of the code
-
-First of all, one neeeds to create a yaml file that contains all the parameters for the analysis. A yaml file is 
-provided as an example (see section below). Here are the main steps of the analysis :
-
--- **Step 1** : Read the yaml file and check that all the parameters are present and have the correct format.
-
--- **Step 2** : Read the raw data and the calibration files. The raw data are read as a cube of 3D images. The
-calibration files are read as a cube of 2D images. The calibration files are used to construct a master flat field
-and a master bad pixel mask. The master flat field is used to correct for the pixel-to-pixel variations in the
-detector response. We use the per-pixel QC value to flag bad pixels. We correct the raw 
-data for the flat field and the bad pixels.
-
--- **Step 3** : Construct a normalized reference trace. This is done by medianing all the frames in the raw data 
-cube. This is done iteratively as one expects the amplitude to change slightly from frame to frame.
-
--- **Step 4** : Construct derivatives of the trace with respect to the detrending parameters. This assumes that the 
-trace only in its morphology by very small amounts and that linear perturbations are sufficient to model it through 
-time. Of course this assumption is expected to break at some point, if only because of the chromatic nature of 
-transits, but this will be captured by the residual map.
-
--- **Step 5** : Construct a model of the trace. This is done by adding the perturbation terms to the normalized trace.
-
--- **Step 6** : Construct a residual map. This is done by subtracting the trace model from the raw data.
-
--- **Step 7** : Subtract low-level detector noises (column-wise offset or gradients) from the residual map. This is 
-done by fitting a low-order polynomial to the residual map and subtracting it (see corresponding parameter in yaml).
-
--- **Step 8** : Construct a 1D spectrum of the residuals. This is done by summing the flux in the *y* direction and 
-accounts for the variations in the noise level from pixel to pixel (1/$\sigma^2$ weighting). Errors are also propagated.
-
--- **Step 9** : Construct a 1D spectrum of the trace model. This is done by summing the flux in the *y* direction 
-and provides an SED estimate.
 
 [Back to top](#table-of-contents)
 
