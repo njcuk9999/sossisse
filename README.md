@@ -1,12 +1,17 @@
 # SOSSISSE - SOSS Inspired SpectroScopic Extraction
 
-- [Installation](#installation)
-- [How to use](#how-to-use)
-- [Example data set](#example-data-set)
-- [Description of code](#description-of-code)
+## Table of contents
 
+1. [Installation](#1-installation)
+2. [Setup and first time use](#2-setup-and-first-time-use)
+3. [How to use](#3-how-to-use)
+4. [Description of code](#4-description-of-code)
+5. [Example data set](#5-example-data-set)
+6. [Understanding outputs](#6-understanding-outputs)
 
-## Installation
+---
+
+## 1. Installation
 
 ### Step 1: Download the GitHub repository
 
@@ -52,7 +57,11 @@ Note `{SOSSISSE_ROOT}` is the path to the cloned GitHub repository (i.e. `/path/
 if you are in the directory where you did your `git clone` then you need to change directory into the `sossisse` directory.
 
 
-## How to use
+[Back to top](#table-of-contents)
+
+---
+
+## 2. Setup and first time use
 
 We've tried to make SOSSISSE as user-friendly as possible.
 
@@ -74,18 +83,49 @@ You'll be asked for:
 	 - 2: JWST.NIRISS.FGS
 	 - 3: JWST.NIRSPEC.PRISM
 - Whether you want all the constants for all modes/settings added to the file (usually not)
-- 
 
+You'll then be told what to do next:
+```
+ ********************************************************************************
+ What to do next:
+ ********************************************************************************
+  1. Open the yaml file: {HOMEDIR}/.sossisse/run_setup_params.yaml
+  2. Copy files to the correct directories:
+           - calibrations: {SOSSIOPATH}/{INSTRUMENTMODE}/calibration
+           - raw data: {SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/rawdata
+  3. Update the yaml parameters, for example:
+           - FILES (raw data dir)
+           - BKGFILE (calib dir, optional)
+           - FLATFILE (calib dir, optional)
+  3. Check every other value in the yaml file before running.
+```
 
+Note by default the yaml file is saved in the `~/.sossisse/` directory (i.e. your home directory).
+You can move this yaml file anywhere on your system - it will be copied with your outputs when you run SOSSISSE.
 
-## Example data set
+Note `{HOMEDIR}`, `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` will be filled by the code with the values you entered.
 
-The sample dataset provided as a demonstration of the code is the transit of TRAPPIST-1b observed with the SOSS mode.
-The data is saved in two fits files (rateints data product) that sample 150 frames. The transit happens between 
-frames 90 and 110 (1st and 4th contact) with a depth of ~0.88%. The point-to-point RMS of the white light curve over 
-the SOSS domain is ~160 ppt.
+[Back to top](#table-of-contents)
 
-## Description of code
+---
+
+## 3. How to use
+
+Once you have run `run_setup` and read and understood the yaml file you can run the main SOSSISSE code.
+
+You can do this as follows:
+
+```bash
+run_sossisse {path_to_yaml_file}
+```
+
+where `{path_to_yaml_file}` is the path to the yaml file you created in the setup step.
+
+[Back to top](#table-of-contents)
+
+---
+
+## 4. Description of code
 
 All parameters for the SOSSISSE code, from the inputs files to the detrending parameters, are passed through a 
 single yaml file. One should not edit the python codes themselves, but rather edit the yaml file to change any 
@@ -100,31 +140,57 @@ were used (as the SID alone does not given this information).
 ### Data structure
 
 If one has run the `run_setup` script a folder structure will be created in the directory where the script was run.
+As mentioned in `run_setup` you must:
+  1. Open the yaml file: /home/cook/.sossisse/run_setup_params.yaml
+  2. Copy files to the correct directories:
+           - calibrations: /scratch3/jwst-test/data/JWST.NIRISS.SOSS/calibration
+           - raw data: /scratch3/jwst-test/data/JWST.NIRISS.SOSS/t1b/rawdata
+  3. Update the yaml parameters, for example:
+           - FILES (raw data dir)
+           - BKGFILE (calib dir, optional)
+           - FLATFILE (calib dir, optional)
+  3. Check every other value in the yaml file before running.
 
-Create the following folder structure : 
+
+The created folder structure will be as follows: 
 
 ```
-/YourPath/Your_SOSSISSE_folder/SOSS/
-/YourPath/Your_SOSSISSE_folder/SOSS/t1b/
-/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/
+{SOSSIOPATH}/{INSTRUMENTMODE}/
+{SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/
+{SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/rawdata/
 ```
 
 where `t1b` is the name of the target (in this case `t1b` for Trappist-1b).
+where `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` are the values you entered when running `run_setup` ([here](#how-to-use))
 
-Within the `/YourPath/Your_SOSSISSE_folder/SOSS/t1b/rawdata/` folder, you should place the raw data files.
+[Back to top](#table-of-contents)
+
+---
+
+## 5. Example data set
+
+The sample dataset provided as a demonstration of the code is the transit of TRAPPIST-1b observed with the SOSS mode.
+The data is saved in two fits files (rateints data product) that sample 150 frames. The transit happens between 
+frames 90 and 110 (1st and 4th contact) with a depth of ~0.88%. The point-to-point RMS of the white light curve over 
+the SOSS domain is ~160 ppt.
+
+For this example data set:
+- [SOSSIOPATH] = /YourPath/Your_SOSSISSE_folder/
+- [INSTRUMENTMODE] = JWST.NIRISS.SOSS
+- [OBJECTNAME] = t1b
+
+Within the `/YourPath/Your_SOSSISSE_folder/JWST.NIRISS.SOSS/t1b/rawdata/` folder, you should place the raw data files.
 
 A demo dataset (Trappist-1b) can be dowloaded from http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar. 
 
 You will also need to put reference files, in the relevant subfolders, that can be downloaded from http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar.
-Place them for example in the following folder: `/YourPath/Your_SOSSISSE_folder/SOSS/calibrations/*.fits `
+Place them for example in the following folder: `/YourPath/Your_SOSSISSE_folder//JWST.NIRISS.SOSS/calibrations/*.fits `
 
-All yaml files should be placed in (or symbolically liked to) the `/YourPath/Your_SOSSISSE_folder/` folder.
-You will find an example yaml file in the sossisse github directory: `sossisse/data/defaults.yaml`
-As well as in the demo dataset for Trappist-1.
+[Back to top](#table-of-contents)
 
+---
 
-
-### Understanding outputs
+## 6. Understanding outputs
 
 
 #### White light curve
@@ -216,197 +282,6 @@ accounts for the variations in the noise level from pixel to pixel (1/$\sigma^2$
 -- **Step 9** : Construct a 1D spectrum of the trace model. This is done by summing the flux in the *y* direction 
 and provides an SED estimate.
 
-### Sample yaml file
+[Back to top](#table-of-contents)
 
-```
-\###############################################################################
-\##  Definition of inputs related to the data location and file naming
-\###############################################################################
-#
-# Folder structure :
-# -> that's where your input data should be
-#  / sossiopath / mode / object / rawdata / files  
-# -> that's where you put calibration files relevant for the mode  
-#  / sossiopath / mode / calibrations / *.fits     
-# -> that's where your temporary *FITS* files will be saved
-#  / sossiopath / mode / object / temporary_*unique_id* / 
-# -> plots for that run  
-#  / sossiopath / mode / object / plots_*unique_id* / 
-# -> csv files for that run
-#  / sossiopath / mode / object / csv_*unique_id* /
-#
-# *unique_id* will be a long random string constructed from the checksum of the 
-# config file
-#
-# sosspath *must* be defined as a system constant "sossiopath"
-#
-object: "trappist-1b"
-# Only NIRISS "SOSS" and NIRPSEC "PRISM" modes are supported at the moment
-mode: "SOSS"
-#
-suffix: "visit1"
-
-#
-files:
-- "jw02589001001_04101_00001-seg001_nis_rateints.fits"
-- "jw02589001001_04101_00001-seg002_nis_rateints.fits"
-
-# CALIBRATION FILES -- put in the / general_path / mode / calibrations folder
-#
-# background file --> leave as '' if the is no backgorund available for the mode
-bkgfile: "model_background256.fits"
-#
-# flat field file --> leave as '' when no flat field available for the mode
-flatfile: "jwst_niriss_flat_0275.fits"
-#
-# trace position file
-pos_file: "SOSS_ref_trace_table_SUBSTRIP256.fits"
-#
-# allow for temporary files to speed the process if you run the code more than 
-# once. This saves the temporary files in the temporary folder, which is more 
-# efficient but takes more space. If you want to save space, set this to False
-allow_temporary: true
-#
-# Save results at the end
-saveresults: true
-#
-# output(s) type of figure
-figure types:
-- png
-- pdf
-
-################################################################################
-##  User-related behavior
-################################################################################
-
-# if you want to see the plots at the end of the code, add your login here
-# this should be the string as returned by "os.getlogin()"
-user show plot:
-- "dummy"
-
-################################################################################
-## Inputs related to the position within data cube timeseries
-################################################################################
-# Data quality flags to accept in the analysis. All other values will be 
-# set to NaN
-valid dq:
-- 0
-
-# define the Nth frame for 1st contact [it1].. through 4th contact
-it:
-- 90
-- 97
-- 103
-- 110
-
-# used to reject bits of domain from the analysis
-# you can reject frames 0-600 with the values:
-#
-# reject domain:
-# - 0
-# - 600
-#
-# if you want to reject two bits of domain, 0-600 and 3000-3200
-# just use
-# reject domain:
-# - 0
-# - 600
-# - 3000
-# - 3200
-#
-# ... of course, you need an even number of values here.
-
-# If PRISM data or saturated, you can perform a CDS between these two readouts
-#cds_id:
-#- 2
-#- 0
-
-################################################################################
-## What do we fit in the linear model
-################################################################################
-
-# fit the dx -- along the dispersion
-fit dx: true
-
-# fit the dy -- along the cross-dispersion
-fit dy: true
-
-# fit the before - after morphological change
-before-after: false
-
-# fit the rotation in the linear reconstruction of the trace
-fit rotation: true
-
-# fit the zero point offset in the linear model for the trace
-zero point offset: true
-
-# fit the 2nd derivative in y, good to find glitches!
-ddy: true
-
-fit pca: false
-n pca: 0
-
-################################################################################
-## Inputs related to handling of the data within each frame
-################################################################################
-
-pixel-level detrending: false
-
-per pixel baseline correction: false
-
-trace_orders:
-- 1
-- 2
-
-# wavelength domain for the write light curve
-#wlc domain:
-#- 1.2
-#- 1.6
-
-# median of out-of-transit values for reference trace construction. 
-# If set to false, then we have the median of the entire timeseries
-ootmed: true
-
-y trace offset: 0
-
-mask order 0: true
-
-recenter trace position: true
-
-# out of transit polynomial level correction
-transit_baseline_polyord: 2
-
-# out-of-trace
-trace_baseline_polyord: 2
-
-# degree of the polynomial for the 1/f correction
-# degree_1f_corr = 0 -> just a constant through the 256 pix spatial
-# degree_1f_corr = 1 -> slope ... and so on
-degree_1f_corr: 0
-
-# set trace_width_masking to 0 to use the full image
-# use in SOSSICE
-trace_width_extraction: 40
-
-# used for masking and WLC
-trace_width_masking: 40
-
-# do remove trend from out-of-transit
-remove_trend: false
-
-# define how the "white" transit depth is computed/assigned
-#   "compute": Compute transit depth using median OOT relative flux from WLC, 
-#              and mean in-transit relative flux from WLC
-#   OR
-#   provide a number: if "white" tdepth is known (from fitting the WLC for 
-#                      example), one can provide the number he
-tdepth: "compute"
-
-resolution_bin: 20
-
-spectrum_ylim_ppm:
-- 6000
-- 12000
-'''
-
-
+---
