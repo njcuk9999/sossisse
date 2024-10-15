@@ -100,6 +100,14 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     return inst
 
 
+def run():
+    """
+    Wrapper script for command line - no return
+    :return:
+    """
+    _ = main()
+
+
 # =============================================================================
 # Start of code
 # =============================================================================
