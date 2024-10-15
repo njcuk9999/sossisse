@@ -279,7 +279,7 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
         # add the filename to the tmp_path
         tmp_path = os.path.join(tmp_path, 'run_setup_params.yaml')
         # re-create the yaml
-        params['PARAM_FILE'] = create_yaml(params, log=False, outpath=tmp_path)
+        param_file = create_yaml(params, log=False, outpath=tmp_path)
     # otherwise we should display an error that we require a param file
     elif param_file is None:
         emsg = ('No parameter file defined - must be defined in '

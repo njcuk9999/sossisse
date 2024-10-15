@@ -1,31 +1,46 @@
 # SOSSISSE - SOSS Inspired SpectroScopic Extraction
 
-- [Installation](https://github.com/njcuk9999/sossisse/blob/main/README.md#installation)
-- [Example data set](https://github.com/njcuk9999/sossisse/blob/main/README.md#example-data-set)
-- [Description of code](https://github.com/njcuk9999/sossisse/blob/main/README.md#description-of-code)
+- [Installation](#installation)
+- [How to use](#how-to-use)
+- [Example data set](#example-data-set)
+- [Description of code](#description-of-code)
 
 
 ## Installation
 
 ### Step 1: Download the GitHub repository
 
-```
+```bash
 git clone git@github.com:njcuk9999/sossisse.git
 ```
 
-### Step 2: Install python 3.8 using conda
+or if this doesn't work try:
 
-Using conda, create a new environment and activate it
-
+```bash
+git clone https://github.com/njcuk9999/sossisse.git
 ```
+
+### Step 2: Make a new environment (recommended)
+
+Using conda, create a new environment and activate it.
+
+Note one can also use venv (instead of conda) or use a current environment but
+we recommend a new clean environment to avoid module conflicts.
+
+
+```bash
 conda create --name sossisse-env python=3.9
 ```
 
-```
+```bash
 conda activate sossisse-env
 ```
 
-### Step 3: Install sossisse
+Note you need to activate `sossisse-env` each time before running any sosssise command.
+
+### Step 3: Install sossisse with pip 
+
+Make sure you are in `sossisse-env` conda environment (or equivalent) and then run:
 
 ```
 cd {SOSSISSE_ROOT}
@@ -33,9 +48,34 @@ cd {SOSSISSE_ROOT}
 pip install -U -e .
 ```
 
-Note one can also use venv (instead of conda)
-
 Note `{SOSSISSE_ROOT}` is the path to the cloned GitHub repository (i.e. `/path/to/sossisse`)
+if you are in the directory where you did your `git clone` then you need to change directory into the `sossisse` directory.
+
+
+## How to use
+
+We've tried to make SOSSISSE as user-friendly as possible.
+
+For first time use we recommend running the setup script to create a default configuration file and folder structure.
+
+From inside the `sossisse-env` conda environment (or equivalanet), in any directory, run:
+
+```bash
+run_setup
+````
+
+This should guide you through create a basic folder structure and a default configuration file.
+
+You'll be asked for:
+- The data directory to use (where input and output data is stored) [SOSSIOPATH]
+- The input name of the object directory (usually your object name) [OBJECTNAME]
+- The instrument mode to use (either enter the number or the name) [INSTRUMENTMODE]
+	 - 1: JWST.NIRISS.SOSS
+	 - 2: JWST.NIRISS.FGS
+	 - 3: JWST.NIRSPEC.PRISM
+- Whether you want all the constants for all modes/settings added to the file (usually not)
+- 
+
 
 
 ## Example data set
@@ -47,20 +87,19 @@ the SOSS domain is ~160 ppt.
 
 ## Description of code
 
-### Before getting started
-
 All parameters for the SOSSISSE code, from the inputs files to the detrending parameters, are passed through a 
 single yaml file. One should not edit the python codes themselves, but rather edit the yaml file to change any 
 relevant value. As it is likely that users will want to try  a number of parameter combinations, SOSSISSE creates a 
 unique hash key for each parameter combination. This key is used to name the output files and folder name. The 
 hash key is not meant to be an explicit description of the parameter combination, but rather a unique identifier. 
-The hash key is created from a truncated checksum of the yaml file. As the link between the hash key, and the input 
-yaml cannot be readily determined, the yaml file is copied within the output folder it created.
+The hash key (SID) is created from the date it was first run - so can either be used again or multiple created. SOSISSE will
+look for previous setups with the exact same parameter file and use this as the SID if an SID is not given, this prevents
+every run creating a new set of directories. A yaml file is copied to each SID directory as a reminder of which parameters
+were used (as the SID alone does not given this information).
 
 ### Data structure
 
-Within that folder, one should define a subfolder for the 'mode' used (here 'SOSS') and a per-target folder that 
-will hold the ouputs from the analysis and includes a *rawdata* subfolder that contains the raw data.
+If one has run the `run_setup` script a folder structure will be created in the directory where the script was run.
 
 Create the following folder structure : 
 
@@ -84,14 +123,6 @@ You will find an example yaml file in the sossisse github directory: `sossisse/d
 As well as in the demo dataset for Trappist-1.
 
 
-### Running the code
-
-The code is run in the python terminal with the following command : 
-
-```
-In [1] import sossisse
-In [2]: sossisse.wrapper('config_t1b.yaml')
-```
 
 ### Understanding outputs
 
