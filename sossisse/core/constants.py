@@ -118,6 +118,9 @@ CDICT['SUFFIX'] = Const('SUFFIX', value='', dtype=str, comment=comment,
 #     (not in yaml file: comment=None))
 CDICT['PARAM_FILE'] = Const('PARAM_FILE', value=None, dtype=str, comment=None)
 # -----------------------------------------------------------------------------
+# Define the yaml name (for creating new param files only)
+CDICT['YAML_NAME'] = Const('YAML_NAME', value=None, dtype=str, comment=None)
+# -----------------------------------------------------------------------------
 # Define whether user wants all constants in yaml file created (doesn't go in
 #     yaml file itself: comment = None)
 CDICT['ALL_CONSTANTS'] = Const('ALL_CONSTANTS', value=False, dtype=bool,
@@ -240,6 +243,13 @@ the calibration path is where we store all calibration files
 CDICT['CALIBPATH'] = Const('CALIBPATH', value=None, dtype=str, comment=comment,
                           active=False)
 # -----------------------------------------------------------------------------
+# the calibration path is where we store all calibration files
+comment = """
+the calibration path is where we store all calibration files
+"""
+CDICT['YAMLPATH'] = Const('YAMLPATH', value=None, dtype=str, comment=comment,
+                          active=False)
+# -----------------------------------------------------------------------------
 # the raw path is where we store all the raw data
 comment = """
 the raw path is where we store all the raw data
@@ -331,10 +341,10 @@ CDICT['FIGURE_TYPES'] = Const('FIGURE_TYPES', value=['png', 'pdf'],
 comment = """
 Define the spectrum plot y limits in parts per million (ppm)
 """
-CDICT['PLOT_SPECTRUIM_YLIM'] = Const('PLOT_SPECTRUIM_YLIM',
-                                     value=[-6000, 12000],
-                                     dtype=list, dtypei=float, comment=comment,
-                                     active=True)
+CDICT['PLOT_SPECTRUM_YLIM'] = Const('PLOT_SPECTRUM_YLIM',
+                                    value=[6000, 12000],
+                                    dtype=list, dtypei=float, comment=comment,
+                                    active=True)
 
 # =============================================================================
 # Definition of inputs related to the position within data cube timeseries
@@ -349,22 +359,24 @@ DQ flags that we should use (list)
     - 0
     - 2
 """
-CDICT['VALID_DQ'] = Const('VALID_DQ', value=None, dtype=list, dtypei=int,
+CDICT['VALID_DQ'] = Const('VALID_DQ', value=None,  required=True,
+                          dtype=list, dtypei=int,
                           minimum=0, comment=comment, active=True)
 # -----------------------------------------------------------------------------
 # Define the Nth frame for 1st contact [it1], 2nd contact [it2], ... through
 #    to the 4th contact [itn]
 # formally it
 comment = """
-define the Nth frame for 1st contact [it1],
-     2nd contact [it2] ... through 4th contact
+define the Nth frame for 1st contact [it1], 2nd contact [it2] ... 
+through 4th contact
      e.g. CONTACT_FRAMES:
         - 90
         - 97
         - 103
         - 110
 """
-CDICT['CONTACT_FRAMES'] = Const('CONTACT_FRAMES', value=[90, 97, 103, 110],
+CDICT['CONTACT_FRAMES'] = Const('CONTACT_FRAMES',
+                                value=None, required=True,
                                 dtype=list, dtypei=int,
                                 minimum=0, length=4, comment=comment,
                                 active=True)

@@ -11,14 +11,20 @@ Created on 2022-09-20
 
 Rules: no sosssise imports
 """
+from pathlib import Path
+
 # =============================================================================
 # Define variables
 # =============================================================================
 __NAME__ = 'sossisse.core.base'
-__version__ = '0.1.042'
-__date__ = '2024-10-15'
-__authors__ = 'Etienne Artigau, Neil James Cook'
 
+__PATH__ = Path(__file__).parent.parent
+with open(__PATH__.parent.joinpath('version.txt'), 'r') as vfile:
+    vtext = vfile.readlines()
+
+__version__ = vtext[0].strip()
+__date__ = vtext[1].strip()
+__authors__ = 'Etienne Artigau, Neil James Cook, Loic Albert'
 
 # Define basic types (non nested)
 BASIC_TYPES = (int, float, bool, str)

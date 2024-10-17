@@ -74,7 +74,8 @@ class Const:
         self.modes: str = modes
 
     def verify(self, name: str = None, value: Any = None, dtype: Type = None,
-               dtypei: Type = None, source: str = None) -> bool:
+               dtypei: Type = None, source: str = None,
+               check_requirements: bool = True) -> bool:
         """
         Verify the constant is valid
 
@@ -103,8 +104,10 @@ class Const:
         # ---------------------------------------------------------------------
         # deal with required check
         # ---------------------------------------------------------------------
+        # only check self.required if check_requirements is True
+        required = self.required if check_requirements else False
         # check if value is required make sure its not None
-        if self.required and value is None:
+        if required and value is None:
             emsg = 'Constant {0}: Value={1} is required'
             eargs = [name, value]
             # deal with having a source

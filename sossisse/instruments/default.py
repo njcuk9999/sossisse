@@ -74,6 +74,7 @@ class Instrument:
         # temp files
         self._variables['TEMP_INI_CUBE'] = None
         self._variables['TEMP_INI_ERR'] = None
+        self._variables['TEMP_INI_DQ'] = None
         self._variables['TEMP_INI_CUBE_BKGRND'] = None
         self._variables['TEMP_INI_ERR_BKGRND'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
@@ -126,6 +127,7 @@ class Instrument:
         # temp files
         self.vsources['TEMP_INI_CUBE'] = define_func
         self.vsources['TEMP_INI_ERR'] = define_func
+        self.vsources['TEMP_INI_DQ'] = define_func
         self.vsources['TEMP_INI_CUBE_BKGRND'] = define_func
         self.vsources['TEMP_INI_ERR_BKGRND'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
@@ -399,6 +401,9 @@ class Instrument:
         temp_ini_err = 'temporary_initial_err.fits'
         temp_ini_err = os.path.join(temppath, temp_ini_err)
         # ---------------------------------------------------------------------
+        temp_ini_dq = 'temporary_initial_dq.fits'
+        temp_ini_dq = os.path.join(temppath, temp_ini_dq)
+        # ---------------------------------------------------------------------
         tmp_ini_cube_bkgrnd = 'temporary_initial_cube_bkgrnd.fits'
         tmp_ini_cube_bkgrnd = os.path.join(temppath, tmp_ini_cube_bkgrnd)
         # ---------------------------------------------------------------------
@@ -445,6 +450,7 @@ class Instrument:
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
         self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
         self.set_variable('TEMP_INI_ERR', temp_ini_err)
+        self.set_variable('TEMP_INI_DQ', temp_ini_dq)
         self.set_variable('TEMP_INI_CUBE_BKGRND', tmp_ini_cube_bkgrnd)
         self.set_variable('TEMP_INI_ERR_BKGRND', tmp_ini_err_bkgrnd)
         # WLC files
@@ -497,7 +503,7 @@ class Instrument:
         # return the data
         return data
 
-    def load_cube(self, n_slices: int, image_shape: Tuple[int, int, int],
+    def load_cube(self, n_slices: int, image_shape: List[int],
                   flag_cds: bool
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         # create the containers for the cube of science data,
@@ -582,24 +588,39 @@ class Instrument:
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
+        temp_ini_dq = self.get_variable('TEMP_INI_DQ', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
-            if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
-                # print that we are reading files
+            # check if cube, err and dq files exist
+            cond1 = os.path.exists(temp_ini_cube)
+            cond2 = os.path.exists(temp_ini_err)
+            cond3 = os.path.exists(temp_ini_dq)
+            # only if we have all three files do we read them
+            if cond1 and cond2 and cond3:
+                # read the cube
                 misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
                             'info')
+                cube = self.load_data(temp_ini_cube)
+                # rea dthe error
                 misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
                             'info')
-                # load the data
-                cube = self.load_data(temp_ini_cube)
                 err = self.load_data(temp_ini_err)
+                # read the dq
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_dq),
+                            'info')
+                dq = self.load_data(temp_ini_dq)
                 # for future reference in the code, we keep track of data size
                 self.set_variable('DATA_X_SIZE', cube.shape[2])
                 self.set_variable('DATA_Y_SIZE', cube.shape[1])
                 self.set_variable('DATA_N_FRAMES', cube.shape[0])
                 # return
-                return cube, err, None
+                return cube, err, dq
+        # ---------------------------------------------------------------------
+        # deal with no files
+        if len(self.params['FILES']) == 0:
+            emsg = 'No files defined in yaml. Please set the FILES parameter.'
+            raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         # number of slices in the final cube
         n_slices = 0
@@ -659,6 +680,7 @@ class Instrument:
             # save the data
             fits.writeto(temp_ini_cube, cube, overwrite=True)
             fits.writeto(temp_ini_err, err, overwrite=True)
+            fits.writeto(temp_ini_dq, dq, overwrite=True)
         # ---------------------------------------------------------------------
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', cube.shape[2])

@@ -9,12 +9,18 @@ i.e. those expected to be used in the notebooks
 
 @author: cook
 """
+from sossisse.core import base
 from sossisse.core import const_funcs
 from sossisse.general import general
 
 # =============================================================================
 # Define variables
 # =============================================================================
+__NAME__ = 'sossisse'
+__STRNAME__ = 'SOSSISSE'
+__version__ = base.__version__
+__date__ = base.__date__
+__authors__ = base.__authors__
 # top level function for dealing with getting parameters
 get_parameters = const_funcs.get_parameters
 

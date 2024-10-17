@@ -45,12 +45,15 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     kwargs['SOSSIOPATH'] = misc.get_input('SOSSIOPATH', dtype='dir',
                                           comment='the path to store data in')
-    kwargs['OBJECTNAME'] = misc.get_input('OBJECTNAME',
+    kwargs['OBJECTNAME'] = misc.get_input('OBJECTNAME', dtype='str',
                                           comment='the name of the object '
                                                   'directory')
-    kwargs['INSTRUMENTMODE'] = misc.get_input('INSTRUMENTMODE',
+    kwargs['INSTRUMENTMODE'] = misc.get_input('INSTRUMENTMODE', dtype='str',
                                               comment='the instrument mode',
                                               options=INSTRUMENTMODES)
+    kwargs['YAML_NAME'] = misc.get_input('YAML_NAME', dtype='str',
+                                            comment='the name of the yaml file'
+                                                    ' to create')
     # define the prompt for all constants
     allq = input('Do you want all constants for all modes/settings in the yaml '
                  'file?\n[Y]es or [N]o >> ')
@@ -59,8 +62,6 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
         kwargs['ALL_CONSTANTS'] = True
     else:
         kwargs['ALL_CONSTANTS'] = False
-    # fake files to empty (this is a setup we don't ask for files here)
-    kwargs['FILES'] = []
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------
@@ -69,7 +70,7 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
                                        param_file=param_file,
                                        no_yaml=True,
                                        only_create=True,
-                                       LOG_LEVEL='setup',
+                                       log_level='setup',
                                        **kwargs)
     except exceptions.SossisseException as e:
         misc.printc(e.message, msg_type='error')
