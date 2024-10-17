@@ -1,0 +1,1 @@
+rsync -av -e "ssh  -oPort=5822" /Users/eartigau/sossisse/ jwst@genesis:/genesis/jwst/sossisse/pycodes/
