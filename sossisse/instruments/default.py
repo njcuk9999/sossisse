@@ -1129,6 +1129,23 @@ class Instrument:
         return cube
 
     def fancy_centering(self):
+        """
+        Perform fancy centering of the data - recalculate trace file
+        using the first frame of the cube.
+
+        Can be turned off with params['USE_FANCY_CENTERING'] = False
+
+        If used Overrides:
+        - params['POS_FILE']: set to {pos_file}_{object}_{suffix}.fits
+        - params['X_TRACE_OFFSET']: set to 0
+        - params['Y_TRACE_OFFSET']: set to 0
+        - params['RECENTER_TRACE_POSITION']: set to False
+
+        :return:
+        """
+        # TODO: Question: Is this specific to SOSS or does it work with FGS too?
+        #                 What about PRISM? Currently its in the defualt functions
+        #                 But this is probably not the right place for it
 
         # set function name
         func_name = f'{__NAME__}.fancy_centering()'
@@ -1148,6 +1165,11 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we already have a fancy centering trace file don't make it again
         if os.path.exists(outname):
+            # print message
+            msg = 'We already have a fancy centering file: {0}'
+            margs = [outname]
+            misc.printc(msg.format(*margs), 'info')
+            # set parameters
             self.params['POS_FILE'] = outname
             self.params['X_TRACE_OFFSET'] = 0
             self.params['Y_TRACE_OFFSET'] = 0
@@ -1219,7 +1241,7 @@ class Instrument:
             residual = tracepos - tracepos_fit
             # calculate the 16th and 84th percentiles
             p16, p84 = np.nanpercentile(residual, [16, 84])
-            # calcualte the residual to the nsig
+            # calculate the residual to the nsig
             nsig_res = np.abs(residual) / (0.5 * (p84 - p16))
             # calculate the maximum nsig
             nsig_max = np.nanmax(nsig_res)
@@ -1232,7 +1254,6 @@ class Instrument:
                 misc.printc(msg.format(*margs), 'info')
             # increment counter
             counter += 1
-
         # ---------------------------------------------------------------------
         # plot the trace positions
         plots.plot_fancy_centering1(self, xpix, tracepos, tracepos_fit)
@@ -1244,13 +1265,10 @@ class Instrument:
         x1, x2 = np.array(pos_table1['X']), np.array(pos_table2['X'])
         y1, y2 = np.array(pos_table1['Y']), np.array(pos_table2['Y'])
         wave1 = np.array(pos_table1['WAVELENGTH'])
-        wave2 = np.array(pos_table2['WAVELENGTH'])
         throughput1 = np.array(pos_table1['THROUGHPUT'])
         throughput2 = np.array(pos_table2['THROUGHPUT'])
-
-
         # fit the wavelength soltuion
-        fit_wave = np.polyfit(x1 - dxdy_trace[0], wave1, 5)
+        fit_wavelength = np.polyfit(x1 - dxdy_trace[0], wave1, 5)
         fit_throughput1 = np.polyfit(x1 - dxdy_trace[0], throughput1, 5)
         fit_throughput2 = np.polyfit(x2 - dxdy_trace[0], throughput2, 5)
         # adjust the x positions
@@ -1259,8 +1277,8 @@ class Instrument:
         y1 = y1 + dxdy_trace[1]
         y2 = y2 + dxdy_trace[1]
         # get the updated wave and throughput
-        wave1 = np.polyval(fit_wave, x1)
-        wave2 = np.polyval(fit_wave, x2)
+        wave1 = np.polyval(fit_wavelength, x1)
+        wave2 = np.polyval(fit_wavelength, x2)
         throughput1 = np.polyval(fit_throughput1, x1)
         throughput2 = np.polyval(fit_throughput2, x2)
 
@@ -1290,7 +1308,26 @@ class Instrument:
         # ---------------------------------------------------------------------
         # recalculate the trace position
         tracepos = pos_trace(xpix, *dxdy_trace)
-
+        # get  mask of where the trace is
+        smask = np.zeros_like(med, dtype=bool)
+        for ix in range(med.shape[1]):
+            min_y = int(tracepos[ix] - width)
+            max_y = int(tracepos[ix] + width)
+            smask[min_y:max_y, ix] = True
+        # get a spline of thw wavelength
+        spline_wave = ius(x1, wave1, k=3, ext=1)
+        # get the updated wavemap
+        wave = spline_wave(xpix)
+        # get the spectrum
+        spectrum = np.nansum(med * smask, axis=0)
+        # plot the spectrum and fancy centering
+        plots.plot_fancy_centering2(self, med, wave, spectrum, x1, y1, x2, y2)
+        # ---------------------------------------------------------------------
+        # set parameters
+        self.params['POS_FILE'] = outname
+        self.params['X_TRACE_OFFSET'] = 0
+        self.params['Y_TRACE_OFFSET'] = 0
+        self.params['RECENTER_TRACE_POSITION'] = False
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -2116,7 +2153,6 @@ class Instrument:
 
         :param med: np.ndarray, the median image
         :param tracemap: np.ndarray, the trace map
-        :param return_pos: bool, if True return the x and y trace positions
 
         :return: list, 1. the mask trace positions, 2. the x order 0 positions,
                        3. the y order 0 positions, 4. the x trace positions,
@@ -2877,8 +2913,8 @@ class Instrument:
         table
 
         :param spec: np.ndarray, the spectrum
-        :param ltable: Table, the linear fit table
-        :return:
+
+        :return: np.ndarray, the updated spectrum
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_trend_spec()'

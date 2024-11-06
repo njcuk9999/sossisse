@@ -58,8 +58,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
         misc.printc(msg.format(wlc_ltbl_file), 'info')
         return inst
     # -------------------------------------------------------------------------
-    # fancy centering
-    # TODO: Add from Etienne August branch
+    # fancy centering - recalculate trace file
     inst.fancy_centering()
     # -------------------------------------------------------------------------
     # load the image, error and data quality

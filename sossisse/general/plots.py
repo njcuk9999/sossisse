@@ -345,15 +345,27 @@ def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
     save_show_plot(inst.params, 'fancy_centering1_{0}'.format(tag))
 
 
-def plot_fancy_centering2(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
-                          traceois_fit: np.ndarray):
+def plot_fancy_centering2(inst: Any, med: np.ndarray,
+                          wave: np.ndarray, spectrum: np.ndarray,
+                          x1: np.ndarray, y1: np.ndarray,
+                          x2: np.ndarray, y2: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_fancy_centering2()'
     # -------------------------------------------------------------------------
-    # setup the plot
-    fig, frame = plt.subplots(nrows=1, ncosl=1)
+    # we want the sqrt of the absolute median flux
+    sqrtabsim = np.sqrt(np.abs(med))
+    # get the vmin and vmax
+    vmin, vmax = np.nanpercentile(sqrtabsim, [1, 99])
     # -------------------------------------------------------------------------
-    frame.imshow()
+    # setup the plot
+    fig, frames = plt.subplots(nrows=2, ncosl=1)
+    # -------------------------------------------------------------------------
+    frames[0].plot(wave, spectrum, 'k-')
+
+    frames[1].imshow(sqrtabsim, origin='lower', cmap='gray',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    frames[1].plot(x1, y1, 'g-')
+    frames[1].plot(x2, y2, 'r=')
     # -------------------------------------------------------------------------
     # force a tight layout
     plt.tight_layout()
