@@ -16,10 +16,18 @@ import sossisse
 # =============================================================================
 # Main code here
 if __name__ == "__main__":
+
+    # Here I just call the demo.yaml file but any parameter in the yaml file
+    # can be put here, any other parameter can be
+    param_file = 'demo.yaml'
+    # any other keywords can be put in here
+    pkwargs = dict()
+    # pkwargs['SOSSIOPATH'] = '/path/to/data/demo/'
+
     # ----------------------------------------------------------------------
-    # deal with parameters (no command line arguments)
+    # deal with parameters
     # ----------------------------------------------------------------------
-    inst = sossisse.get_parameters()
+    inst = sossisse.get_parameters(param_file=param_file, **pkwargs)
 
     # ----------------------------------------------------------------------
     # white light curve
