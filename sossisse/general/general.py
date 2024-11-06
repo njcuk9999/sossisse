@@ -58,6 +58,10 @@ def white_light_curve(inst: Instrument) -> Instrument:
         misc.printc(msg.format(wlc_ltbl_file), 'info')
         return inst
     # -------------------------------------------------------------------------
+    # fancy centering
+    # TODO: Add from Etienne August branch
+    inst.fancy_centering()
+    # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err, dq = inst.load_data_with_dq()
     # -------------------------------------------------------------------------
@@ -67,6 +71,9 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
     cube = inst.patch_isolated_bads(cube)
+    # -------------------------------------------------------------------------
+    # remove cosmic rays with a sigma cut
+    cube = inst.remove_cosmic_rays(cube)
     # -------------------------------------------------------------------------
     # get the trace map
     tracemap = inst.get_trace_map()

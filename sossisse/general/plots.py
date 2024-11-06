@@ -283,6 +283,86 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
     save_show_plot(inst.params, 'apperture_correction{0}'.format(tag))
 
 
+def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
+                         dxs: np.ndarray, dys: np.ndarray,
+                         xmax: int, loss_ppt: np.ndarray, tracemap: np.ndarray,
+                         med: np.ndarray, best_dx: float, best_dy: float):
+    # set function name
+    func_name = f'{__NAME__}.plot_trace_flux_loss()'
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frames = plt.subplots(nrows=3, ncols=1, figsize=[8, 8])
+    # plot the offset of the trace
+    frames[0].plot(dys, loss_ppt[xmax, :])
+    # set frame labels
+    frames[0].set(xlabel='offset of trace', ylabel='flux loss in ppt')
+    # ---------------------------------------------------------------------
+    # get the tracemap
+    tmask = np.array(tracemap, dtype=float)
+    tmask[tmask == 0] = np.nan
+    # plot the trace
+    frames[1].imshow(med * tmask, aspect='auto')
+    # set frame labels
+    frames[1].set(xlabel='x', ylabel='y', title='trace map')
+    # ---------------------------------------------------------------------
+    # get the limits of the sum array from dxs and dys
+    extent = [np.min(dxs), np.max(dxs), np.min(dys), np.max(dys)]
+    # plot the best_dx vs best_dy
+    frames[2].imshow(sums.T, aspect='auto', extent=extent)
+    # add the best point in red
+    frames[2].plot(best_dx, -best_dy, 'ro')
+    # set frame labels
+    frames[2].set(xlabel='dx', ylabel='dy', title='flux in aperture')
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'trace_flux_loss{0}'.format(tag))
+
+
+def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
+                          traceois_fit: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.plot_fancy_centering1()'
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frames = plt.subplots(nrows=2, ncosl=1, sharex='all')
+    # -------------------------------------------------------------------------
+    frames[0].plot(xpix, tracepos, 'r-')
+    frames[0].plot(xpix, traceois_fit, 'b-')
+    frames[0].set(xlabel='xpix', ylabel='Trace position [pix]')
+    # -------------------------------------------------------------------------
+    frames[1].plot(xpix, tracepos - traceois_fit, 'g-')
+    frames[1].set(xlabel='xpix', ylabel='Residuals [pix]')
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'fancy_centering1_{0}'.format(tag))
+
+
+def plot_fancy_centering2(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
+                          traceois_fit: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.plot_fancy_centering2()'
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frame = plt.subplots(nrows=1, ncosl=1)
+    # -------------------------------------------------------------------------
+    frame.imshow()
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # get tag
+    tag = inst.get_variable('TAG1', func_name)
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'fancy_centering2_{0}'.format(tag))
+
 def plot_stability(inst: Any, table: Table):
     # set function name
     func_name = f'{__NAME__}.plot_stability()'

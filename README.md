@@ -121,6 +121,14 @@ run_sossisse {path_to_yaml_file}
 
 where `{path_to_yaml_file}` is the path to the yaml file you created in the setup step.
 
+
+### Advanced use / developer use
+
+In the `sossisse/demos` directory there are several files that can aid in advanced use or in helping with development.
+- There are three notebooks (a full demo, a break down of the white light curve steps, and a break down of the spectral extrction steps)
+- There is a demo python code (similar to the full notebook demo)
+- There is a example yaml file that is filled out and runs on one of our machines (it wont work on yours unless you correct the paths and have those specific files, but it can give you an indication on a working yaml file)
+
 [Back to top](#table-of-contents)
 
 ---

@@ -19,9 +19,10 @@ from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
 from scipy.ndimage import binary_dilation
-from scipy.ndimage import shift
+from scipy.ndimage import shift, median_filter
 from scipy.signal import convolve2d
 from scipy.signal import medfilt2d
+from scipy.optimize import curve_fit
 from tqdm import tqdm
 from wpca import EMPCA
 
@@ -630,7 +631,7 @@ class Instrument:
         # TODO: Should be replaced with header keys
         for ifile, filename in enumerate(self.params['FILES']):
             # get the raw files
-            tmp_data = self.load_data(filename)
+            tmp_data = self.load_data(filename, extname='SCI')
             # get the shape of the bins
             bin_shape = self.bin_cube(tmp_data, get_shape=True)
             # add to the number of slices
@@ -739,8 +740,6 @@ class Instrument:
         # return the image shape (as all should be the same now)
         return list(image_shapes[0]), flag_cds
 
-
-
     def bin_cube(self, cube: np.ndarray, bin_type: str = 'Flux',
                  get_shape: bool = False
                  ) -> Union[np.ndarray, List[int]]:
@@ -830,6 +829,45 @@ class Instrument:
             flat[flat >= 1.5 * np.nanmedian(flat)] = np.nan
             # return the flat field
             return flat, False
+
+    def remove_cosmic_rays(self, cube: np.ndarray) -> np.ndarray:
+        """
+        Remove cosmic rays from the cube (sigma cut)
+
+        :param cube: np.ndarray, the cube to remove cosmic rays from
+
+        :return: np.ndarray, the cube with cosmic rays removed
+        """
+        # see if user wants to remove cosmics
+        if not self.params['REMOVE_COSMIC_RAYS']:
+            return cube
+        # print progress
+        msg = 'We remove cosmisc rays'
+        misc.printc(msg, 'info')
+        # first we get a median of the 1-sigma cube
+        msg = '\tCalculating median of 1-sigma cube'
+        # We first get the median of the -1 to +1 sigma of the cube
+        with warnings.catch_warnings(record=True) as _:
+            # we don't care about the warnings
+            # we just want to get the percentiles
+            # we know that there are some nans
+            p16, p84 = np.nanpercentile(cube, [16, 84], axis=0)
+
+        # get the sigma and mean
+        sigma = (p84 - p16) / 2
+        mean = (p84 + p16) / 2
+        # get the sig cut
+        sig_cut = self.params['COSMIC_RAY_SIGMA']
+        # now remove the cosmics using a sigma flag
+        for iframe in tqdm(range(cube.shape[0])):
+            # get the frame
+            frame = cube[iframe]
+            # calculate the number of sigma away from the mean every pixel is
+            nsig = np.abs(frame - mean) / sigma
+            # set those above the threshold to nan
+            cube[iframe, nsig > sig_cut] = np.nan
+        # return the cube
+        return cube
 
     def remove_background(self, cube: np.ndarray, err: np.ndarray,
                           dq: np.ndarray
@@ -929,21 +967,30 @@ class Instrument:
                                    axis=0)
             # get the rms
             rms[ishift] = np.std(med_res)
-
+        # ---------------------------------------------------------------------
         # find the optimal shift
         rms_min = np.argmin(rms)
-        # fit this rms
-        bstart = rms_min - 1
-        bend = rms_min + 2
-        # TODO: Deal with pooly conditioned polyfit (RankWarning)
-        with warnings.catch_warnings(record=True) as _:
-            rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
-        # the optimal offset is the half way point
-        optimal_offset = -0.5 * rms_fit[1] / rms_fit[0]
-        # print the optimal offset
-        msg = '\tOptimal background offset {:.3f} pix'
-        margs = [optimal_offset]
-        misc.printc(msg.format(*margs), 'number')
+        # if the minimum is at the edge, we just say that the offset is 0
+        if rms_min == 0 or rms_min == len(bgnd_shifts) - 1:
+            optimal_offset = 0.0
+            msg = ('\tHere we just take the offset to be 0 '
+                   '(Optimal obackgroun offset not found)')
+            misc.printc(msg, 'number')
+        # otherwise we work out the optimal offset
+        else:
+            # fit this rms
+            bstart = rms_min - 1
+            bend = rms_min + 2
+            # TODO: Deal with pooly conditioned polyfit (RankWarning)
+            with warnings.catch_warnings(record=True) as _:
+                rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
+            # the optimal offset is the half way point
+            optimal_offset = -0.5 * rms_fit[1] / rms_fit[0]
+            # print the optimal offset
+            msg = '\tOptimal background offset {:.3f} pix'
+            margs = [optimal_offset]
+            misc.printc(msg.format(*margs), 'number')
+        # ---------------------------------------------------------------------
         # apply the optimal offset
         background2 = shift(background, (0, optimal_offset))
         # fit this background
@@ -1080,6 +1127,170 @@ class Instrument:
         # ---------------------------------------------------------------------
         # return the cube
         return cube
+
+    def fancy_centering(self):
+
+        # set function name
+        func_name = f'{__NAME__}.fancy_centering()'
+        # deal with switching off fancy centering
+        if not self.params['USE_FANCY_CENTERING']:
+            return
+        # deal with no pos file
+        if self.params['POS_FILE'] is None:
+            return
+        # construct the suffix to add to the new pos file
+        name_sequence = self.params['OBJECTNAME']
+        if len(self.params['SUFFIX']) > 0:
+            name_sequence += '_{0}'.format(self.params['SUFFIX'])
+        # construct a new trace file name
+        new_ext = '_{0}.fits'.format(name_sequence)
+        outname = self.params['POS_FILE'].replace('.fits', new_ext)
+        # ---------------------------------------------------------------------
+        # if we already have a fancy centering trace file don't make it again
+        if os.path.exists(outname):
+            self.params['POS_FILE'] = outname
+            self.params['X_TRACE_OFFSET'] = 0
+            self.params['Y_TRACE_OFFSET'] = 0
+            self.params['RECENTER_TRACE_POSITION'] = False
+            return
+        # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('Creating {0}'.format(outname), 'info')
+
+        # load one of the raw files
+        image = self.load_data(self.params['FILES'][0], extname='SCI')
+        # get the median of this image across the image
+        med = np.nanmedian(image, axis=0)
+        # set all zero values to nan
+        med[med == 0] = np.nan
+        # get all x and y pixels in the image as images themselves
+        xpix, ypix = np.meshgrid(np.arange(med.shape[1]), np.arange(med.shape[0]))
+        # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('\tFinding the brighest+surrounding pixels', 'info')
+        # calculate a mask of the brightest pixels and surrounding "width"
+        # pixels
+        width = 20
+        mask = np.zeros_like(med, dtype=bool)
+        # loop around all pixels
+        for ix in tqdm(range(med.shape[1])):
+            try:
+                imax = np.nanargmax(median_filter(med[:, ix], 7))
+                mask[imax - width: imax + width, ix] = True
+            except Exception as _:
+                continue
+        # ---------------------------------------------------------------------
+        # the trace position is the sum of these alone each column
+        medmask = med * mask
+        tracepos = np.nansum(ypix*medmask, axis=0) / np.nansum(medmask, axis=0)
+        tracepos_fit = np.full_like(tracepos, np.nan)
+        # ---------------------------------------------------------------------
+        # get the original trace position table (first extension)
+        pos_table1 = io.load_table(self.params['POS_FILE'], fmt='fits')
+        # sort by the x pixel positions
+        pos_table1 = pos_table1[np.argsort(pos_table1['X'])]
+        # spline the X and y positions
+        pos_spline1 = ius(pos_table1['X'], pos_table1['Y'], ext=3, k=1)
+        # ---------------------------------------------------------------------
+        # define a fit function (spline + offset in x and y)
+        pos_trace = lambda xpix, dx, dy: pos_spline1(xpix + dx) + dy
+        # ---------------------------------------------------------------------
+        # define a starting nsig_max (infinite)
+        nsig_max = np.inf
+        # x pixel positions
+        xpix = np.arange(med.shape[1])
+        # counter
+        counter = 1
+        # start dx dy offset for trace
+        dxdy_trace = [0, 0]
+        # loop until we are below 5 sigma
+        while nsig_max > 5:
+            # get valid trace positions
+            valid = np.isfinite(tracepos)
+            # set up a guess for the curve fit
+            guess = [0, 0]
+            # curve fit the xpix to the trace position with a
+            #     spline + offset in x and y
+            dxdy_trace, _ = curve_fit(pos_trace, xpix[valid], tracepos[valid],
+                                      p0=guess)
+            # calculate the best fit
+            tracepos_fit = pos_trace(xpix, *dxdy_trace)
+            # calculate the residual to the fit
+            residual = tracepos - tracepos_fit
+            # calculate the 16th and 84th percentiles
+            p16, p84 = np.nanpercentile(residual, [16, 84])
+            # calcualte the residual to the nsig
+            nsig_res = np.abs(residual) / (0.5 * (p84 - p16))
+            # calculate the maximum nsig
+            nsig_max = np.nanmax(nsig_res)
+            # reject outliers
+            if nsig_max > 5:
+                tracepos[nsig_res > 5] = np.nan
+                # print progress
+                msg = '\tIteration {0}: nsig_max={1:.3f} nans={2}'
+                margs = [counter, nsig_max, np.sum(nsig_res > 5)]
+                misc.printc(msg.format(*margs), 'info')
+            # increment counter
+            counter += 1
+
+        # ---------------------------------------------------------------------
+        # plot the trace positions
+        plots.plot_fancy_centering1(self, xpix, tracepos, tracepos_fit)
+        # ---------------------------------------------------------------------
+        # read the pos tables
+        pos_table1 = io.load_table(self.params['POS_FILE'], fmt='fits')
+        pos_table2 = io.load_table(self.params['POS_FILE'], fmt='fits', hdu=2)
+        # get values out
+        x1, x2 = np.array(pos_table1['X']), np.array(pos_table2['X'])
+        y1, y2 = np.array(pos_table1['Y']), np.array(pos_table2['Y'])
+        wave1 = np.array(pos_table1['WAVELENGTH'])
+        wave2 = np.array(pos_table2['WAVELENGTH'])
+        throughput1 = np.array(pos_table1['THROUGHPUT'])
+        throughput2 = np.array(pos_table2['THROUGHPUT'])
+
+
+        # fit the wavelength soltuion
+        fit_wave = np.polyfit(x1 - dxdy_trace[0], wave1, 5)
+        fit_throughput1 = np.polyfit(x1 - dxdy_trace[0], throughput1, 5)
+        fit_throughput2 = np.polyfit(x2 - dxdy_trace[0], throughput2, 5)
+        # adjust the x positions
+        x1 = x1 - dxdy_trace[0]
+        x2 = x2 - dxdy_trace[0]
+        y1 = y1 + dxdy_trace[1]
+        y2 = y2 + dxdy_trace[1]
+        # get the updated wave and throughput
+        wave1 = np.polyval(fit_wave, x1)
+        wave2 = np.polyval(fit_wave, x2)
+        throughput1 = np.polyval(fit_throughput1, x1)
+        throughput2 = np.polyval(fit_throughput2, x2)
+
+        # ---------------------------------------------------------------------
+        # push into pos table 1
+        pos_table1['X'] = x1
+        pos_table1['Y'] = y1
+        pos_table1['WAVELENGTH'] = wave1
+        pos_table1['THROUGHPUT'] = throughput1
+        pos_table1 = pos_table1[np.argsort(pos_table1['X'])]
+        # push into pos table 2
+        pos_table2['X'] = x2
+        pos_table2['Y'] = y2
+        pos_table2['WAVELENGTH'] = wave2
+        pos_table2['THROUGHPUT'] = throughput2
+        pos_table2 = pos_table2[np.argsort(pos_table2['X'])]
+        # ---------------------------------------------------------------------
+        # save these tables
+        datalist = [pos_table1, pos_table2]
+        datatypes = ['table', 'table']
+        datanames = ['ORDER', 'ORDER']
+        # get meta data
+        # get the meta data
+        meta_data = self.get_variable('META', func_name)
+        # save the fits file
+        io.save_fits(outname, datalist, datatypes, datanames, meta_data)
+        # ---------------------------------------------------------------------
+        # recalculate the trace position
+        tracepos = pos_trace(xpix, *dxdy_trace)
+
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -1241,20 +1452,22 @@ class Instrument:
                                                    self.name)
         # otherwise we use POS_FILE
         else:
+            # get x trace offset
+            xtraceoffset = self.params['X_TRACE_OFFSET']
             # get the trace position file
             tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
-            # get the valid pixels
-            valid = tbl_ref['X'] > 0
-            valid &= tbl_ref['X'] < xsize - 1
-            valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
-            # mask the table by these valid positions
-            tbl_ref = tbl_ref[valid]
+            # # get the valid pixels
+            # valid = tbl_ref['X'] > 0
+            # valid &= tbl_ref['X'] < xsize - 1
+            # valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
+            # # mask the table by these valid positions
+            # tbl_ref = tbl_ref[valid]
             # sort by the x positions
             tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
             # spline the wave grid
             spl_wave = ius(tbl_ref['X'], tbl_ref['WAVELENGTH'], ext=1, k=1)
             # push onto our wave grid
-            wavevector = spl_wave(np.arange(xsize))
+            wavevector = spl_wave(np.arange(xsize) - xtraceoffset)
             # deal with zeros
             wavevector[wavevector == 0] = np.nan
             # get xpix
@@ -1394,6 +1607,8 @@ class Instrument:
                 med_diff *= ratio
             else:
                 med = np.nanmedian(cube2, axis=0)
+                # reset the median difference to the median
+                med_diff = np.array(med)
         # ---------------------------------------------------------------------
         # also keep track of the in vs out-of-transit 2D image.
         with warnings.catch_warnings(record=True) as _:
@@ -1776,25 +1991,39 @@ class Instrument:
         # force a trace width masking
         self.params['TRACE_WIDTH_MASKING'] = 20
         self.sources['TRACE_WIDTH_MASKING'] = func_name
-
+        # get the trace x and y scales
+        trace_x_scale = self.params['TRACE_X_SCALE']
+        trace_y_scale = self.params['TRACE_Y_SCALE']
         # get a range of dys and dxs to scan over for best trace position
-        dys = np.arange(-nbypix // 10, nbypix // 10 + 1)
-        dxs = np.arange(-nbypix // 10, nbypix // 10 + 1)
+        dys = np.arange(-nbypix // trace_y_scale, nbypix // trace_y_scale + 1)
+        dys += self.params['Y_TRACE_OFFSET']
+        dxs = np.arange(-nbypix // trace_x_scale, nbypix // trace_x_scale + 1)
+        dxs += self.params['X_TRACE_OFFSET']
         sums = np.zeros([len(dxs), len(dys)], dtype=float)
         # storage for best dx and dy
         best_dx = 0
         best_dy = 0
         best_sum = 0
+        # re-gen the trace map (without logging) using new x/y trace
+        #  offset
+        tracemap = self.get_trace_map(log=False)
+        # re-get the tracemap as floats
+        tmask = np.array(tracemap, dtype=float)
         # loop around dxs and dys
         for ix in tqdm(range(len(dxs))):
             for iy in range(len(dys)):
+                # do not process zero fluxes
+                if sums[ix, iy] == 0:
+                    continue
                 # update the x and y positions
                 self.params['X_TRACE_OFFSET'] = dxs[ix]
                 self.params['Y_TRACE_OFFSET'] = dys[iy]
-                # re-gen the trace map (without logging) using new x/y trace
-                #  offset
-                tracemap = self.get_trace_map(log=False)
-                sums[ix, iy] = np.nansum(tracemap * med)
+                # get the sum of the median image in the trace
+                sums[ix, iy] = np.nansum(tmask * med)
+                # deal with worst values (set to sum)
+                if sums[ix, iy] < 0.5 * best_sum:
+                    sums[ix:ix+5, iy:iy+5] = sums[ix, iy]
+                # deal with good values
                 if sums[ix, iy] > best_sum:
                     best_sum = sums[ix, iy]
                     best_dx = dxs[ix]
@@ -1810,6 +2039,24 @@ class Instrument:
         # reset the trace width masking to the user defined value
         self.params['TRACE_WIDTH_MASKING'] = width_current
         self.sources['TRACE_WIDTH_MASKING'] = width_source
+        # ---------------------------------------------------------------------
+        # get the loss in parts per thousand
+        loss_ppt = (1 - (sums / np.nansum(sums))) * 1e3
+        # get the maximum x value
+        xmax = np.argmax(sums) // sums.shape[1]
+
+        # print out of loss
+        for iy in range(len(dys)):
+            margs = [dys[iy], loss_ppt[xmax, iy]]
+            msg = '\toffset dy = {0:3f}, err = {1:3f} ppt'
+            misc.printc(msg.format(*margs), 'number')
+        # print the optimum value
+        msg = 'We scanned the y position of trace, optimum at dy = {0}'
+        margs = [self.params['Y_TRACE_OFFSET']]
+        misc.printc(msg.format(*margs), 'number')
+        # plot the trace flux loss
+        plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, loss_ppt,
+                                   tracemap, med, best_dx, best_dy)
         # return the updated trace map
         return self.get_trace_map()
 
@@ -2587,6 +2834,11 @@ class Instrument:
         spec_err = np.full([nbframes, nbxpix], np.nan)
         # loop through observations and spectral bins
         for iframe in tqdm(range(nbframes)):
+
+            tmp_model = np.array(model[iframe])
+            tmp_residual = np.array(residual[iframe])
+            tmp_err = np.array(err[iframe])
+
             for ix in range(nbxpix):
                 # get width
                 width = self.params['TRACE_WIDTH_EXTRACTION'] // 2
@@ -2594,11 +2846,11 @@ class Instrument:
                 ystart = posmax[ix] - width
                 yend = posmax[ix] + width
                 # model of the trace for that observation
-                v0 = model[iframe, ystart:yend, ix]
+                v0 = tmp_model[ystart:yend, ix]
                 # residual of the trace
-                v1 = residual[iframe, ystart:yend, ix]
+                v1 = tmp_residual[ystart:yend, ix]
                 # corresponding error
-                v2 = err[iframe, ystart:yend, ix]
+                v2 = tmp_err[ystart:yend, ix]
                 # don't continue if we have all nans in v0
                 if np.sum(np.isfinite(v0)) == 0:
                     continue
@@ -2917,7 +3169,7 @@ class Instrument:
         # write the residual no grey order tile
         io.save_fits(res_no_grey_ord, datalist=[spec, spec_err],
                      datatypes=['image', 'image'],
-                     datanames=['spec', 'spec_err'],
+                     datanames=['SPECTRUM', 'SPECTRUM_ERROR'],
                      meta=meta_data)
         # ---------------------------------------------------------------------
         # Save the residual grey order file (from amplitudes
@@ -2928,7 +3180,7 @@ class Instrument:
         # write the residual grey order tile
         io.save_fits(res_grey_ord, datalist=[spec2, spec_err],
                      datatypes=['image', 'image'],
-                     datanames=['spec', 'spec_err'],
+                     datanames=['SPECTRUM', 'SPECTRUM_ERROR'],
                      meta=meta_data)
         # ---------------------------------------------------------------------
         # Save the spectra for this trace order to file

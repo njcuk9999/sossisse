@@ -157,7 +157,6 @@ do background correction - must have BKGFILE defined to do this
 """
 CDICT['DO_BACKGROUND'] = Const('DO_BACKGROUND', value=False,
                                dtype=bool, comment=comment, active=True)
-
 # -----------------------------------------------------------------------------
 # flat field file --> leave as None if there is no flat field available
 #                     for the mode
@@ -536,6 +535,21 @@ CDICT['TRACE_ORDERS'] = Const('TRACE_ORDERS', value=[1, 2], dtype=list,
                               dtypei=int, minimum=1, comment=comment, 
                               active=True)
 # -----------------------------------------------------------------------------
+# whether to remove cosmic rays
+comment = """
+whether to remove cosmic rays
+"""
+CDICT['REMOVE_COSMIC_RAYS'] = Const('REMOVE_COSMIC_RAYS', value=True,
+                                    dtype=bool, comment=comment, active=True)
+
+# sigma to flag cosmic rays at (away from the mean)
+comment = """
+sigma to flag cosmic rays at (away from the mean)
+"""
+CDICT['COSMIC_RAY_SIGMA'] = Const('COSMIC_RAY_SIGMA', value=5, dtype=float,
+                                  minimum=0, comment=comment, active=True)
+
+# -----------------------------------------------------------------------------
 # wavelength domain for the white light curve
 #   For SOSS if this is defined we only get order 1
 comment = """
@@ -572,6 +586,22 @@ The number of pixels in the y direction to offset the trace by
 CDICT['Y_TRACE_OFFSET'] = Const('Y_TRACE_OFFSET', value=0, dtype=int, 
                                 comment=comment, active=True)
 # -----------------------------------------------------------------------------
+# used for masking and white light curve
+comment = """
+Set the range of dys to scan over number of -nbypix/trace_y_scale to 
++nbypix/tace_y_scale 
+"""
+CDICT['TRACE_Y_SCALE'] = Const('TRACE_Y_SCALE', value=10, dtype=int,
+                               comment=comment, active=True)
+# -----------------------------------------------------------------------------
+# used for masking and white light curve
+comment = """
+Set the range of dys to scan over number of -nbxpix/trace_x_scale to 
++nbxpix/trace_x_scale 
+"""
+CDICT['TRACE_X_SCALE'] = Const('TRACE_X_SCALE', value=5, dtype=int,
+                               comment=comment, active=True)
+# -----------------------------------------------------------------------------
 # Whether to mask order zero
 # Formally mask_order_0
 comment = """
@@ -591,6 +621,13 @@ CDICT['RECENTER_TRACE_POSITION'] = Const('RECENTER_TRACE_POSITION', value=True,
                                          active=True, 
                                          modes='JWST.NIRISS.SOSS,'
                                                'JWST.NIRISS.FGS')
+# -----------------------------------------------------------------------------
+# Use fancy centering of the trace (sets RECENTER_TRACE_POSITION to False)
+comment = """
+Use fancy centering of the trace (sets RECENTER_TRACE_POSITION to False)
+"""
+CDICT['USE_FANCY_CENTERING'] = Const('USE_FANCY_CENTERING', value=True,
+                                     dtype=bool, comment=comment, active=True)
 # -----------------------------------------------------------------------------
 # Whether to fit a per pixel baseline correction
 comment = """

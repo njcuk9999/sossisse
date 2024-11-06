@@ -165,7 +165,8 @@ def copy_file(inpath: str, outpath: str):
         raise SossisseIOException(emsg.format(*eargs))
 
 
-def load_fits(filename: str, ext: int = None, extname: str = None):
+def load_fits(filename: str, ext: int = None, extname: str = None,
+              hdufix: bool = False):
     """
     Load the data from a file
 
@@ -177,13 +178,27 @@ def load_fits(filename: str, ext: int = None, extname: str = None):
     """
     # try to get data from filename
     try:
-        data = fits.getdata(filename, ext=ext, extname=extname)
-    except Exception as e:
-        emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
-        eargs = [filename, type(e), str(e)]
-        raise exceptions.SossisseFileException(emsg.format(*eargs))
+        if hdufix:
+            with fits.open(filename) as hdul:
+                # try to fix the data
+                hdul.verify('fix')
+                if ext is not None:
+                    return np.array(hdul[ext].data)
+                elif extname is not None:
+                    return np.array(hdul[extname].data)
+                else:
+                    data = fits.getdata(filename, ext=ext, extname=extname)
+        else:
+            data = fits.getdata(filename, ext=ext, extname=extname)
+    except Exception as _:
+        try:
+            load_fits(filename, ext, extname, hdufix=True)
+        except Exception as e:
+            emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
+            eargs = [filename, type(e), str(e)]
+            raise exceptions.SossisseFileException(emsg.format(*eargs))
     # return data
-    return data
+    return np.array(data)
 
 def load_table(filename: str, fmt: Union[int, str] = None,
                hdu: Union[int, str] = None):
