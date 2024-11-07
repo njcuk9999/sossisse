@@ -1306,6 +1306,9 @@ class Instrument:
         # save the fits file
         io.save_fits(outname, datalist, datatypes, datanames, meta_data)
         # ---------------------------------------------------------------------
+        # re=get x and y positions
+        x1, x2 = pos_table1['X'], pos_table2['X']
+        y1, y2 = pos_table1['Y'], pos_table2['Y']
         # recalculate the trace position
         tracepos = pos_trace(xpix, *dxdy_trace)
         # get  mask of where the trace is

@@ -328,7 +328,7 @@ def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
     func_name = f'{__NAME__}.plot_fancy_centering1()'
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=2, ncosl=1, sharex='all')
+    fig, frames = plt.subplots(nrows=2, ncols=1, sharex='all')
     # -------------------------------------------------------------------------
     frames[0].plot(xpix, tracepos, 'r-')
     frames[0].plot(xpix, traceois_fit, 'b-')
@@ -358,7 +358,7 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     vmin, vmax = np.nanpercentile(sqrtabsim, [1, 99])
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=2, ncosl=1)
+    fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     frames[0].plot(wave, spectrum, 'k-')
 
