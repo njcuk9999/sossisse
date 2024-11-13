@@ -535,6 +535,13 @@ CDICT['TRACE_ORDERS'] = Const('TRACE_ORDERS', value=[1, 2], dtype=list,
                               dtypei=int, minimum=1, comment=comment, 
                               active=True)
 # -----------------------------------------------------------------------------
+# whether to patch isolated bad pixels
+comment = """
+whether to patch isolated bad pixels
+"""
+CDICT['PATCH_ISOLATED_BADS'] = Const('PATCH_ISOLATED_BADS', value=True,
+                                     dtype=bool, comment=comment, active=True)
+# -----------------------------------------------------------------------------
 # whether to remove cosmic rays
 comment = """
 whether to remove cosmic rays

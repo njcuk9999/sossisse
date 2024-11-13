@@ -1071,6 +1071,14 @@ class Instrument:
         # construct temporary file names
         temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
         # ---------------------------------------------------------------------
+        # deal with no patching isolated bad pixels
+        if not self.params['PATCH_ISOLATED_BADS']:
+            # print message that we are not patching isolated bad pixels
+            msg = 'We do not patch isolated bad pixels'
+            misc.printc(msg, 'info')
+            # return the cube (unchanged)
+            return cube
+        # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
             if os.path.exists(temp_clean_nan):
