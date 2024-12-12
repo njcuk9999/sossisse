@@ -2,5 +2,27 @@
 requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
+[project]
+dynamic = ["version", "dependencies"]
+name = 'sossisse'
+authors = [
+    {name = 'Neil Cook', email = 'neil.james.cook@gmail.com'},
+]
+description = 'SOSSISSE - SOSS Inspired SpectroScopic Extraction'
+readme = {file = "README.md", content-type = "text/markdown"}
+license = {file = 'LICENSE'}
+requires-python = ">=3.10"
+
+[project.urls]
+Homepage = 'http://apero.exoplanets.ca'
+Repository = 'https://github.com/njcuk9999/sossisse'
+
+[project.scripts]
+sossisse_setup = "sossisse.recipes.run_sossisse:run"
+sossisse_run = "sossisse.recipes.run_setup:run"
+
 [tool.setuptools_scm]
 write_to = "sossisse/version.py"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}

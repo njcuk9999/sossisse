@@ -1,0 +1,13 @@
+aperocore @ git+https://github.com/njcuk9999/apero-drs.git@v0.8.003#subdirectory=apero-core
+numpy==1.24.3
+astropy==5.3
+scipy==1.10.1
+matplotlib==3.7.1
+tqdm==4.65.0
+h5py==3.9.0
+ruamel.yaml==0.17.31
+wpca==0.1
+scikit-image==0.21.0
+scikit-learn==1.3.0
+statsmodels==0.14.0
+Astraeus @ git+https://github.com/kevin218/Astraeus.git
