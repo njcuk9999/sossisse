@@ -50,11 +50,13 @@ def load_instrument(params: Dict[str, Any]) -> default.Instrument:
     :param params: dict, the parameters for the instrument
     :return: the instrument class
     """
-    if params['INSTRUMENTMODE'] in INSTRUMENTS:
-        return INSTRUMENTS[params['INSTRUMENTMODE']](params)
+    instrument_mode = params['INPUTS']['INSTRUMENTMODE']
+    # if we have the instrument return it
+    if instrument_mode in INSTRUMENTS:
+        return INSTRUMENTS[instrument_mode](params)
     else:
         emsg = 'Instrument mode "{0}" not recognised'
-        eargs = [params['INSTRUMENTMODE']]
+        eargs = [instrument_mode]
         raise exceptions.SossisseConstantException(emsg.format(*eargs))
 
 

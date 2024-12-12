@@ -82,12 +82,12 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         :return: tuple, 1. the flat field, 2. a boolean indicating if the flat
                  field is all ones
         """
-        if self.params['FLATFILE'] is None:
+        if self.params['GENERAL']['FLATFILE'] is None:
             # flat field is a single frame
             return np.ones(image_shape), True
         else:
             # load the flat field
-            flat = self.load_data(self.params['FLATFILE'])
+            flat = self.load_data(self.params['GENERAL']['FLATFILE'])
 
             # for SOSS we cut down the flat field to the correct size
             # if it is a full frame flat
@@ -114,7 +114,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         :return: np.ndarray, the trace position map
         """
         # only get order 1 if the a wavelength domain is set
-        if self.params['WLC_DOMAIN'] is not None:
+        if self.params['GENERAL']['WLC_DOMAIN'] is not None:
             # get the trace positions from the white light curve
             tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
         else:
@@ -141,7 +141,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         # deal with case where we need POS_FILE and it is not given
-        if self.params['POS_FILE'] is None:
+        if self.params['GENERAL']['POS_FILE'] is None:
             emsg = (f'POS_FILE must be defined for {self.name}'
                     f'\n\tfunction = {func_name}')
             raise exceptions.SossisseInstException(emsg, self.name)
@@ -154,7 +154,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # otherwise we use POS_FILE
         else:
             # get the trace position file
-            tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
+            tbl_ref = self.load_table(self.params['GENERAL']['POS_FILE'],
+                                      ext=order_num)
             # get the valid pixels
             valid = tbl_ref['X'] > 0
             valid &= tbl_ref['X'] < xsize - 1
@@ -334,7 +335,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         # ---------------------------------------------------------------------
         # loop around files and push them into the cube/err/dq
         # ---------------------------------------------------------------------
-        for ifile, filename in enumerate(self.params['FILES']):
+        for ifile, filename in enumerate(self.params['GENERAL']['FILES']):
             # load the data
             with fits.open(filename) as hdul:
                 # get data from CDS format

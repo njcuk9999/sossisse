@@ -10,13 +10,16 @@ Created on 2024-08-13
 import argparse
 import json
 import os
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import yaml
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
+
+from aperocore.constants import load_functions
+from aperocore.core import drs_log
+
 from sossisse.core import base
-from sossisse.core import base_classes
 from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
@@ -30,10 +33,8 @@ __NAME__ = 'sossisse.core.constants'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
-# Get constants class
-Const = base_classes.Const
-# Get constants dictionary
-CDICT = constants.CDICT
+# get the logger
+WLOG = drs_log.wlog
 # Set the description of SOSSISSE
 DESCRIPTIONS = dict()
 DESCRIPTIONS['sossisse.recipes.run_sossisse'] = 'SOSSISSE - SOSS Inspired SpectroScopic Extraction'
@@ -85,100 +86,104 @@ def run_time_params(params: Dict[str, Any],
     """
     # set the function name (for sources)
     func_name = f'{__NAME__}.run_time_params()'
+
+    # get input parameters
+    inputs = params['INPUTS']
+    general = params['GENERAL']
+    paths = params['PATHS']
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
-    if not params['SHOW_PLOTS']:
-        params['SHOW_PLOTS'] = os.getlogin() in params['USER_SHOW_PLOTS']
+    if not params['PLOTS']['SHOW']:
+        params['PLOTS']['SHOW'] = os.getlogin() in params['PLOTS']['USER_SHOW']
         sources['SHOW_PLOTS'] = func_name
     # -------------------------------------------------------------------------
     # set up core paths
     # -------------------------------------------------------------------------
     # lets create the sossiopath directory if it doesn't exist
-    io.create_directory(params['SOSSIOPATH'])
+    io.create_directory(inputs['SOSSIOPATH'])
     # -------------------------------------------------------------------------
     # all data for this instrument mode will be stored under this directory
-    if params['MODEPATH'] is None:
-        params['MODEPATH'] = os.path.join(params['SOSSIOPATH'],
-                                          params['INSTRUMENTMODE'])
+    if paths['MODEPATH'] is None:
+        paths['MODEPATH'] = os.path.join(inputs['SOSSIOPATH'],
+                                         inputs['INSTRUMENTMODE'])
         sources['MODEPATH'] = func_name
-        io.create_directory(params['MODEPATH'])
+        io.create_directory(paths['MODEPATH'])
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
-    if params['CALIBPATH'] is None:
-        params['CALIBPATH'] = os.path.join(params['MODEPATH'], 'calibration')
+    if paths['CALIBPATH'] is None:
+        paths['CALIBPATH'] = os.path.join(paths['MODEPATH'], 'calibration')
         sources['CALIBPATH'] = func_name
-    io.create_directory(params['CALIBPATH'])
+    io.create_directory(paths['CALIBPATH'])
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
-    if params['YAMLPATH'] is None:
-        params['YAMLPATH'] = os.path.join(params['MODEPATH'], 'yamls')
+    if paths['YAMLPATH'] is None:
+        paths['YAMLPATH'] = os.path.join(paths['MODEPATH'], 'yamls')
         sources['YAMLPATH'] = func_name
-    io.create_directory(params['YAMLPATH'])
+    io.create_directory(paths['YAMLPATH'])
     # -------------------------------------------------------------------------
     # the raw path is where we store all the raw data
-    if params['RAWPATH'] is None:
-        params['RAWPATH'] = os.path.join(params['MODEPATH'],
-                                         params['OBJECTNAME'],
-                                         'rawdata')
+    if paths['RAWPATH'] is None:
+        paths['RAWPATH'] = os.path.join(paths['MODEPATH'], inputs['OBJECTNAME'],
+                                        'rawdata')
         sources['RAWPATH'] = func_name
-    io.create_directory(params['RAWPATH'])
+    io.create_directory(paths['RAWPATH'])
     # -------------------------------------------------------------------------
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
-    if params['OBJECTPATH'] is None:
-        params['OBJECTPATH'] = os.path.join(params['MODEPATH'],
-                                            params['OBJECTNAME'])
+    if paths['OBJECTPATH'] is None:
+        paths['OBJECTPATH'] = os.path.join(paths['MODEPATH'],
+                                           inputs['OBJECTNAME'])
         sources['OBJECTPATH'] = func_name
-    io.create_directory(params['OBJECTPATH'])
+    io.create_directory(paths['OBJECTPATH'])
     # -------------------------------------------------------------------------
     # deal with the SID
     # -------------------------------------------------------------------------
     # get the sossisse unique id (sid) for this run
-    if params['SID'] is None:
+    if inputs['SID'] is None:
         # check whether we have a hash that matches the current yaml file
         # if so this gives us our SID
         sid = hash_match(params)
         # deal with having a yaml that matches a previous run
         if sid is None:
-            params['SID'] = misc.sossice_unique_id(params['PARAM_FILE'])
+            inputs['SID'] = misc.sossice_unique_id(inputs['PARAM_FILE'])
             sources['SID'] = func_name
         else:
-            params['SID'] = sid
+            inputs['SID'] = sid
             sources['SID'] = func_name
     # -------------------------------------------------------------------------
     # set up other paths
     # -------------------------------------------------------------------------
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
-    if params['SID_PATH'] is None:
-        params['SID_PATH'] = os.path.join(params['OBJECTPATH'], params['SID'])
-        sources['SID_PATH'] = func_name
-    io.create_directory(params['OBJECTPATH'])
+    if paths['SID_PATH'] is None:
+        paths['SID_PATH'] = os.path.join(paths['OBJECTPATH'], inputs['SID'])
+        paths['SID_PATH'] = func_name
+    io.create_directory(paths['OBJECTPATH'])
     # -------------------------------------------------------------------------
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
-    if params['TEMP_PATH'] is None:
-        params['TEMP_PATH'] = os.path.join(params['SID_PATH'], 'temporary')
+    if paths['TEMP_PATH'] is None:
+        paths['TEMP_PATH'] = os.path.join(paths['SID_PATH'], 'temporary')
         sources['TEMP_PATH'] = func_name
-    io.create_directory(params['TEMP_PATH'])
+    io.create_directory(paths['TEMP_PATH'])
     # -------------------------------------------------------------------------
     # the plot path
-    if params['PLOT_PATH'] is None:
-        params['PLOT_PATH'] = os.path.join(params['SID_PATH'], 'plots')
+    if paths['PLOT_PATH'] is None:
+        paths['PLOT_PATH'] = os.path.join(paths['SID_PATH'], 'plots')
         sources['PLOT_PATH'] = func_name
-    io.create_directory(params['PLOT_PATH'])
+    io.create_directory(paths['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
-    if params['OTHER_PATH'] is None:
-        params['OTHER_PATH'] = os.path.join(params['SID_PATH'], 'other')
+    if paths['OTHER_PATH'] is None:
+        paths['OTHER_PATH'] = os.path.join(paths['SID_PATH'], 'other')
         sources['OTHER_PATH'] = func_name
-    io.create_directory(params['OTHER_PATH'])
+    io.create_directory(paths['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the fits paths
-    if params['FITS_PATH'] is None:
-        params['FITS_PATH'] = os.path.join(params['SID_PATH'], 'fits')
+    if paths['FITS_PATH'] is None:
+        paths['FITS_PATH'] = os.path.join(paths['SID_PATH'], 'fits')
         sources['FITS_PATH'] = func_name
-    io.create_directory(params['FITS_PATH'])
+    io.create_directory(paths['FITS_PATH'])
 
     # -------------------------------------------------------------------------
     # load the raw files
@@ -186,11 +191,11 @@ def run_time_params(params: Dict[str, Any],
     # deal with only creating directory - do not do this step
     if not only_create:
         # get the list of input files
-        basenames = list(params['FILES'])
+        basenames = list(general['FILES'])
         # loop around basenames, check they are on disk and convert to abs paths
         for b_it, basename in enumerate(basenames):
             # get the absolute path
-            abspath = os.path.join(params['RAWPATH'], basename)
+            abspath = os.path.join(paths['RAWPATH'], basename)
             # print progress
             misc.printc(f'Checking file {abspath}', msg_type='debug')
             # check if the file exists
@@ -200,40 +205,46 @@ def run_time_params(params: Dict[str, Any],
             # print progress
             misc.printc(f'File {abspath} exists', msg_type='debug')
             # push into params
-            params['FILES'][b_it] = abspath
+            general['FILES'][b_it] = abspath
     # -------------------------------------------------------------------------
     # set some file paths
     # -------------------------------------------------------------------------
     # deal with only creating directory - do not do this step
     if not only_create:
         # find the background file
-        if params['BKGFILE'] is not None:
-            absbkgfile = str(os.path.join(params['CALIBPATH'],
-                                          params['BKGFILE']))
-            params['BKGFILE'] = io.get_file(absbkgfile, 'background')
+        if general['BKGFILE'] is not None:
+            absbkgfile = str(os.path.join(paths['CALIBPATH'],
+                                          general['BKGFILE']))
+            general['BKGFILE'] = io.get_file(absbkgfile, 'background')
             sources['BKGFILE'] = func_name
         # find the flat file
-        if params['FLATFILE'] is not None:
-            absflatfile = str(os.path.join(params['CALIBPATH'],
-                                           params['FLATFILE']))
-            params['FLATFILE'] = io.get_file(absflatfile, 'flat')
+        if general['FLATFILE'] is not None:
+            absflatfile = str(os.path.join(paths['CALIBPATH'],
+                                           general['FLATFILE']))
+            general['FLATFILE'] = io.get_file(absflatfile, 'flat')
             sources['FLATFILE'] = func_name
         # find the trace position file
-        if params['POS_FILE'] is not None:
-            absposfile = str(os.path.join(params['CALIBPATH'],
-                                          params['POS_FILE']))
-            params['POS_FILE'] = io.get_file(absposfile, 'trace', required=False)
+        if general['POS_FILE'] is not None:
+            absposfile = str(os.path.join(paths['CALIBPATH'],
+                                          general['POS_FILE']))
+            general['POS_FILE'] = io.get_file(absposfile, 'trace', required=False)
             sources['POS_FILE'] = func_name
         # deal with no background file given - other we use that the user set
-        if params['BKGFILE'] is None:
-            params['DO_BACKGROUND'] = False
+        if general['BKGFILE'] is None:
+            general['DO_BACKGROUND'] = False
             sources['DO_BACKGROUND'] = func_name
+    # -------------------------------------------------------------------------
+    # make sure sub-dicts are pushed back to params
+    params['INPUTS'] = inputs
+    params['GENERAL'] = general
+    params['PATHS'] = paths
     # return the updated parameters
     return params, sources
 
 
 def get_parameters(param_file: str = None, no_yaml: bool = False,
                    only_create: bool = False, log_level: str = None,
+                   name: Optional[str] = None,
                    **kwargs) -> Instrument:
     """
     Get the parameters from the constants module
@@ -254,9 +265,37 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     misc.sossart()
     # print progress
     misc.printc('Getting parameters', msg_type='info')
-    # we start with an empty parameter dictionary
-    params = dict()
-    sources = dict()
+    # get the default arguments
+    params = load_functions.load_parameters([constants.CDict])
+    # set name
+    if kwargs['__NAME__'] is not None:
+        params['RECIPE_SHORT'] = name
+    # get the yaml file
+    yaml_file = command_line_args(description=description,
+                                  yaml_required=yaml_required,
+                                  yaml_file=yaml_file)
+    # get constants from user config files
+    if from_file:
+        # get instrument user config files
+        largs = [[os.path.realpath(yaml_file)], params.instances]
+        # load keys, values, sources and instances from yaml files
+        ovalues, osources, oinstances = load_functions.load_from_yaml(*largs)
+        # add to params
+        for key in ovalues:
+            # set value
+            params[key] = ovalues[key]
+            # set instance (Const/Keyword instance)
+            params.set_instance(key, oinstances[key])
+            params.set_source(key, osources[key])
+
+    # set the yaml file
+    params['GLOBAL']['YAML_FILE'] = yaml_file
+
+
+    # make sure we have the minimal log parameters from wlog
+    params = WLOG.minimal_params(params)
+
+
     # -------------------------------------------------------------------------
     # get command line arguments
     args = command_line_args(kwargs.get('__NAME__', None))
@@ -292,14 +331,14 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
         # get some parameters for the param file
         _, _, rval = misc.unix_char_code()
         # add the filename to the tmp_path
-        if params['YAML_NAME'] is None:
+        if params['INPUTS']['YAML_NAME'] is None:
             tmp_path = os.path.join(tmp_path, f'params_{rval.lower()}.yaml')
         else:
             # make sure we have a yaml file
-            if not params['YAML_NAME'].endswith('.yaml'):
-                params['YAML_NAME'] += '.yaml'
+            if not params['INPUTS']['YAML_NAME'].endswith('.yaml'):
+                params['INPUTS']['YAML_NAME'] += '.yaml'
             # create the tmp path
-            tmp_path = os.path.join(tmp_path, params['YAML_NAME'])
+            tmp_path = os.path.join(tmp_path, params['INPUTS']['YAML_NAME'])
         # re-create the yaml
         param_file = create_yaml(params, log=False, outpath=tmp_path)
     # otherwise we should display an error that we require a param file
@@ -358,8 +397,9 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
+    lm_params = params['WLC']['LMODEL']
     # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
-    if params['FIT_ZERO_POINT_OFFSET'] and params['FIT_QUAD_TERM']:
+    if lm_params['FIT_ZERO_POINT_OFFSET'] and lm_params['FIT_QUAD_TERM']:
         emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
         raise exceptions.SossisseConstantException(emsg)
     # -------------------------------------------------------------------------
@@ -367,10 +407,10 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     if log_level is not None:
         misc.LOC_LEVEL = str(log_level).upper()
     else:
-        misc.LOG_LEVEL = str(params['LOG_LEVEL']).upper()
+        misc.LOG_LEVEL = str(params['INPUTS']['LOG_LEVEL']).upper()
     # -------------------------------------------------------------------------
     # finally add the param file to the params
-    params['PARAM_FILE'] = os.path.abspath(param_file)
+    params['INPUTS']['PARAM_FILE'] = os.path.abspath(param_file)
     sources['PARAM_FILE'] = __NAME__
     # get run time parameters (set in the code)
     params, sources = run_time_params(params, sources, only_create=only_create)
@@ -379,7 +419,7 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     if not only_create:
         param_file_basename = os.path.basename(param_file)
-        param_file_csv = str(os.path.join(params['OTHER_PATH'],
+        param_file_csv = str(os.path.join(params['PATHS']['OTHER_PATH'],
                                           param_file_basename))
         io.copy_file(param_file, param_file_csv)
     # -------------------------------------------------------------------------
@@ -388,11 +428,11 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
         _ = create_yaml(params, log=False, outpath=tmp_path)
     # create the yaml file in the directory
     if only_create:
-        outpath = str(os.path.join(params['YAMLPATH'],
+        outpath = str(os.path.join(params['PATHS']['YAMLPATH'],
                                    os.path.basename(tmp_path)))
         _ = create_yaml(params, log=False, outpath=outpath)
         # update param file path
-        params['PARAM_FILE'] = os.path.abspath(outpath)
+        params['INPUTS']['PARAM_FILE'] = os.path.abspath(outpath)
     # -------------------------------------------------------------------------
     # create a copy of the yaml file in the object path
     _ = create_yaml(params, log=False)
@@ -419,7 +459,8 @@ def create_yaml(params: Dict[str, Any], log: bool = True,
     """
     # get the output path
     if outpath is None:
-        outpath = os.path.join(params['OTHER_PATH'], 'params_backup.yaml')
+        outpath = os.path.join(params['PATHS']['OTHER_PATH'],
+                               'params_backup.yaml')
     # -------------------------------------------------------------------------
     # create a commented map instance
     data = CommentedMap()
@@ -440,7 +481,7 @@ def create_yaml(params: Dict[str, Any], log: bool = True,
             comment += '\n\tDefault value: {0}'.format(str(CDICT[key].value))
         # ---------------------------------------------------------------------
         # get active
-        active = CDICT[key].active or params['ALL_CONSTANTS']
+        active = CDICT[key].active or params['INPUTS']['ALL_CONSTANTS']
         # if the constant is not active skip
         if not active:
             continue
@@ -451,9 +492,9 @@ def create_yaml(params: Dict[str, Any], log: bool = True,
         if modes is None:
             in_mode = True
         else:
-            in_mode = params['INSTRUMENTMODE'] in modes
+            in_mode = params['INPUTS']['INSTRUMENTMODE'] in modes
             # all constants overrides in_mode
-            in_mode &= params['ALL_CONSTANTS']
+            in_mode &= paramsparams['INPUTS']['ALL_CONSTANTS']
         # if we are not in the correct mode skip
         if not in_mode:
             continue
@@ -499,11 +540,11 @@ def create_hash(params: Dict[str, Any]):
     :return: None writes hashlist file
     """
     # get the hash file path
-    hashpath = os.path.join(params['OBJECTPATH'], 'hashlist.txt')
+    hashpath = os.path.join(params['PATHS']['OBJECTPATH'], 'hashlist.txt')
     # get the current SID
-    sid = params['SID']
+    sid = params['INPUTS']['SID']
     # get the current yaml file path
-    yaml_file = params['PARAM_FILE']
+    yaml_file = params['INPUTS']['PARAM_FILE']
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -548,9 +589,9 @@ def hash_match(params: Dict[str, Any]) -> Union[str, None]:
     :return: None if SID or hashlist.txt not found, otherwise returns the SID
     """
     # get the hash file path
-    hashpath = os.path.join(params['OBJECTPATH'], 'hashlist.txt')
+    hashpath = os.path.join(params['PATHS']['OBJECTPATH'], 'hashlist.txt')
     # get the current yaml file path
-    yaml_file = params['PARAM_FILE']
+    yaml_file = params['INPUTS']['PARAM_FILE']
     # if we don't have a current yaml file return
     if not os.path.exists(yaml_file):
         return None
@@ -558,8 +599,8 @@ def hash_match(params: Dict[str, Any]) -> Union[str, None]:
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
     # remove SID from yaml_dict (we can't compare this)
-    if 'SID' in yaml_dict:
-        del yaml_dict['SID']
+    if 'SID' in yaml_dict['INPUTS']:
+        del yaml_dict['INPUTS']['SID']
     # create a jason string
     yaml_string = json.dumps(yaml_dict, sort_keys=True)
     # get the hash for this file

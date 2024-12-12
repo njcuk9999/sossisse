@@ -57,9 +57,9 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # run the super version first, then override after
         super().param_override()
         # we do not mask order zero for NIRSPEC PRISM
-        self.params['MASK_ORDER_ZERO'] = False
+        self.params['WLC']['GENERAL']['MASK_ORDER_ZERO'] = False
         # for NIRSPEC PRISM we shouldn't have recenter trace position
-        self.params['RECENTER_TRACE_POSITION'] = False
+        self.params['WLC']['GENERAL']['RECENTER_TRACE_POSITION'] = False
 
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
@@ -70,20 +70,23 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_trace_positions()'
+
+        gen_params = self.params['GENERAL']
+        wlc_gen_params = self.params['WLC']['GENERAL']
         # must have pos file defined in file
-        if self.params['POS_FILE'] is None:
+        if gen_params['POS_FILE'] is None:
             emsg = f'POS_FILE must be defined for {func_name}'
             raise exceptions.SossisseConstantException(emsg)
         # deal with no trace pos file for prism
-        if not os.path.exists(self.params['POS_FILE']):
+        if not os.path.exists(gen_params['POS_FILE']):
             # log that we don't have a POS_FILE and are creating one
             if log:
                 msg = 'No POS_FILE defined for mode={0} - creating trace map'
                 margs = [self.name]
                 misc.printc(msg.format(*margs), msg_type='warning')
             # get trace offset in x and y
-            xoffset = self.params['X_TRACE_OFFSET']
-            yoffset = self.params['Y_TRACE_OFFSET']
+            xoffset = wlc_gen_params['X_TRACE_OFFSET']
+            yoffset = wlc_gen_params['Y_TRACE_OFFSET']
             # get the wave grid from the parameters
             xpix, wavegrid = self.get_wavegrid(source='params',
                                                return_xpix=True)
@@ -115,10 +118,10 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             # print that we are writing pos file
             if log:
                 msg = 'Writing POS_FILE={0}'
-                margs = [self.params['POS_FILE']]
+                margs = [self.params['GENERAL']['POS_FILE']]
                 misc.printc(msg.format(*margs), msg_type='info')
             # write trace file
-            tracetable.write(self.params['POS_FILE'], overwrite=True)
+            tracetable.write(self.params['GENERAL']['POS_FILE'], overwrite=True)
         # ---------------------------------------------------------------------
         # get the trace positions from the white light curve
         tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
@@ -142,10 +145,14 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         func_name = f'{__NAME__}.{self.name}.get_wavegrid()'
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
+        # get wave file definition
+        wave_file = self.params['GENERAL']['WAVE_FILE']
+        # get pos file definition
+        pos_file = self.params['GENERAL']['POS_FLE']
         # deal with wave grid coming from params
-        if source == 'params' and self.params['WAVE_FILE'] is not None:
-            wavepath = os.path.join(self.params['CALIBPATH'],
-                                    self.params['WAVE_FILE'])
+        if source == 'params' and wave_file is not None:
+            wavepath = os.path.join(self.params['PATHS']['CALIBPATH'],
+                                    wave_file)
             hf = h5py.File(wavepath, 'r')
             xpix, wave = hf['x'], hf['wave_1d']
             # set up a wave vector across the x direction
@@ -153,11 +160,11 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             # push values into wave vector at correct position
             wavevector[np.array(xpix, dtype=int)] = wave
         # deal with case where we need WAVE_FILE and it is not given
-        elif source == 'params' and self.params['WAVE_FILE'] is None:
+        elif source == 'params' and wave_file is None:
             emsg = f'WAVE_FILE must be defined for {func_name}'
             raise exceptions.SossisseInstException(emsg, self.name)
         # deal with case where we need POS_FILE and it is not given
-        elif self.params['POS_FILE'] is None:
+        elif pos_file is None:
             emsg = f'POS_FILE must be defined for {func_name}'
             raise exceptions.SossisseInstException(emsg, self.name)
         # deal with order num not being set
@@ -169,7 +176,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # otherwise we use POS_FILE
         else:
             # get the trace position file
-            tbl_ref = self.load_table(self.params['POS_FILE'], ext=order_num)
+            tbl_ref = self.load_table(pos_file, ext=order_num)
             # get the valid pixels
             valid = tbl_ref['X'] > 0
             valid &= tbl_ref['X'] < xsize - 1

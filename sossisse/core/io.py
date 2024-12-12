@@ -344,7 +344,7 @@ def plots_to_html(params: Dict[str, Any]):
     :return:
     """
     # get all png files in the plot path
-    png_files = glob.glob(os.path.join(params['PLOT_PATH'], '*.png'))
+    png_files = glob.glob(os.path.join(params['PATHS']['PLOT_PATH'], '*.png'))
     # define the html string
     html = '<br>'
     # loop around all png files
@@ -367,7 +367,7 @@ def csv_to_html(params: Dict[str, Any]):
     :return:
     """
     # get all csv files in the plot path
-    csv_files = glob.glob(os.path.join(params['OTHER_PATH'], '*.csv'))
+    csv_files = glob.glob(os.path.join(params['PATHS']['OTHER_PATH'], '*.csv'))
     # define the html string
     html = '<br><ul>'
     # loop around all csv files
@@ -393,10 +393,12 @@ def summary_html(params: Dict[str, Any]):
     # read the html template
     with open(HTML_TEMPLATE_FILE, 'r') as template_file:
         template = Template(template_file.read())
+    # get the objectname
+    objname = params['INPUTS']['OBJECTNAME']
     # define the data to insert into the template
     data = dict()
     # add the data to the dictionary for the html sections
-    data['title'] = 'SOSSISSE Summary: {0}'.format(params['OBJECTNAME'])
+    data['title'] = 'SOSSISSE Summary: {0}'.format(objname)
     data['datenow'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     data['plots'] = plots_to_html(params)
     data['csvlist'] = csv_to_html(params)
@@ -404,7 +406,7 @@ def summary_html(params: Dict[str, Any]):
     # Substitute variables in the template
     rendered_html = template.safe_substitute(data)
     # construct filename for html file
-    html_file = os.path.join(params['PLOT_PATH'], 'index.html')
+    html_file = os.path.join(params['PATHS']['PLOT_PATH'], 'index.html')
     # write the html file
     with open(html_file, 'w') as html_file:
         html_file.write(rendered_html)
