@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools", "wheel", "numpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -20,9 +20,6 @@ Repository = 'https://github.com/njcuk9999/sossisse'
 [project.scripts]
 sossisse_setup = "sossisse.recipes.run_sossisse:run"
 sossisse_run = "sossisse.recipes.run_setup:run"
-
-[tool.setuptools_scm]
-write_to = "sossisse/version.py"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

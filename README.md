@@ -34,7 +34,7 @@ we recommend a new clean environment to avoid module conflicts.
 
 
 ```bash
-conda create --name sossisse-env python=3.9
+conda create --name sossisse-env python=3.10
 ```
 
 ```bash
@@ -70,7 +70,7 @@ For first time use we recommend running the setup script to create a default con
 From inside the `sossisse-env` conda environment (or equivalanet), in any directory, run:
 
 ```bash
-run_setup
+sossisse_setup
 ````
 
 This should guide you through create a basic folder structure and a default configuration file.
@@ -111,12 +111,12 @@ Note `{HOMEDIR}`, `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` will be 
 
 ## 3. How to use
 
-Once you have run `run_setup` and read and understood the yaml file you can run the main SOSSISSE code.
+Once you have run `sossisse_setup` and read and understood the yaml file you can run the main SOSSISSE code.
 
 You can do this as follows:
 
 ```bash
-run_sossisse {path_to_yaml_file}
+sossisse_run {path_to_yaml_file}
 ```
 
 where `{path_to_yaml_file}` is the path to the yaml file you created in the setup step.
