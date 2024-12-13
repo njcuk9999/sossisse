@@ -42,6 +42,7 @@ HTML_TEMPLATE_FILE = os.path.join(PACKAGE_PATH, 'resources',
 MAX_LOCK_WAIT = 30
 LOCK_WAIT = 5
 
+
 # =============================================================================
 # Define functions
 # =============================================================================
@@ -200,6 +201,7 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
     # return data
     return np.array(data)
 
+
 def load_table(filename: str, fmt: Union[int, str] = None,
                hdu: Union[int, str] = None):
     """
@@ -285,7 +287,8 @@ def save_fits(filename: str, datalist: List[Any], datatypes: List[str],
         eargs = [filename, type(e), str(e)]
         raise exceptions.SossisseFileException(emsg.format(*eargs))
 
-def save_table(filename: str, data: Table, fmt: str='csv'):
+
+def save_table(filename: str, data: Table, fmt: str = 'csv'):
     """
     Save the table to a file
 
@@ -410,9 +413,6 @@ def summary_html(params: Dict[str, Any]):
     # write the html file
     with open(html_file, 'w') as html_file:
         html_file.write(rendered_html)
-
-
-    # noinspection PyUnresolvedReferences
 
 
 def save_eureka(filename: str, flux: np.ndarray, flux_err: np.ndarray,

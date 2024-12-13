@@ -14,10 +14,11 @@ from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+from aperocore import math as mp
+
 from astropy.table import Table
 from sossisse.core import base
-from sossisse.core import math
-from sossisse.core import math as mp
 from sossisse.core import misc
 
 # =============================================================================
@@ -525,7 +526,7 @@ def plot_transit(inst: Any, table: Table):
         mid_transit = np.abs(norm_index) < 0.3 * (cframes[3] - cframes[0])
     # -------------------------------------------------------------------------
     # fit the mid transit frames
-    fit_mid, _ = math.robust_polyfit(index[mid_transit], value[mid_transit],
+    fit_mid, _ = mp.robust_polyfit(index[mid_transit], value[mid_transit],
                                      degree=2, nsigcut=5)
     # calculate the mid-transit point and depth
     mid_transit_point = -0.5 * fit_mid[1] / fit_mid[0]

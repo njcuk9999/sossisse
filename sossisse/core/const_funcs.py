@@ -10,14 +10,13 @@ Created on 2024-08-13
 import argparse
 import json
 import os
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 import yaml
-from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
 
 from aperocore.constants import load_functions
 from aperocore.core import drs_log
+from aperocore.constants import param_functions
 
 from sossisse.core import base
 from sossisse.core import constants
@@ -33,6 +32,8 @@ __NAME__ = 'sossisse.core.constants'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+# Get the parameter dictionary
+ParamDict = param_functions.ParamDict
 # get the logger
 WLOG = drs_log.wlog
 # Set the description of SOSSISSE
@@ -71,15 +72,12 @@ def command_line_args(name: str = None) -> Dict[str, Any]:
     return vars(args)
 
 
-def run_time_params(params: Dict[str, Any],
-                    sources: Dict[str, str],
-                    only_create: bool = False
-                    ) -> Tuple[Dict[str, Any], Dict[str, str]]:
+def run_time_params(params: ParamDict, only_create: bool = False
+                    ) -> ParamDict:
     """
     Get run time parameters (set in the code)
 
-    :param params: dict, the parameters dictionary
-    :param sources: dict, the sources dictionary
+    :param params: ParamDict, the parameters dictionary
     :param only_create: bool, if True only create directories and returns
                         does not do file operations
     :return:
@@ -95,7 +93,7 @@ def run_time_params(params: Dict[str, Any],
     # we show or don't show the plots based on the user
     if not params['PLOTS']['SHOW']:
         params['PLOTS']['SHOW'] = os.getlogin() in params['PLOTS']['USER_SHOW']
-        sources['SHOW_PLOTS'] = func_name
+        params['PLOTS'].set_source('SHOW', func_name)
     # -------------------------------------------------------------------------
     # set up core paths
     # -------------------------------------------------------------------------
@@ -106,26 +104,25 @@ def run_time_params(params: Dict[str, Any],
     if paths['MODEPATH'] is None:
         paths['MODEPATH'] = os.path.join(inputs['SOSSIOPATH'],
                                          inputs['INSTRUMENTMODE'])
-        sources['MODEPATH'] = func_name
-        io.create_directory(paths['MODEPATH'])
+        paths.set_source('MODEPATH', func_name)
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
     if paths['CALIBPATH'] is None:
         paths['CALIBPATH'] = os.path.join(paths['MODEPATH'], 'calibration')
-        sources['CALIBPATH'] = func_name
+        paths.set_source('CALIBPATH', func_name)
     io.create_directory(paths['CALIBPATH'])
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
     if paths['YAMLPATH'] is None:
         paths['YAMLPATH'] = os.path.join(paths['MODEPATH'], 'yamls')
-        sources['YAMLPATH'] = func_name
+        paths.set_source('YAMLPATH', func_name)
     io.create_directory(paths['YAMLPATH'])
     # -------------------------------------------------------------------------
     # the raw path is where we store all the raw data
     if paths['RAWPATH'] is None:
         paths['RAWPATH'] = os.path.join(paths['MODEPATH'], inputs['OBJECTNAME'],
                                         'rawdata')
-        sources['RAWPATH'] = func_name
+        paths.set_source('RAWPATH', func_name)
     io.create_directory(paths['RAWPATH'])
     # -------------------------------------------------------------------------
     # the object path is where we store all the object data
@@ -133,7 +130,7 @@ def run_time_params(params: Dict[str, Any],
     if paths['OBJECTPATH'] is None:
         paths['OBJECTPATH'] = os.path.join(paths['MODEPATH'],
                                            inputs['OBJECTNAME'])
-        sources['OBJECTPATH'] = func_name
+        paths.set_source('OBJECTPATH', func_name)
     io.create_directory(paths['OBJECTPATH'])
     # -------------------------------------------------------------------------
     # deal with the SID
@@ -146,10 +143,10 @@ def run_time_params(params: Dict[str, Any],
         # deal with having a yaml that matches a previous run
         if sid is None:
             inputs['SID'] = misc.sossice_unique_id(inputs['PARAM_FILE'])
-            sources['SID'] = func_name
+            inputs.set_source('SID', func_name)
         else:
             inputs['SID'] = sid
-            sources['SID'] = func_name
+            inputs.set_source('SID', func_name)
     # -------------------------------------------------------------------------
     # set up other paths
     # -------------------------------------------------------------------------
@@ -164,25 +161,25 @@ def run_time_params(params: Dict[str, Any],
     #   that have been opened and modified
     if paths['TEMP_PATH'] is None:
         paths['TEMP_PATH'] = os.path.join(paths['SID_PATH'], 'temporary')
-        sources['TEMP_PATH'] = func_name
+        paths.set_source('TEMP_PATH', func_name)
     io.create_directory(paths['TEMP_PATH'])
     # -------------------------------------------------------------------------
     # the plot path
     if paths['PLOT_PATH'] is None:
         paths['PLOT_PATH'] = os.path.join(paths['SID_PATH'], 'plots')
-        sources['PLOT_PATH'] = func_name
+        paths.set_source('PLOT_PATH', func_name)
     io.create_directory(paths['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
     if paths['OTHER_PATH'] is None:
         paths['OTHER_PATH'] = os.path.join(paths['SID_PATH'], 'other')
-        sources['OTHER_PATH'] = func_name
+        paths.set_source('OTHER_PATH', func_name)
     io.create_directory(paths['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the fits paths
     if paths['FITS_PATH'] is None:
         paths['FITS_PATH'] = os.path.join(paths['SID_PATH'], 'fits')
-        sources['FITS_PATH'] = func_name
+        paths.set_source('FITS_PATH', func_name)
     io.create_directory(paths['FITS_PATH'])
 
     # -------------------------------------------------------------------------
@@ -216,30 +213,31 @@ def run_time_params(params: Dict[str, Any],
             absbkgfile = str(os.path.join(paths['CALIBPATH'],
                                           general['BKGFILE']))
             general['BKGFILE'] = io.get_file(absbkgfile, 'background')
-            sources['BKGFILE'] = func_name
+            general.set_source('BKGFILE', func_name)
         # find the flat file
         if general['FLATFILE'] is not None:
             absflatfile = str(os.path.join(paths['CALIBPATH'],
                                            general['FLATFILE']))
             general['FLATFILE'] = io.get_file(absflatfile, 'flat')
-            sources['FLATFILE'] = func_name
+            general.set_source('FLATFILE', func_name)
         # find the trace position file
         if general['POS_FILE'] is not None:
             absposfile = str(os.path.join(paths['CALIBPATH'],
                                           general['POS_FILE']))
-            general['POS_FILE'] = io.get_file(absposfile, 'trace', required=False)
-            sources['POS_FILE'] = func_name
+            general['POS_FILE'] = io.get_file(absposfile, 'trace',
+                                              required=False)
+            general.set_source('POS_FILE', func_name)
         # deal with no background file given - other we use that the user set
         if general['BKGFILE'] is None:
             general['DO_BACKGROUND'] = False
-            sources['DO_BACKGROUND'] = func_name
+            general.set_source('DO_BACKGROUND', func_name)
     # -------------------------------------------------------------------------
     # make sure sub-dicts are pushed back to params
     params['INPUTS'] = inputs
     params['GENERAL'] = general
     params['PATHS'] = paths
     # return the updated parameters
-    return params, sources
+    return params
 
 
 def get_parameters(param_file: str = None, no_yaml: bool = False,
@@ -270,32 +268,8 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # set name
     if kwargs['__NAME__'] is not None:
         params['RECIPE_SHORT'] = name
-    # get the yaml file
-    yaml_file = command_line_args(description=description,
-                                  yaml_required=yaml_required,
-                                  yaml_file=yaml_file)
-    # get constants from user config files
-    if from_file:
-        # get instrument user config files
-        largs = [[os.path.realpath(yaml_file)], params.instances]
-        # load keys, values, sources and instances from yaml files
-        ovalues, osources, oinstances = load_functions.load_from_yaml(*largs)
-        # add to params
-        for key in ovalues:
-            # set value
-            params[key] = ovalues[key]
-            # set instance (Const/Keyword instance)
-            params.set_instance(key, oinstances[key])
-            params.set_source(key, osources[key])
-
-    # set the yaml file
-    params['GLOBAL']['YAML_FILE'] = yaml_file
-
-
     # make sure we have the minimal log parameters from wlog
     params = WLOG.minimal_params(params)
-
-
     # -------------------------------------------------------------------------
     # get command line arguments
     args = command_line_args(kwargs.get('__NAME__', None))
@@ -308,22 +282,6 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # if no_yaml is True we get all arguments from kwargs
     if no_yaml:
-        # loop around CDICT, verify and push into params
-        for key in CDICT:
-            # get the constant
-            const = CDICT[key]
-            # -----------------------------------------------------------------
-            # parameters in kwargs overwrite the yaml file
-            if key in kwargs and kwargs[key] is not None:
-                value, source = kwargs[key], 'kwargs'
-            else:
-                value, source = None, None
-            # verify the constant - this will raise an exception if the value
-            # is not in kwargs and is required
-            const.verify(value=value, source=source, check_requirements=False)
-            # push into params
-            params[key] = const.value
-            sources[key] = source
         # create tmp dir
         tmp_path = os.path.expanduser('~/.sossisse/')
         if not os.path.exists(tmp_path):
@@ -358,42 +316,17 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     if not no_yaml:
         misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
     # -------------------------------------------------------------------------
-    # we load the yaml file
-    with open(param_file, "r") as yamlfile:
-        yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    # -------------------------------------------------------------------------
-    # loop around CDICT, verify and push into params
-    for key in CDICT:
-        # get the constant
-        const = CDICT[key]
-        # ---------------------------------------------------------------------
-        # get the value from the yaml file
-        value, source = yaml_dict.get(key, None), param_file
-        # ---------------------------------------------------------------------
-        # Deal with a none or null value
-        if str(value).upper() in ['NONE', 'NULL', '']:
-            value = CDICT[key].value
-            if value is not None:
-                source = 'constants.py'
-        # ---------------------------------------------------------------------
-        # parameters in args overwrite the yaml file
-        if key in args and args[key] is not None:
-            value= args[key]
-            if value is not None:
-                source = 'command line arguments'
-        # ---------------------------------------------------------------------
-        # parameters in kwargs overwrite the yaml file
-        if key in kwargs and kwargs[key] is not None:
-            value = kwargs[key]
-            if value is not None:
-                source = 'kwargs'
-        # ---------------------------------------------------------------------
-        # verify the constant
-        const.verify(value=value, source=source,
-                     check_requirements=not only_create)
-        # push into params
-        params[key] = const.value
-        sources[key] = source
+    # get instrument user config files
+    largs = [[os.path.realpath(param_file)], params.instances]
+    # load keys, values, sources and instances from yaml files
+    ovalues, osources, oinstances = load_functions.load_from_yaml(*largs)
+    # add to params
+    for key in ovalues:
+        # set value
+        params[key] = ovalues[key]
+        # set instance (Const/Keyword instance)
+        params.set_instance(key, oinstances[key])
+        params.set_source(key, osources[key])
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
@@ -411,9 +344,9 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # finally add the param file to the params
     params['INPUTS']['PARAM_FILE'] = os.path.abspath(param_file)
-    sources['PARAM_FILE'] = __NAME__
+    params['INPUTS'].set_source('PARAM_FILE', __NAME__)
     # get run time parameters (set in the code)
-    params, sources = run_time_params(params, sources, only_create=only_create)
+    params = run_time_params(params, only_create=only_create)
     # -------------------------------------------------------------------------
     # copy parameter file to other path
     # -------------------------------------------------------------------------
@@ -442,12 +375,11 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # now we load the instrument specific parameters
     instrument = load_instrument(params)
-    instrument.sources = sources
     # return the parameters
     return instrument
 
 
-def create_yaml(params: Dict[str, Any], log: bool = True,
+def create_yaml(params: ParamDict, log: bool = True,
                 outpath: str = None) -> str:
     """
     Create a yaml file from input parameters
@@ -462,67 +394,16 @@ def create_yaml(params: Dict[str, Any], log: bool = True,
         outpath = os.path.join(params['PATHS']['OTHER_PATH'],
                                'params_backup.yaml')
     # -------------------------------------------------------------------------
-    # create a commented map instance
-    data = CommentedMap()
-    # add the start comment
-    data.yaml_set_start_comment(constants.TITLE)
-    # loop around constants and add to the data
-    for key in CDICT:
-        # get comment
-        comment = CDICT[key].comment
-        # if there is no comment don't add
-        if comment is None:
-            continue
-        # remove new lines at start/end of comment
-        if not comment.startswith('\n\n'):
-            comment = comment.strip('\n')
-        # add the default value to the comment (if given)
-        if CDICT[key].value is not None:
-            comment += '\n\tDefault value: {0}'.format(str(CDICT[key].value))
-        # ---------------------------------------------------------------------
-        # get active
-        active = CDICT[key].active or params['INPUTS']['ALL_CONSTANTS']
-        # if the constant is not active skip
-        if not active:
-            continue
-        # ---------------------------------------------------------------------
-        # get modes
-        modes = CDICT[key].modes
-        # deal with no mode
-        if modes is None:
-            in_mode = True
-        else:
-            in_mode = params['INPUTS']['INSTRUMENTMODE'] in modes
-            # all constants overrides in_mode
-            in_mode &= paramsparams['INPUTS']['ALL_CONSTANTS']
-        # if we are not in the correct mode skip
-        if not in_mode:
-            continue
-        # ---------------------------------------------------------------------
-        # get the constant
-        const = CDICT[key]
-        # push into params
-        if key in params:
-            data[key] = params[key]
-        else:
-            data[key] = const.value
-        # add the comment
-        ckwargs = dict(key=key, before=comment, indent=0)
-        data.yaml_set_comment_before_after_key(**ckwargs)
-    # ---------------------------------------------------------------------
-    # print message
+    # print progress
     if log:
-        msg = '\tWriting yaml file: {0}'
-        margs = [outpath]
-        misc.printc(msg.format(*margs), msg_type='info')
-    # initialize YAML object
-    yaml_inst = YAML()
-    # remove the yaml if it already exists
-    if os.path.exists(outpath):
-        os.remove(outpath)
-    # write files
-    with open(outpath, 'w') as y_file:
-        yaml_inst.dump(data, y_file)
+        # print progress
+        msg = 'Saving constants to yaml file: {0}'
+        WLOG(params, '', msg.format(os.path.realpath(outpath)))
+    # -------------------------------------------------------------------------
+    # Get the constants dictionary
+    cdict = constants.CDict
+    # save the constants dictionary to yaml file
+    cdict.save_yaml(params, outpath=outpath, log=log)
     # -------------------------------------------------------------------------
     # return the yaml file path
     return outpath
@@ -531,7 +412,7 @@ def create_yaml(params: Dict[str, Any], log: bool = True,
 # =============================================================================
 # Hash functions
 # =============================================================================
-def create_hash(params: Dict[str, Any]):
+def create_hash(params: ParamDict):
     """
     Create a hash file for the current run
 
@@ -579,7 +460,7 @@ def create_hash(params: Dict[str, Any]):
         io.lock_wait(hashpath, unlock=True)
 
 
-def hash_match(params: Dict[str, Any]) -> Union[str, None]:
+def hash_match(params: ParamDict) -> Union[str, None]:
     """
     Look for a match between the current yaml file and the hash list of
     previous runs SIDS and hashes

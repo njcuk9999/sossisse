@@ -201,7 +201,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         wavegrid = inst.get_wavegrid(order_num=trace_order)
         # create the SED
         sp_sed = inst.create_sed(med, residual, wavegrid, posmax, throughput,
-                                  med_clean, trace_order)
+                                 med_clean, trace_order)
         # ---------------------------------------------------------------------
         # load the model (and deal with masking order zero if required)
         model = inst.load_model(recon, med)

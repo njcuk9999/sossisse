@@ -19,9 +19,10 @@ from scipy.ndimage import binary_dilation
 from skimage import measure
 from tqdm import tqdm
 
+from aperocore import math as mp
+
 from sossisse.core import base
 from sossisse.core import exceptions
-from sossisse.core import math as mp
 from sossisse.instruments import default
 from sossisse.general import plots
 
@@ -299,7 +300,6 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         return sig_mask, xpos, ypos
 
 
-
 class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
     def __init__(self, params):
         """
@@ -323,8 +323,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         super().param_override()
 
     def load_cube(self, n_slices: int, image_shape: List[int],
-                   flag_cds: bool
-                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                  flag_cds: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
         cube = np.zeros([n_slices, image_shape[0], image_shape[1]])
@@ -360,6 +359,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
             n_slice += tmp_data.shape[0]
         # return the cube, error and DQ
         return cube, err, dq
+
 
 # =============================================================================
 # Start of code

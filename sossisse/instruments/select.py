@@ -11,6 +11,8 @@ Created on 2024-08-13 at 11:25
 """
 from typing import Any, Dict
 
+from aperocore.constants import param_functions
+
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.instruments import default
@@ -24,6 +26,8 @@ __NAME__ = 'sossisse.instruments.select'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+# Get parameter dictionary
+ParamDict = param_functions.ParamDict
 
 # =============================================================================
 # Define instruments
@@ -43,7 +47,7 @@ INSTRUMENTS['JWST.NIRSPEC.PRISM'] = jwst_nirspec.JWST_NIRSPEC_PRISM
 # =============================================================================
 # Define functions
 # =============================================================================
-def load_instrument(params: Dict[str, Any]) -> default.Instrument:
+def load_instrument(params: ParamDict) -> default.Instrument:
     """
     Load the instrument class
 

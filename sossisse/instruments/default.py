@@ -26,10 +26,12 @@ from scipy.optimize import curve_fit
 from tqdm import tqdm
 from wpca import EMPCA
 
+from aperocore.constants import param_functions
+from aperocore import math as mp
+
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
-from sossisse.core import math as mp
 from sossisse.core import misc
 from sossisse.general import plots
 
@@ -40,6 +42,8 @@ __NAME__ = 'sossisse.instruments.default'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+# Get parmaeter dictionary
+ParamDict = param_functions.ParamDict
 
 
 # =============================================================================
@@ -51,7 +55,7 @@ class Instrument:
     any child class
     """
 
-    def __init__(self, params: Dict[str, Any]):
+    def __init__(self, params: ParamDict):
         """
         Construct the instrument class
 
@@ -60,8 +64,6 @@ class Instrument:
         self.name = 'Default'
         # set the parameters from input
         self.params = copy.deepcopy(params)
-        # set all sources to Unknown
-        self.sources = {key: 'Unknown' for key in self.params}
         # set up the instrument
         self.param_override()
         # variables to keep in memory and pass around with class
@@ -227,7 +229,7 @@ class Instrument:
         :return:
         """
         # set function name
-        func_name = f'{__NAME__}.update_meta_data()'
+        # func_name = f'{__NAME__}.update_meta_data()'
         # set up storage
         meta_data = dict()
         tag1, tag2 = '', ''
@@ -2062,10 +2064,9 @@ class Instrument:
         misc.printc(msg, 'info')
         # save the current width (we will reset it later
         width_current = float(wlc_gen_params['TRACE_WIDTH_MASKING'])
-        width_source = wlc_gen_params['TRACE_WIDTH_MASKING']
         # force a trace width masking
         wlc_gen_params['TRACE_WIDTH_MASKING'] = 20
-        self.sources['TRACE_WIDTH_MASKING'] = func_name
+        wlc_gen_params.set_source('TRACE_WIDTH_MASKING', func_name)
         # get the trace x and y scales
         trace_x_scale = wlc_gen_params['TRACE_X_SCALE']
         trace_y_scale = wlc_gen_params['TRACE_Y_SCALE']
@@ -2108,12 +2109,12 @@ class Instrument:
         misc.printc('Best dy : {} pix'.format(best_dy), 'number')
         # update the trace offsets with the best values found
         wlc_gen_params['X_TRACE_OFFSET'] = best_dx
-        self.sources['X_TRACE_OFFSET'] = func_name
+        wlc_gen_params.set_source('X_TRACE_OFFSET', func_name)
         wlc_gen_params['Y_TRACE_OFFSET'] = best_dy
-        self.sources['Y_TRACE_OFFSET'] = func_name
+        wlc_gen_params.set_source('Y_TRACE_OFFSET', func_name)
         # reset the trace width masking to the user defined value
         wlc_gen_params['TRACE_WIDTH_MASKING'] = width_current
-        self.sources['TRACE_WIDTH_MASKING'] = width_source
+        wlc_gen_params.set_source('TRACE_WIDTH_MASKING', func_name)
         # ---------------------------------------------------------------------
         # get the loss in parts per thousand
         loss_ppt = (1 - (sums / np.nansum(sums))) * 1e3
@@ -3160,7 +3161,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we have removed a trend, we need to add in quadrature
         #  out-of-transit  errors to in-transit
-        if spec_ext_params['REMOVE_TREND']:
+        if self.params['SPEC_EXT']['REMOVE_TREND']:
             spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
         # ---------------------------------------------------------------------
         # chane infinite values to nan

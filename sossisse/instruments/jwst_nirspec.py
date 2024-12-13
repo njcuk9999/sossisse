@@ -17,9 +17,10 @@ import numpy as np
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
 
+from aperocore import math as mp
+
 from sossisse.core import base
 from sossisse.core import exceptions
-from sossisse.core import math as mp
 from sossisse.core import misc
 from sossisse.instruments import default
 
