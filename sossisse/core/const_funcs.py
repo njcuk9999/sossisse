@@ -316,17 +316,8 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     if not no_yaml:
         misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
     # -------------------------------------------------------------------------
-    # get instrument user config files
-    largs = [[os.path.realpath(param_file)], params.instances]
-    # load keys, values, sources and instances from yaml files
-    ovalues, osources, oinstances = load_functions.load_from_yaml(*largs)
-    # add to params
-    for key in ovalues:
-        # set value
-        params[key] = ovalues[key]
-        # set instance (Const/Keyword instance)
-        params.set_instance(key, oinstances[key])
-        params.set_source(key, osources[key])
+    # load from parameter file
+    params = load_functions.load_from_yaml([param_file], params)
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
