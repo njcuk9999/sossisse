@@ -89,6 +89,7 @@ CDict.add('INPUTS', value=CDict_inputs, dtype=ConstDict,
 # Define the data directory
 CDict_inputs.add('SOSSIOPATH', value=None, dtype=str, not_none=True,
                  source=__NAME__, user=True, active=True,
+                 cmd_arg='sossiopath',
                  description='The data directory (required)')
 # -----------------------------------------------------------------------------
 # A unique identifier for this data set
@@ -108,6 +109,7 @@ CDict_inputs.add('LOG_LEVEL', value='INFO', dtype=str,
 # Define the name of the object (must match the object directory name)
 CDict_inputs.add('OBJECTNAME', value=None, dtype=str, not_none=True,
                  source=__NAME__, user=True, active=True,
+                 cmd_arg='objname',
                  description='Name of the object (must match the object '
                              'directory name)')
 # -----------------------------------------------------------------------------
@@ -115,6 +117,7 @@ CDict_inputs.add('OBJECTNAME', value=None, dtype=str, not_none=True,
 CDict_inputs.add('INSTRUMENTMODE', value=None, dtype=str, not_none=True,
                  source=__NAME__, user=True, active=True,
                  options=['JWST.NIRISS.SOSS', 'JWST.NIRISS.PRISM'],
+                 cmd_arg='instmode',
                  description='Instrument mode i.e. JWST.NIRISS.SOSS or '
                              'JWST.NIRISS.PRISM')
 # -----------------------------------------------------------------------------
@@ -127,16 +130,19 @@ CDict_inputs.add('SUFFIX', value='', dtype=str,
 # Define the parameter file that seeded this run 
 #     (not in yaml file: comment=None))
 CDict_inputs.add('PARAM_FILE', value=None, dtype=str, description=None,
-                 source=__NAME__, user=False, active=False)
+                 source=__NAME__, user=False, active=False,
+                 cmd_arg='param_file')
 # -----------------------------------------------------------------------------
 # Define the yaml name (for creating new param files only)
 CDict_inputs.add('YAML_NAME', value=None, dtype=str, description=None,
-                 source=__NAME__, user=False, active=False)
+                 source=__NAME__, user=False, active=False,
+                 cmd_arg='yaml_name')
 # -----------------------------------------------------------------------------
 # Define whether user wants all constants in yaml file created (doesn't go in
 #     yaml file itself: comment = None)
 CDict_inputs.add('ALL_CONSTANTS', value=False, dtype=bool,
                  source=__NAME__, user=False, active=False,
+                 cmd_arg='all_const',
                  description='Whether user wants all constants in yaml file')
 # -----------------------------------------------------------------------------
 # Special splash
@@ -297,7 +303,7 @@ CDict_paths.add('FITS_PATH', value=None, dtype=str,
 cgroup = 'SOSSISSE.PLOTS'
 CDict.add_group(cgroup, description='Definition of inputs related to plots')
 CDict_plots = ConstDict(cgroup)
-CDict.add('PLOTS', value=CDict_paths, dtype=ConstDict,
+CDict.add('PLOTS', value=CDict_plots, dtype=ConstDict,
           source=__NAME__, user=True, active=True,
           group=cgroup, description='')
 # -----------------------------------------------------------------------------

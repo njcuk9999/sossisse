@@ -318,6 +318,8 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # load from parameter file
     params = load_functions.load_from_yaml([param_file], params)
+    # push in from command line arguments
+    params = load_functions.load_from_cmd_args(params, args, kwargs)
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
