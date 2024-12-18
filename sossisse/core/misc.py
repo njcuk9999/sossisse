@@ -10,6 +10,7 @@ Created on 2024-08-13 at 11:23
 Rule: import onlys from sossisse.core.base
 """
 import os
+import sys
 import random
 import string
 from datetime import datetime
@@ -319,7 +320,7 @@ def unix_char_code() -> Tuple[float, str, str]:
 
 
 def get_input(parameter, dtype: str = 'str', comment: str = None,
-              options: List[Any] = None):
+              options: List[Any] = None, argname: str = None):
     """
     Ask the user for an input
 
@@ -329,6 +330,14 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
 
     :return:
     """
+    # deal with having arguments already
+    if argname is not None:
+        for argstr in sys.argv:
+            if f'--{argname}' in argstr:
+                return None
+            if f'--help' in argstr:
+                return None
+
     if comment is None:
         param_name = parameter
     else:

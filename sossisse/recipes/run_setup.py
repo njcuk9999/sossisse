@@ -9,9 +9,11 @@ Created on 2024-08-13 at 12:50
 
 @author: cook
 """
+import sys
 from typing import Union
 
 import sossisse
+from sossisse.core import const_funcs
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
@@ -34,34 +36,44 @@ INSTRUMENTMODES = list(select.INSTRUMENTS.keys())
 # Define functions
 # =============================================================================
 def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
-    # get log level
-    misc.LOG_LEVEL = 'SETUP'
-    # print message
-    misc.printc('*' * 80, msg_type='setup')
-    misc.printc('SOSSISSE SETUP', msg_type='setup')
-    misc.printc('*' * 80 + '\n\n', msg_type='setup')
-    # ----------------------------------------------------------------------
-    # Ask user for required parameters
-    # ----------------------------------------------------------------------
-    kwargs['sossiopath'] = misc.get_input('SOSSIOPATH', dtype='dir',
-                                          comment='the path to store data in')
-    kwargs['objname'] = misc.get_input('OBJECTNAME', dtype='str',
-                                          comment='the name of the object '
-                                                  'directory')
-    kwargs['instmode'] = misc.get_input('INSTRUMENTMODE', dtype='str',
-                                        comment='the instrument mode',
-                                        options=INSTRUMENTMODES)
-    kwargs['yaml_name'] = misc.get_input('YAML_NAME', dtype='str',
-                                         comment='the name of the yaml file'
-                                                 ' to create')
-    # define the prompt for all constants
-    allq = input('Do you want all constants for all modes/settings in the yaml '
-                 'file?\n[Y]es or [N]o >> ')
-    # deal with user response to prompt
-    if 'Y' in str(allq).upper():
-        kwargs['all_const'] = True
-    else:
-        kwargs['all_const'] = False
+    # deal with help mode (don't ask for arguments)
+    helpmode = const_funcs.prearg_check(['--help', '-h'])
+    # ask for arguments if not in help mode
+    if not helpmode:
+        # get log level
+        misc.LOG_LEVEL = 'SETUP'
+        # print message
+        misc.printc('*' * 80, msg_type='setup')
+        misc.printc('SOSSISSE SETUP', msg_type='setup')
+        misc.printc('*' * 80 + '\n\n', msg_type='setup')
+        # ----------------------------------------------------------------------
+        # Ask user for required parameters
+        # ----------------------------------------------------------------------
+        kwargs['sossiopath'] = misc.get_input('SOSSIOPATH', dtype='dir',
+                                              comment='the path to store '
+                                                      'data in',
+                                              argname='sossiopath')
+        kwargs['objname'] = misc.get_input('OBJECTNAME', dtype='str',
+                                              comment='the name of the object '
+                                                      'directory',
+                                           argname='objname')
+        kwargs['instmode'] = misc.get_input('INSTRUMENTMODE', dtype='str',
+                                            comment='the instrument mode',
+                                            options=INSTRUMENTMODES,
+                                            argname='instmode')
+        kwargs['yaml_name'] = misc.get_input('YAML_NAME', dtype='str',
+                                             comment='the name of the yaml '
+                                                     'file to create',
+                                             argname='yaml_name')
+        # define the prompt for all constants
+        if not const_funcs.prearg_check(['--all-const']):
+            allq = input('Do you want all constants for all modes/settings in '
+                         'the yaml file?\n[Y]es or [N]o >> ')
+            # deal with user response to prompt
+            if 'Y' in str(allq).upper():
+                kwargs['all_const'] = True
+            else:
+                kwargs['all_const'] = False
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------

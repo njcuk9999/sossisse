@@ -90,7 +90,7 @@ CDict.add('INPUTS', value=CDict_inputs, dtype=ConstDict,
 CDict_inputs.add('SOSSIOPATH', value=None, dtype=str, not_none=True,
                  source=__NAME__, user=True, active=True,
                  cmd_arg='sossiopath',
-                 description='The data directory (required)')
+                 description='The data directory')
 # -----------------------------------------------------------------------------
 # A unique identifier for this data set
 CDict_inputs.add('SID', value=None, dtype=str,
@@ -129,14 +129,19 @@ CDict_inputs.add('SUFFIX', value='', dtype=str,
 # -----------------------------------------------------------------------------
 # Define the parameter file that seeded this run 
 #     (not in yaml file: comment=None))
-CDict_inputs.add('PARAM_FILE', value=None, dtype=str, description=None,
+CDict_inputs.add('PARAM_FILE', value=None, dtype=str,
                  source=__NAME__, user=False, active=False,
-                 cmd_arg='param_file')
+                 cmd_arg='param_file',
+                 cmd_kwargs=dict(nargs='?', type=str, default=None,
+                                 action='store'),
+                 description='The parameter yaml file to use.')
 # -----------------------------------------------------------------------------
 # Define the yaml name (for creating new param files only)
-CDict_inputs.add('YAML_NAME', value=None, dtype=str, description=None,
+CDict_inputs.add('YAML_NAME', value=None, dtype=str,
                  source=__NAME__, user=False, active=False,
-                 cmd_arg='yaml_name')
+                 cmd_arg='yaml_name',
+                 description='The name of the yaml file to create '
+                             '(if not using a previous yaml file)')
 # -----------------------------------------------------------------------------
 # Define whether user wants all constants in yaml file created (doesn't go in
 #     yaml file itself: comment = None)

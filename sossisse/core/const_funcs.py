@@ -7,10 +7,10 @@ Created on 2024-08-13
 
 @author: cook
 """
-import argparse
+import sys
 import json
 import os
-from typing import Any, Dict, Optional, Union
+from typing import List, Union
 
 import yaml
 
@@ -39,37 +39,160 @@ WLOG = drs_log.wlog
 # Set the description of SOSSISSE
 DESCRIPTIONS = dict()
 DESCRIPTIONS['sossisse.recipes.run_sossisse'] = 'SOSSISSE - SOSS Inspired SpectroScopic Extraction'
-DESCRIPTIONS['sossisse.recipes.run_setup'] = 'Setup up SOSSISSE directories'
+DESCRIPTIONS['sossisse.recipes.run_setup'] = 'Setup up SOSSISSE directories/yaml file'
+
+INPUTARGS = dict()
+INPUTARGS['sossisse.recipes.run_setup'] = ['INPUTS.PARAM_FILE',
+                                           'INPUTS.SOSSIOPATH',
+                                           'INPUTS.OBJECTNAME',
+                                           'INPUTS.INSTRUMENTMODE',
+                                           'INPUTS.YAML_NAME',
+                                           'INPUTS.ALL_CONSTANTS']
+INPUTARGS['sossisse.recipes.run_sossisse'] = ['INPUTS.PARAM_FILE']
+
+
 # list of constants to exlucde from hash
 EXCLUDED_HASH_KEYS = ['SID']
 
 # =============================================================================
 # Define functions that use CDICT
 # =============================================================================
-def command_line_args(name: str = None) -> Dict[str, Any]:
+def get_parameters(param_file: str = None, no_yaml: bool = False,
+                   only_create: bool = False, log_level: str = None,
+                   **kwargs) -> Instrument:
     """
-    Get command line arguments
+    Get the parameters from the constants module
 
-    :return:
+    :param param_file: str, the parameter file to use (yaml file) if None
+                       must set no_yaml to True and provide all required
+                       arguments via kwargs
+    :param no_yaml: bool, if True we do not use a yaml file and the user must
+                    provide all required arguments via kwargs
+    :param only_create: bool, if True only create directories (not file
+                        operations)
+
+    :param kwargs: any additional keyword arguments
+
+    :return: Instrument, the correct instrument class with all parameters
     """
-    # deal with no name
-    if name is None:
-        name = ''
-    # if not a valid run recipe return empty dictionary
-    if name not in DESCRIPTIONS:
-        return dict()
-    # get desription from descriptions
-    description = DESCRIPTIONS[name]
-    # start parser
-    parser = argparse.ArgumentParser(description=description)
-    # add arguments
-    parser.add_argument('param_file', nargs='?', type=str, default=None,
-                        action='store',
-                        help='The parameter (yaml) file to use')
-    # parse arguments
-    args = parser.parse_args()
-    # return arguments
-    return vars(args)
+    # print splash
+    misc.sossart()
+    # -------------------------------------------------------------------------
+    # get the descriptions and inputs
+    description = DESCRIPTIONS.get(kwargs['__NAME__'], 'UNKNOWN')
+    inputs = INPUTARGS.get(kwargs['__NAME__'], None)
+    # get command line arguments
+    args = load_functions.cmd_args_from_clist(description, [constants.CDict],
+                                              inputs)
+    # -------------------------------------------------------------------------
+    # print progress
+    misc.printc('Getting parameters', msg_type='info')
+    # get the default arguments
+    params = load_functions.load_parameters([constants.CDict])
+    # set name
+    if kwargs['__NAME__'] is not None:
+        params['RECIPE_SHORT'] = kwargs['__NAME__']
+    # make sure we have the minimal log parameters from wlog
+    params = WLOG.minimal_params(params)
+    # -------------------------------------------------------------------------
+
+    # see if param_file is in command line args
+    if param_file is None and args['param_file'] is not None:
+        param_file = args['param_file']
+    # -------------------------------------------------------------------------
+    # deal with no param_file
+    # -------------------------------------------------------------------------
+    # if no_yaml is True we get all arguments from kwargs
+    if no_yaml:
+        # create tmp dir
+        tmp_path = os.path.expanduser('~/.sossisse/')
+        if not os.path.exists(tmp_path):
+            os.makedirs(tmp_path)
+        # get some parameters for the param file
+        _, _, rval = misc.unix_char_code()
+        # add the filename to the tmp_path
+        if params['INPUTS']['YAML_NAME'] is None:
+            tmp_path = os.path.join(tmp_path, f'params_{rval.lower()}.yaml')
+        else:
+            # make sure we have a yaml file
+            if not params['INPUTS']['YAML_NAME'].endswith('.yaml'):
+                params['INPUTS']['YAML_NAME'] += '.yaml'
+            # create the tmp path
+            tmp_path = os.path.join(tmp_path, params['INPUTS']['YAML_NAME'])
+        # re-create the yaml
+        param_file = create_yaml(params, log=False, outpath=tmp_path)
+    # otherwise we should display an error that we require a param file
+    elif param_file is None:
+        emsg = ('No parameter file defined - must be defined in '
+                'command line/function kwargs')
+        raise exceptions.SossisseFileException(emsg)
+    else:
+        tmp_path = os.path.realpath(param_file)
+    # -------------------------------------------------------------------------
+    # check if yaml file exists
+    if not os.path.exists(param_file):
+        emsg = f"Yaml file {param_file} does not exist"
+        raise exceptions.SossisseFileException(emsg)
+    # -------------------------------------------------------------------------
+    # print that we are using yaml file
+    if not no_yaml:
+        misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
+    # -------------------------------------------------------------------------
+    # load from parameter file
+    params = load_functions.load_from_yaml([param_file], params)
+    # push in from command line arguments
+    params = load_functions.load_from_cmd_args(params, args, kwargs)
+    # -------------------------------------------------------------------------
+    # deal with special parameters that need checking
+    # -------------------------------------------------------------------------
+    lm_params = params['WLC']['LMODEL']
+    # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
+    if lm_params['FIT_ZERO_POINT_OFFSET'] and lm_params['FIT_QUAD_TERM']:
+        emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
+        raise exceptions.SossisseConstantException(emsg)
+    # -------------------------------------------------------------------------
+    # force global log level to match
+    if log_level is not None:
+        misc.LOC_LEVEL = str(log_level).upper()
+    else:
+        misc.LOG_LEVEL = str(params['INPUTS']['LOG_LEVEL']).upper()
+    # -------------------------------------------------------------------------
+    # finally add the param file to the params
+    params['INPUTS']['PARAM_FILE'] = os.path.abspath(param_file)
+    params['INPUTS'].set_source('PARAM_FILE', __NAME__)
+    # get run time parameters (set in the code)
+    params = run_time_params(params, only_create=only_create)
+    # -------------------------------------------------------------------------
+    # copy parameter file to other path
+    # -------------------------------------------------------------------------
+    if not only_create:
+        param_file_basename = os.path.basename(param_file)
+        param_file_csv = str(os.path.join(params['PATHS']['OTHER_PATH'],
+                                          param_file_basename))
+        io.copy_file(param_file, param_file_csv)
+    # -------------------------------------------------------------------------
+    # re-create the yaml with updated parameters but at the new path
+    if no_yaml:
+        _ = create_yaml(params, log=False, outpath=tmp_path)
+    # create the yaml file in the directory
+    if only_create:
+        outpath = str(os.path.join(params['PATHS']['YAMLPATH'],
+                                   os.path.basename(tmp_path)))
+        _ = create_yaml(params, log=False, outpath=outpath)
+        # update param file path
+        params['INPUTS']['PARAM_FILE'] = os.path.abspath(outpath)
+    # -------------------------------------------------------------------------
+    # create a copy of the yaml file in the object path
+    _ = create_yaml(params, log=False)
+    # -------------------------------------------------------------------------
+    # create hash file (for quick check on SID
+    create_hash(params)
+    # -------------------------------------------------------------------------
+    # now we load the instrument specific parameters
+    instrument = load_instrument(params)
+    # return the parameters
+    return instrument
+
 
 
 def run_time_params(params: ParamDict, only_create: bool = False
@@ -240,137 +363,6 @@ def run_time_params(params: ParamDict, only_create: bool = False
     return params
 
 
-def get_parameters(param_file: str = None, no_yaml: bool = False,
-                   only_create: bool = False, log_level: str = None,
-                   name: Optional[str] = None,
-                   **kwargs) -> Instrument:
-    """
-    Get the parameters from the constants module
-
-    :param param_file: str, the parameter file to use (yaml file) if None
-                       must set no_yaml to True and provide all required
-                       arguments via kwargs
-    :param no_yaml: bool, if True we do not use a yaml file and the user must
-                    provide all required arguments via kwargs
-    :param only_create: bool, if True only create directories (not file
-                        operations)
-
-    :param kwargs: any additional keyword arguments
-
-    :return: Instrument, the correct instrument class with all parameters
-    """
-    # print splash
-    misc.sossart()
-    # print progress
-    misc.printc('Getting parameters', msg_type='info')
-    # get the default arguments
-    params = load_functions.load_parameters([constants.CDict])
-    # set name
-    if kwargs['__NAME__'] is not None:
-        params['RECIPE_SHORT'] = name
-    # make sure we have the minimal log parameters from wlog
-    params = WLOG.minimal_params(params)
-    # -------------------------------------------------------------------------
-    # get command line arguments
-    args = command_line_args(kwargs.get('__NAME__', None))
-
-    # see if param_file is in command line args
-    if param_file is None and args['param_file'] is not None:
-        param_file = args['param_file']
-    # -------------------------------------------------------------------------
-    # deal with no param_file
-    # -------------------------------------------------------------------------
-    # if no_yaml is True we get all arguments from kwargs
-    if no_yaml:
-        # create tmp dir
-        tmp_path = os.path.expanduser('~/.sossisse/')
-        if not os.path.exists(tmp_path):
-            os.makedirs(tmp_path)
-        # get some parameters for the param file
-        _, _, rval = misc.unix_char_code()
-        # add the filename to the tmp_path
-        if params['INPUTS']['YAML_NAME'] is None:
-            tmp_path = os.path.join(tmp_path, f'params_{rval.lower()}.yaml')
-        else:
-            # make sure we have a yaml file
-            if not params['INPUTS']['YAML_NAME'].endswith('.yaml'):
-                params['INPUTS']['YAML_NAME'] += '.yaml'
-            # create the tmp path
-            tmp_path = os.path.join(tmp_path, params['INPUTS']['YAML_NAME'])
-        # re-create the yaml
-        param_file = create_yaml(params, log=False, outpath=tmp_path)
-    # otherwise we should display an error that we require a param file
-    elif param_file is None:
-        emsg = ('No parameter file defined - must be defined in '
-                'command line/function kwargs')
-        raise exceptions.SossisseFileException(emsg)
-    else:
-        tmp_path = os.path.realpath(param_file)
-    # -------------------------------------------------------------------------
-    # check if yaml file exists
-    if not os.path.exists(param_file):
-        emsg = f"Yaml file {param_file} does not exist"
-        raise exceptions.SossisseFileException(emsg)
-    # -------------------------------------------------------------------------
-    # print that we are using yaml file
-    if not no_yaml:
-        misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
-    # -------------------------------------------------------------------------
-    # load from parameter file
-    params = load_functions.load_from_yaml([param_file], params)
-    # push in from command line arguments
-    params = load_functions.load_from_cmd_args(params, args, kwargs)
-    # -------------------------------------------------------------------------
-    # deal with special parameters that need checking
-    # -------------------------------------------------------------------------
-    lm_params = params['WLC']['LMODEL']
-    # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
-    if lm_params['FIT_ZERO_POINT_OFFSET'] and lm_params['FIT_QUAD_TERM']:
-        emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
-        raise exceptions.SossisseConstantException(emsg)
-    # -------------------------------------------------------------------------
-    # force global log level to match
-    if log_level is not None:
-        misc.LOC_LEVEL = str(log_level).upper()
-    else:
-        misc.LOG_LEVEL = str(params['INPUTS']['LOG_LEVEL']).upper()
-    # -------------------------------------------------------------------------
-    # finally add the param file to the params
-    params['INPUTS']['PARAM_FILE'] = os.path.abspath(param_file)
-    params['INPUTS'].set_source('PARAM_FILE', __NAME__)
-    # get run time parameters (set in the code)
-    params = run_time_params(params, only_create=only_create)
-    # -------------------------------------------------------------------------
-    # copy parameter file to other path
-    # -------------------------------------------------------------------------
-    if not only_create:
-        param_file_basename = os.path.basename(param_file)
-        param_file_csv = str(os.path.join(params['PATHS']['OTHER_PATH'],
-                                          param_file_basename))
-        io.copy_file(param_file, param_file_csv)
-    # -------------------------------------------------------------------------
-    # re-create the yaml with updated parameters but at the new path
-    if no_yaml:
-        _ = create_yaml(params, log=False, outpath=tmp_path)
-    # create the yaml file in the directory
-    if only_create:
-        outpath = str(os.path.join(params['PATHS']['YAMLPATH'],
-                                   os.path.basename(tmp_path)))
-        _ = create_yaml(params, log=False, outpath=outpath)
-        # update param file path
-        params['INPUTS']['PARAM_FILE'] = os.path.abspath(outpath)
-    # -------------------------------------------------------------------------
-    # create a copy of the yaml file in the object path
-    _ = create_yaml(params, log=False)
-    # -------------------------------------------------------------------------
-    # create hash file (for quick check on SID
-    create_hash(params)
-    # -------------------------------------------------------------------------
-    # now we load the instrument specific parameters
-    instrument = load_instrument(params)
-    # return the parameters
-    return instrument
-
 
 def create_yaml(params: ParamDict, log: bool = True,
                 outpath: str = None) -> str:
@@ -405,6 +397,26 @@ def create_yaml(params: ParamDict, log: bool = True,
 # =============================================================================
 # Hash functions
 # =============================================================================
+def prearg_check(args: List[str]) -> bool:
+    """
+    Pre-argument check - check if any of the arguments are in the system
+    arguments return True
+
+    :param args: List[str], the arguments to check for
+
+    :return:
+    """
+    # loop around args to check
+    for arg in args:
+        # loop around system arguments
+        for sysarg in sys.argv[1:]:
+            # if we find our argument return True
+            if arg in sysarg:
+                return True
+    # if we get here return False
+    return False
+
+
 def create_hash(params: ParamDict):
     """
     Create a hash file for the current run

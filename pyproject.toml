@@ -18,8 +18,8 @@ Homepage = 'http://apero.exoplanets.ca'
 Repository = 'https://github.com/njcuk9999/sossisse'
 
 [project.scripts]
-sossisse_setup = "sossisse.recipes.run_sossisse:run"
-sossisse_run = "sossisse.recipes.run_setup:run"
+sossisse_setup = "sossisse.recipes.run_setup:run"
+sossisse_run = "sossisse.recipes.run_sossisse:run"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
