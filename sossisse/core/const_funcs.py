@@ -81,27 +81,22 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # get the descriptions and inputs
     description = DESCRIPTIONS.get(kwargs['__NAME__'], 'UNKNOWN')
     inputs = INPUTARGS.get(kwargs['__NAME__'], None)
-    # get command line arguments
-    args = load_functions.cmd_args_from_clist(description, [constants.CDict],
-                                              inputs)
     # -------------------------------------------------------------------------
-    # print progress
-    misc.printc('Getting parameters', msg_type='info')
-    # get the default arguments
-    params = load_functions.load_parameters([constants.CDict])
-    # set name
-    if kwargs['__NAME__'] is not None:
-        params['RECIPE_SHORT'] = kwargs['__NAME__']
-    # make sure we have the minimal log parameters from wlog
-    params = WLOG.minimal_params(params)
-    # -------------------------------------------------------------------------
-
-    # see if param_file is in command line args
-    if param_file is None and args['param_file'] is not None:
-        param_file = args['param_file']
+    # get parameters
+    params = load_functions.get_all_params(name=__NAME__,
+                                           description=description,
+                                           inputargs=inputs,
+                                           param_file_path='INPUTS.PARAM_FILE',
+                                           config_list=[constants.CDict],
+                                           from_file=not no_yaml,
+                                           kwargs=kwargs)
+    # ask user for any missing arguments
+    params = load_functions.ask_for_missing_args(params)
     # -------------------------------------------------------------------------
     # deal with no param_file
     # -------------------------------------------------------------------------
+    # get param file
+    param_file = params['INPUTS']['PARAM_FILE']
     # if no_yaml is True we get all arguments from kwargs
     if no_yaml:
         # create tmp dir
@@ -137,11 +132,6 @@ def get_parameters(param_file: str = None, no_yaml: bool = False,
     # print that we are using yaml file
     if not no_yaml:
         misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
-    # -------------------------------------------------------------------------
-    # load from parameter file
-    params = load_functions.load_from_yaml([param_file], params)
-    # push in from command line arguments
-    params = load_functions.load_from_cmd_args(params, args, kwargs)
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
@@ -310,6 +300,11 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # deal with only creating directory - do not do this step
     if not only_create:
+        # deal with no files
+        if general['FILES'] is None:
+            emsg = 'Must set FILES parameter in yaml file: {0}'
+            eargs = [inputs['PARAM_FILE']]
+            raise exceptions.SossisseFileException(emsg.format(*eargs))
         # get the list of input files
         basenames = list(general['FILES'])
         # loop around basenames, check they are on disk and convert to abs paths

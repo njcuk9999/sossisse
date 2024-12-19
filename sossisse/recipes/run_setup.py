@@ -46,34 +46,6 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
         misc.printc('*' * 80, msg_type='setup')
         misc.printc('SOSSISSE SETUP', msg_type='setup')
         misc.printc('*' * 80 + '\n\n', msg_type='setup')
-        # ----------------------------------------------------------------------
-        # Ask user for required parameters
-        # ----------------------------------------------------------------------
-        kwargs['sossiopath'] = misc.get_input('SOSSIOPATH', dtype='dir',
-                                              comment='the path to store '
-                                                      'data in',
-                                              argname='sossiopath')
-        kwargs['objname'] = misc.get_input('OBJECTNAME', dtype='str',
-                                              comment='the name of the object '
-                                                      'directory',
-                                           argname='objname')
-        kwargs['instmode'] = misc.get_input('INSTRUMENTMODE', dtype='str',
-                                            comment='the instrument mode',
-                                            options=INSTRUMENTMODES,
-                                            argname='instmode')
-        kwargs['yaml_name'] = misc.get_input('YAML_NAME', dtype='str',
-                                             comment='the name of the yaml '
-                                                     'file to create',
-                                             argname='yaml_name')
-        # define the prompt for all constants
-        if not const_funcs.prearg_check(['--all-const']):
-            allq = input('Do you want all constants for all modes/settings in '
-                         'the yaml file?\n[Y]es or [N]o >> ')
-            # deal with user response to prompt
-            if 'Y' in str(allq).upper():
-                kwargs['all_const'] = True
-            else:
-                kwargs['all_const'] = False
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------

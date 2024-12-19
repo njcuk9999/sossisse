@@ -148,7 +148,7 @@ CDict_inputs.add('YAML_NAME', value=None, dtype=str,
 CDict_inputs.add('ALL_CONSTANTS', value=False, dtype=bool,
                  source=__NAME__, user=False, active=False,
                  cmd_arg='all_const',
-                 description='Whether user wants all constants in yaml file')
+                 description='Add all constants to yaml file')
 # -----------------------------------------------------------------------------
 # Special splash
 CDict_inputs.add('SSPLASH', value=False, dtype=bool,
@@ -165,10 +165,10 @@ CDict.add('GENERAL', value=CDict_gen, dtype=ConstDict, source=__NAME__,
           user=True, active=True, group=cgroup, description='')
 # -----------------------------------------------------------------------------
 # Raw files
-CDict_gen.add('FILES', value=None, dtype=list, dtypei=str, not_none=True,
+CDict_gen.add('FILES', value=None, dtype=list, dtypei=str, not_none=False,
               source=__NAME__, user=True, active=True,
               description='List of files to be processed in form: '
-                          '\nFILES:\n-file1\n-file2\n-file3')
+                          '\nFILES:\n - file1\n - file2\n - file3')
 # -----------------------------------------------------------------------------
 # background file --> leave as None if the is no background available for
 #                     the mode - if empty DO_BACKGROUND is set to False
@@ -356,7 +356,7 @@ CDict_wlc.add('INPUTS', value=CDict_wlc_inputs, dtype=ConstDict,
 # DQ flags that we should use (list)
 CDict_wlc_inputs.add('VALID_DQ', value=None, dtype=list, dtypei=int,
                      source=__NAME__, user=True, active=True,
-                     not_none=True, minimum=0,
+                     not_none=False, minimum=0,
                      description='DQ flags that we should use (list)'
                                  ' e.g. \n -0 \n -2')
 # -----------------------------------------------------------------------------
@@ -365,7 +365,7 @@ CDict_wlc_inputs.add('VALID_DQ', value=None, dtype=list, dtypei=int,
 # formally "it"
 CDict_wlc_inputs.add('CONTACT_FRAMES', value=None, dtype=list, dtypei=int,
                      source=__NAME__, user=True, active=True,
-                     not_none=True, length=4, minimum=0,
+                     not_none=False, length=4, minimum=0,
                      description='Define the Nth frame for 1st contact [it1], '
                                  '2nd contact [it2] ... through 4th contact '
                                  'e.g. \n -90 \n -97 \n -103 \n -110')
