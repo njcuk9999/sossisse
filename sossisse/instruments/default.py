@@ -1613,7 +1613,7 @@ class Instrument:
                             'info')
                 transit_invsout = self.load_data(tmp_transit_invsout)
                 # only look for fit pca file if we are fitting pca
-                if self.params['WLC']['INPUTS']['FIT_PCA']:
+                if self.params['WLC']['LMODEL']['FIT_PCA']:
                     misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
                     pcas = self.load_data(tmp_pcas)
                 else:
@@ -1757,7 +1757,7 @@ class Instrument:
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
         # get the contact points
-        cframes = self.params['CONTACT_FRAMES']
+        cframes = self.params['WLC']['INPUTS']['CONTACT_FRAMES']
         # deal with no cframes set (can happen)
         if cframes is None:
             # set flag
@@ -2404,7 +2404,7 @@ class Instrument:
         # get parameters
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         output_names = self.get_variable('OUTPUT_NAMES', func_name)
-        zpoint = self.params['FIT_ZERO_POINT_OFFSET']
+        zpoint = self.params['WLC']['LMODEL']['FIT_ZERO_POINT_OFFSET']
         # vectors to keep track of the rotation/amplitudes/dx/dy
         all_recon = np.zeros_like(cube)
         # ---------------------------------------------------------------------
@@ -3212,7 +3212,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_results()'
         # deal with not saving results --> return
-        if not self.params['SAVE_RESULTS']:
+        if not self.params['GENERAL']['SAVE_RESULTS']:
             # print message saving results are not saved 
             msg = 'Results not saved as SAVE_RESUILTS is False'
             misc.printc(msg, 'info')
@@ -3367,7 +3367,7 @@ class Instrument:
             # storage for time info
             time_arr = []
             # loop around raw files
-            for filename in self.params['FILES']:
+            for filename in self.params['GENERAL']['FILES']:
                 # get time array data
                 tmp_table = io.load_table(filename, hdu='INT_TIMES')
                 # get the int_mid_bjd_tdb column

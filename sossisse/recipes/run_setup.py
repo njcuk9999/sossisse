@@ -35,23 +35,12 @@ INSTRUMENTMODES = list(select.INSTRUMENTS.keys())
 # =============================================================================
 # Define functions
 # =============================================================================
-def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
-    # deal with help mode (don't ask for arguments)
-    helpmode = const_funcs.prearg_check(['--help', '-h'])
-    # ask for arguments if not in help mode
-    if not helpmode:
-        # get log level
-        misc.LOG_LEVEL = 'SETUP'
-        # print message
-        misc.printc('*' * 80, msg_type='setup')
-        misc.printc('SOSSISSE SETUP', msg_type='setup')
-        misc.printc('*' * 80 + '\n\n', msg_type='setup')
+def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------
     try:
         inst = sossisse.get_parameters(__NAME__=__NAME__,
-                                       param_file=param_file,
                                        no_yaml=True,
                                        only_create=True,
                                        log_level='setup',
@@ -59,6 +48,13 @@ def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
     except exceptions.SossisseException as e:
         misc.printc(e.message, msg_type='error')
         return None
+    # ----------------------------------------------------------------------
+    # get log level
+    misc.LOG_LEVEL = 'SETUP'
+    # print message
+    misc.printc('*' * 80, msg_type='setup')
+    misc.printc('SOSSISSE SETUP', msg_type='setup')
+    misc.printc('*' * 80 + '\n\n', msg_type='setup')
     # ----------------------------------------------------------------------
     # give user some instructions on what to do next
     # ----------------------------------------------------------------------

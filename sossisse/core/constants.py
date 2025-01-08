@@ -35,7 +35,7 @@ CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
 #                      dtype=DTYPE, dtypeio=DTYPEO,
 #                      minimum=MINIMUM, maximum=MAXIMUM, length=LENGTH,
 #                      options=OPTIONS, 
-#                      required=REQUIRED, 
+#                      not_none=NOT_NONE,
 #                      comment=COMMENT, active=ACTIVE,
 #                      modes=MODES)
 #
@@ -47,7 +47,7 @@ CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
 #   MAXIMUM = the maximum value (if DTYPE = int or float) [Default = None]
 #   LENGTH = the length of the list (if DTYPE = list) [Default = None]
 #   OPTIONS = a list of options to choose from (if not None) [Default = None]
-#   REQUIRED = whether the key is required in the yaml file [Default = False]
+#   NOT_NONE = whether the key is required in the yaml file [Default = False]
 #   COMMENT = a comment to add to the yaml file [Default = None] if None not 
 #              added to yaml file
 #   ACTIVE = whether the key is active (i.e. used in the code) [Default = False]
@@ -224,7 +224,7 @@ CDict_gen.add('SAVE_RESULTS', value=True, dtype=bool,
               description='Save results at the end')
 # -----------------------------------------------------------------------------
 # Define whether to use pixel level de-trending
-CDict_gen.add('TRACE_ORDERS', value=False, dtype=bool,
+CDict_gen.add('TRACE_ORDERS', value=[1,2], dtype=list, dtypei=int,
               source=__NAME__, user=True, active=True,
               description='Define which orders to use e.g. \n - 1 \n - 2')
 

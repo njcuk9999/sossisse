@@ -388,6 +388,9 @@ def plot_stability(inst: Any, table: Table):
     output_names = inst.get_variable('OUTPUT_NAMES', func_name)
     output_units = inst.get_variable('OUTPUT_UNITS', func_name)
     output_factor = inst.get_variable('OUTPUT_FACTOR', func_name)
+    # get object name and suffix
+    objname = inst.params['INPUTS']['OBJECTNAME']
+    suffix = inst.params['INPUTS']['SUFFIX']
     # -------------------------------------------------------------------------
     # get the number of outputs
     noutputs = len(output_names)
@@ -463,7 +466,7 @@ def plot_stability(inst: Any, table: Table):
         # ---------------------------------------------------------------------
         # get the title for the plot
         if it == 0:
-            title = f'{inst.params["OBJECTNAME"]} -- {inst.params["SUFFIX"]}\n'
+            title = f'{objname} -- {suffix}\n'
             title += domain
             title += f'rms: {rms_phot: .2f} ppm'
         else:
@@ -493,6 +496,9 @@ def plot_transit(inst: Any, table: Table):
     oot_domain = inst.get_variable('OOT_DOMAIN', func_name)
     # get wlc_params
     wlc_params = inst.params['WLC']
+    # get object name and suffix
+    objname = inst.params['INPUTS']['OBJECTNAME']
+    suffix = inst.params['INPUTS']['SUFFIX']
     # get the polynomial degree for the transit baseline
     poly_order = wlc_params['GENERAL']['TRANSIT_BASELINE_POLYORD']
     # -------------------------------------------------------------------------
@@ -559,7 +565,7 @@ def plot_transit(inst: Any, table: Table):
     # get the y limits
     ylim = cal_y_limits(value, errvalue)
     # get the title for the plot
-    title = f'{inst.params["OBJECTNAME"]} -- {inst.params["SUFFIX"]}\n'
+    title = f'{objname} -- {suffix}\n'
     title += f'{mid_transit_depth * 1e6:.0f} ppm'
 
     # set the axis
@@ -605,6 +611,9 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # get resolution_bin
     res_bin = inst.params['SPEC_EXT']['RESOLUTION_BIN']
+    # get object name and suffix
+    objname = inst.params['INPUTS']['OBJECTNAME']
+    suffix = inst.params['INPUTS']['SUFFIX']
     # loop around tarce orders
     for trace_order in plot_storage.keys():
         # deal with trace order
@@ -643,8 +652,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
                     label=binlabel)
     # -------------------------------------------------------------------------
     # construct title
-    objname = inst.params['INPUTS']['OBJECTNAME']
-    title = f'{objname} -- {inst.params["SUFFIX"]}'
+    title = f'{objname} -- {suffix}'
     # set the axis labels
     frame.set(xlabel=r'Wavelength [$\mu$m]', ylabel='ppm',
               title=title)

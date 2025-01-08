@@ -57,7 +57,7 @@ EXCLUDED_HASH_KEYS = ['SID']
 # =============================================================================
 # Define functions that use CDICT
 # =============================================================================
-def get_parameters(param_file: str = None, no_yaml: bool = False,
+def get_parameters(no_yaml: bool = False,
                    only_create: bool = False, log_level: str = None,
                    **kwargs) -> Instrument:
     """

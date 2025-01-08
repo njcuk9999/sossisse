@@ -29,13 +29,11 @@ __authors__ = base.__authors__
 # =============================================================================
 # Define functions
 # =============================================================================
-def main(param_file: str = None, **kwargs) -> Union[Instrument, None]:
+def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------
-    inst = sossisse.get_parameters(__NAME__=__NAME__,
-                                   param_file=param_file,
-                                   **kwargs)
+    inst = sossisse.get_parameters(__NAME__=__NAME__, **kwargs)
 
     # ----------------------------------------------------------------------
     # white light curve
