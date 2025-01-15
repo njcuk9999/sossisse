@@ -96,7 +96,7 @@ def get_parameters(no_yaml: bool = False,
     # deal with no param_file
     # -------------------------------------------------------------------------
     # get param file
-    param_file = params['INPUTS']['PARAM_FILE']
+    param_file = params['INPUTS.PARAM_FILE']
     # if no_yaml is True we get all arguments from kwargs
     if no_yaml:
         # create tmp dir
@@ -106,14 +106,14 @@ def get_parameters(no_yaml: bool = False,
         # get some parameters for the param file
         _, _, rval = misc.unix_char_code()
         # add the filename to the tmp_path
-        if params['INPUTS']['YAML_NAME'] is None:
+        if params['INPUTS.YAML_NAME'] is None:
             tmp_path = os.path.join(tmp_path, f'params_{rval.lower()}.yaml')
         else:
             # make sure we have a yaml file
-            if not params['INPUTS']['YAML_NAME'].endswith('.yaml'):
-                params['INPUTS']['YAML_NAME'] += '.yaml'
+            if not params['INPUTS.YAML_NAME'].endswith('.yaml'):
+                params['INPUTS.YAML_NAME'] += '.yaml'
             # create the tmp path
-            tmp_path = os.path.join(tmp_path, params['INPUTS']['YAML_NAME'])
+            tmp_path = os.path.join(tmp_path, params['INPUTS.YAML_NAME'])
         # re-create the yaml
         param_file = create_yaml(params, log=False, outpath=tmp_path)
     # otherwise we should display an error that we require a param file
@@ -135,7 +135,7 @@ def get_parameters(no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
-    lm_params = params['WLC']['LMODEL']
+    lm_params = params.get('WLC.LMODEL')
     # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
     if lm_params['FIT_ZERO_POINT_OFFSET'] and lm_params['FIT_QUAD_TERM']:
         emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
@@ -145,11 +145,11 @@ def get_parameters(no_yaml: bool = False,
     if log_level is not None:
         misc.LOC_LEVEL = str(log_level).upper()
     else:
-        misc.LOG_LEVEL = str(params['INPUTS']['LOG_LEVEL']).upper()
+        misc.LOG_LEVEL = str(params['INPUTS.LOG_LEVEL']).upper()
     # -------------------------------------------------------------------------
     # finally add the param file to the params
-    params['INPUTS']['PARAM_FILE'] = os.path.abspath(param_file)
-    params['INPUTS'].set_source('PARAM_FILE', __NAME__)
+    params['INPUTS.PARAM_FILE'] = os.path.abspath(param_file)
+    params.set_source('INPUTS.PARAM_FILE', __NAME__)
     # get run time parameters (set in the code)
     params = run_time_params(params, only_create=only_create)
     # -------------------------------------------------------------------------
@@ -157,7 +157,7 @@ def get_parameters(no_yaml: bool = False,
     # -------------------------------------------------------------------------
     if not only_create:
         param_file_basename = os.path.basename(param_file)
-        param_file_csv = str(os.path.join(params['PATHS']['OTHER_PATH'],
+        param_file_csv = str(os.path.join(params['PATHS.OTHER_PATH'],
                                           param_file_basename))
         io.copy_file(param_file, param_file_csv)
     # -------------------------------------------------------------------------
@@ -166,11 +166,11 @@ def get_parameters(no_yaml: bool = False,
         _ = create_yaml(params, log=False, outpath=tmp_path)
     # create the yaml file in the directory
     if only_create:
-        outpath = str(os.path.join(params['PATHS']['YAMLPATH'],
+        outpath = str(os.path.join(params['PATHS.YAMLPATH'],
                                    os.path.basename(tmp_path)))
         _ = create_yaml(params, log=False, outpath=outpath)
         # update param file path
-        params['INPUTS']['PARAM_FILE'] = os.path.abspath(outpath)
+        params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
     # -------------------------------------------------------------------------
     # create a copy of the yaml file in the object path
     _ = create_yaml(params, log=False)
@@ -199,14 +199,14 @@ def run_time_params(params: ParamDict, only_create: bool = False
     func_name = f'{__NAME__}.run_time_params()'
 
     # get input parameters
-    inputs = params['INPUTS']
-    general = params['GENERAL']
-    paths = params['PATHS']
+    inputs = params.get('INPUTS')
+    general = params.get('GENERAL')
+    paths = params.get('PATHS')
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
-    if not params['PLOTS']['SHOW']:
-        params['PLOTS']['SHOW'] = os.getlogin() in params['PLOTS']['USER_SHOW']
-        params['PLOTS'].set_source('SHOW', func_name)
+    if not params['PLOTS.SHOW']:
+        params['PLOTS.SHOW'] = os.getlogin() in params['PLOTS.USER_SHOW']
+        params.set_source('PLOTS.SHOW', func_name)
     # -------------------------------------------------------------------------
     # set up core paths
     # -------------------------------------------------------------------------
@@ -358,7 +358,6 @@ def run_time_params(params: ParamDict, only_create: bool = False
     return params
 
 
-
 def create_yaml(params: ParamDict, log: bool = True,
                 outpath: str = None) -> str:
     """
@@ -371,7 +370,7 @@ def create_yaml(params: ParamDict, log: bool = True,
     """
     # get the output path
     if outpath is None:
-        outpath = os.path.join(params['PATHS']['OTHER_PATH'],
+        outpath = os.path.join(params['PATHS.OTHER_PATH'],
                                'params_backup.yaml')
     # -------------------------------------------------------------------------
     # print progress
@@ -421,11 +420,11 @@ def create_hash(params: ParamDict):
     :return: None writes hashlist file
     """
     # get the hash file path
-    hashpath = os.path.join(params['PATHS']['OBJECTPATH'], 'hashlist.txt')
+    hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
     # get the current SID
-    sid = params['INPUTS']['SID']
+    sid = params['INPUTS.SID']
     # get the current yaml file path
-    yaml_file = params['INPUTS']['PARAM_FILE']
+    yaml_file = params['INPUTS.PARAM_FILE']
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
@@ -470,9 +469,9 @@ def hash_match(params: ParamDict) -> Union[str, None]:
     :return: None if SID or hashlist.txt not found, otherwise returns the SID
     """
     # get the hash file path
-    hashpath = os.path.join(params['PATHS']['OBJECTPATH'], 'hashlist.txt')
+    hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
     # get the current yaml file path
-    yaml_file = params['INPUTS']['PARAM_FILE']
+    yaml_file = params['INPUTS.PARAM_FILE']
     # if we don't have a current yaml file return
     if not os.path.exists(yaml_file):
         return None

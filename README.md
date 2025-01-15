@@ -8,6 +8,7 @@
 4. [Description of code](#4-description-of-code)
 5. [Example data set](#5-example-data-set)
 6. [Understanding outputs](#6-understanding-outputs)
+7. [Dev mode](#7-dev-mode)
 
 ---
 
@@ -286,6 +287,27 @@ SOSSISSE is to get a very accurate *differential* extraction of the planet spect
 ![SED-order 2](resources/sed_ord2.png)
 
 **Figure 4.** Spectral energy distribution for each order.
+
+[Back to top](#table-of-contents)
+
+---
+
+## 7. Dev mode
+
+For dev mode (editable install of both apero-core and sossisse) please run the following:
+
+```bash
+
+git clone git@github.com:njcuk9999/apero-drs.git
+git clone git@github.com:njcuk9999/sossisse.git
+
+pip install -U -e ./apero-drs/apero-core
+pip install -U -e ./sossisse[dev]
+```
+
+
+
+```bash
 
 [Back to top](#table-of-contents)
 
