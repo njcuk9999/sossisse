@@ -234,9 +234,9 @@ class Instrument:
         meta_data = dict()
         tag1, tag2 = '', ''
         # get wlc general properties
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        wlc_gen_params = self.params.get('WLC.GENERAL')
         # get cds_ids
-        cds_ids = self.params['WLC']['INPUTS']['CDS_IDS']
+        cds_ids = self.params['WLC.INPUTS.CDS_IDS']
         # ---------------------------------------------------------------------
         # deal with CDS data
         # ---------------------------------------------------------------------
@@ -259,7 +259,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # deal with wlc domain
         # ---------------------------------------------------------------------
-        wlc_domain = self.params['GENERAL']['WLC_DOMAIN']
+        wlc_domain = self.params['GENERAL.WLC_DOMAIN']
 
         if wlc_domain is not None:
             # add to tag 1
@@ -278,14 +278,14 @@ class Instrument:
         meta_data['OOTMED'] = (wlc_gen_params['MEDIAN_OOT'],
                                'Median out of transit')
         # get the linear model params
-        lm_params = self.params['WLC']['LMODEL']
+        lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
         # deal with background correction
         # ---------------------------------------------------------------------
         # deal with DO_BACKGROUND set
-        if self.params['GENERAL']['DO_BACKGROUND']:
+        if self.params['GENERAL.DO_BACKGROUND']:
             # get variable
-            do_background = self.params['GENERAL']['DO_BACKGROUND']
+            do_background = self.params['GENERAL.DO_BACKGROUND']
             # add to tag 1
             tag1 += '_bkg{0}'.format(int(do_background))
             # add to meta data
@@ -327,7 +327,12 @@ class Instrument:
         # add the transit points
         # ---------------------------------------------------------------------
         # get contact frames
-        cframes = self.params['WLC']['INPUTS']['CONTACT_FRAMES']
+        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
+        # check if we have contact frames
+        if cframes is None:
+            emsg = ('WLC.INPUTS.CONTACT_FRAMES not set. Please set the '
+                    'contact frames in the yaml file.')
+            raise exceptions.SossisseConstantException(emsg)
         # add to tag 1
         tag1 += '_it1-{0}-it4-{3}'.format(*cframes)
         tag2 += tag1 + '_it2-{1}-it3-{2}'.format(*cframes)
@@ -340,7 +345,7 @@ class Instrument:
         # deal with removing trend from out-of-transit data
         # ---------------------------------------------------------------------
         # get the spec extraction params
-        spec_ext_params = self.params['SPEC_EXT']
+        spec_ext_params = self.params.get('SPEC_EXT')
         # add to tag 2
         tag2 += '_remoottrend{0}'.format(int(spec_ext_params['REMOVE_TREND']))
         # add to meta data
@@ -381,9 +386,9 @@ class Instrument:
         tag1 = self.get_variable('TAG1', func_name)
         tag2 = self.get_variable('TAG2', func_name)
         # get file paths
-        temppath = self.params['PATHS']['TEMP_PATH']
-        otherpath = self.params['PATHS']['OTHER_PATH']
-        fitspath = self.params['PATHS']['FITS_PATH']
+        temppath = self.params['PATHS.TEMP_PATH']
+        otherpath = self.params['PATHS.OTHER_PATH']
+        fitspath = self.params['PATHS.FITS_PATH']
         # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
@@ -527,7 +532,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # loop around files and push them into the cube/err/dq
         # ---------------------------------------------------------------------
-        for ifile, filename in enumerate(self.params['GENERAL']['FILES']):
+        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
             # load the data
             with fits.open(filename) as hdul:
                 # get data from CDS format
@@ -562,7 +567,7 @@ class Instrument:
         :return:
         """
         # get wlc inputs
-        wlc_inputs = self.params['WLC']['INPUTS']
+        wlc_inputs = self.params['WLC.INPUTS']
         # get definitions of first and last from params['CDS_IDS']
         first = wlc_inputs['CDS_IDS'][0]
         last = wlc_inputs['CDS_IDS'][1]
@@ -596,8 +601,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.load_data_with_dq()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL']['ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL']['USE_TEMPORARY']
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
@@ -631,7 +636,7 @@ class Instrument:
                 return cube, err, dq
         # ---------------------------------------------------------------------
         # deal with no files
-        if len(self.params['GENERAL']['FILES']) == 0:
+        if len(self.params['GENERAL.FILES']) == 0:
             emsg = 'No files defined in yaml. Please set the FILES parameter.'
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
@@ -641,7 +646,7 @@ class Instrument:
         raw_shapes = []
         # handling the files with their varying sizes. We read and count slices
         # TODO: Should be replaced with header keys
-        for ifile, filename in enumerate(self.params['GENERAL']['FILES']):
+        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
             # get the raw files
             tmp_data = self.load_data(filename, extname='SCI')
             # get the shape of the bins
@@ -734,14 +739,14 @@ class Instrument:
         # check if all image shapes are the same
         if len(set(image_shapes)) != 1:
             emsg = 'Inconsistent image shapes:'
-            for f_it, filename in enumerate(self.params['GENERAL']['FILES']):
+            for f_it, filename in enumerate(self.params['GENERAL.FILES']):
                 emsg += f'\n\t{filename}: {image_shapes[f_it]}'
             raise exceptions.SossisseFileException(emsg)
         # ---------------------------------------------------------------------
         # check that all are CDS or all are not CDS
         if len(set(all_cds)) != 1:
             emsg = 'Inconsistent CDS format (Eiher all CDS or not):'
-            for f_it, filename in enumerate(self.params['GENERAL']['FILES']):
+            for f_it, filename in enumerate(self.params['GENERAL.FILES']):
                 emsg += f'\n\t{filename}: {raw_shapes[f_it]}'
             raise exceptions.SossisseFileException(emsg)
         else:
@@ -766,8 +771,8 @@ class Instrument:
         """
         # get function name
         func_name = f'{__NAME__}.bin_cube()'
-
-        lm_params = self.params['WLC']['LMODEL']
+        # get the linear model parameters
+        lm_params = self.params.get('WLC.LMODEL')
         # don't bin if user doesn't want to bin
         if not lm_params['DATA_BIN_TIME']:
             if get_shape:
@@ -827,12 +832,12 @@ class Instrument:
         :return: tuple, 1. the flat field, 2. a boolean indicating if the flat
                  field is all ones
         """
-        if self.params['GENERAL']['FLATFILE'] is None:
+        if self.params['GENERAL.FLATFILE'] is None:
             # flat field is a single frame
             return np.ones(image_shape), True
         else:
             # load the flat field
-            flat = self.load_data(self.params['GENERAL']['FLATFILE'])
+            flat = self.load_data(self.params['GENERAL.FLATFILE'])
             # check the shape of the flat field
             if flat.shape != image_shape:
                 emsg = 'Flat field shape does not match data frame shape'
@@ -853,7 +858,7 @@ class Instrument:
         :return: np.ndarray, the cube with cosmic rays removed
         """
         # see if user wants to remove cosmics
-        if not self.params['WLC']['GENERAL']['REMOVE_COSMIC_RAYS']:
+        if not self.params['WLC.GENERAL.REMOVE_COSMIC_RAYS']:
             return cube
         # print progress
         msg = 'We remove cosmisc rays'
@@ -872,7 +877,7 @@ class Instrument:
         sigma = (p84 - p16) / 2
         mean = (p84 + p16) / 2
         # get the sig cut
-        sig_cut = self.params['WLC']['GENERAL']['COSMIC_RAY_SIGMA']
+        sig_cut = self.params['WLC.GENERAL.COSMIC_RAY_SIGMA']
         # now remove the cosmics using a sigma flag
         for iframe in tqdm(range(cube.shape[0])):
             # get the frame
@@ -891,7 +896,7 @@ class Instrument:
         Removes the background with a 3 DOF model. It's the background image
         times a slope + a DC offset (1 amp, 1 slope, 1 DC)
 
-        Background file is loaded from params['GENERAL']['BKGFILE']
+        Background file is loaded from params['GENERAL.BKGFILE']
 
         :param cube: np.ndarray, the cube to remove the background from
         :param err: np.ndarray, the error cube
@@ -903,13 +908,13 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_background()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL']['ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL']['USE_TEMPORARY']
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
         # get wlc_params
-        wlc_params = self.params['WLC']
+        wlc_params = self.params.get('WLC')
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -927,7 +932,7 @@ class Instrument:
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
         # deal with not doing background correction
-        if not self.params['GENERAL']['DO_BACKGROUND']:
+        if not self.params['GENERAL.DO_BACKGROUND']:
             # print progress
             msg = 'We do not clean background. BKGFILE is not set.'
             misc.printc(msg, 'warning')
@@ -935,10 +940,17 @@ class Instrument:
             return cube, err
         # update the meta data
         self.update_meta_data()
+
+        # ---------------------------------------------------------------------
+        # get valid dq values
+        valid_dqs = wlc_params['INPUTS.VALID_DQ']
+        if valid_dqs is None:
+            emsg = 'WLC.INPUTS.VALID_DQ not set. Please set the valid DQ values'
+            raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         # trick to get a mask where True is valid
         cube_mask = np.zeros_like(cube, dtype=bool)
-        for valid_dq in wlc_params['INPUTS']['VALID_DQ']:
+        for valid_dq in valid_dqs:
             # print DQ values
             misc.printc(f'Accepting DQ = {valid_dq}', 'number')
             # get the mask
@@ -950,16 +962,16 @@ class Instrument:
         msg = 'Apply the background model correction'
         misc.printc(msg, 'info')
         # get the background file
-        background = self.load_data(self.params['GENERAL']['BKGFILE'])
+        background = self.load_data(self.params['GENERAL.BKGFILE'])
         # force the background to floats
         background = background.astype(float)
         # calculate the mean of the cube (along time axis)
         with warnings.catch_warnings(record=True) as _:
             mcube = np.nanmean(cube, axis=0)
         # get the box size from params
-        box = self.params['WLC']['INPUTS']['BACKGROUND_GLITCH_BOX']
+        box = self.params['WLC.INPUTS.BACKGROUND_GLITCH_BOX']
         # get the background shifts
-        bgnd_shifts_values = self.params['WLC']['INPUTS']['BACKGROUND_SHIFTS']
+        bgnd_shifts_values = self.params['WLC.INPUTS.BACKGROUND_SHIFTS']
         bgnd_shifts = np.arange(*bgnd_shifts_values)
         # print progress
         msg = '\tTweaking the position of the background'
@@ -1083,13 +1095,13 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.patch_isolated_bads()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL']['ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL']['USE_TEMPORARY']
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
         temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
         # ---------------------------------------------------------------------
         # deal with no patching isolated bad pixels
-        if not self.params['WLC']['GENERAL']['PATCH_ISOLATED_BADS']:
+        if not self.params['WLC.GENERAL.PATCH_ISOLATED_BADS']:
             # print message that we are not patching isolated bad pixels
             msg = 'We do not patch isolated bad pixels'
             misc.printc(msg, 'info')
@@ -1159,13 +1171,13 @@ class Instrument:
         using the first frame of the cube.
 
         Can be turned off with
-            params['WLC']['GENERAL']['USE_FANCY_CENTERING'] = False
+            params['WLC.GENERAL.USE_FANCY_CENTERING'] = False
 
         If used Overrides:
-        - params['GENERAL']['POS_FILE']: set to {pos_file}_{object}_{suffix}.fits
-        - params['WLC']['GENERAL']['X_TRACE_OFFSET']: set to 0
-        - params['WLC']['GENERAL']['Y_TRACE_OFFSET']: set to 0
-        - params['WLC']['GENERAL']['RECENTER_TRACE_POSITION']: set to False
+        - params['GENERAL.POS_FILE']: set to {pos_file}_{object}_{suffix}.fits
+        - params['WLC.GENERAL.X_TRACE_OFFSET']: set to 0
+        - params['WLC.GENERAL.Y_TRACE_OFFSET']: set to 0
+        - params['WLC.GENERAL.RECENTER_TRACE_POSITION']: set to False
 
         :return:
         """
@@ -1173,8 +1185,8 @@ class Instrument:
         #                 What about PRISM? Currently its in the defualt functions
         #                 But this is probably not the right place for it
 
-        gen_params = self.params['GENERAL']
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        gen_params = self.params.get('GENERAL')
+        wlc_gen_params = self.params.get('WLC.GENERAL')
 
         # set function name
         func_name = f'{__NAME__}.fancy_centering()'
@@ -1185,12 +1197,12 @@ class Instrument:
         if gen_params['POS_FILE'] is None:
             return
         # construct the suffix to add to the new pos file
-        name_sequence = self.params['INPUTS']['OBJECTNAME']
-        if len(self.params['INPUTS']['SUFFIX']) > 0:
-            name_sequence += '_{0}'.format(self.params['INPUTS']['SUFFIX'])
+        name_sequence = self.params['INPUTS.OBJECTNAME']
+        if len(self.params['INPUTS.SUFFIX']) > 0:
+            name_sequence += '_{0}'.format(self.params['INPUTS.SUFFIX'])
         # construct a new trace file name
         new_ext = '_{0}.fits'.format(name_sequence)
-        outname = self.params['GENERAL']['POS_FILE'].replace('.fits', new_ext)
+        outname = self.params['GENERAL.POS_FILE'].replace('.fits', new_ext)
         # ---------------------------------------------------------------------
         # if we already have a fancy centering trace file don't make it again
         if os.path.exists(outname):
@@ -1358,10 +1370,10 @@ class Instrument:
         plots.plot_fancy_centering2(self, med, wave, spectrum, x1, y1, x2, y2)
         # ---------------------------------------------------------------------
         # set parameters
-        self.params['GENERAL']['POS_FILE'] = outname
-        self.params['WLC']['GENERAL']['X_TRACE_OFFSET'] = 0
-        self.params['WLC']['GENERAL']['Y_TRACE_OFFSET'] = 0
-        self.params['WLC']['GENERAL']['RECENTER_TRACE_POSITION'] = False
+        self.params['GENERAL.POS_FILE'] = outname
+        self.params['WLC.GENERAL.X_TRACE_OFFSET'] = 0
+        self.params['WLC.GENERAL.Y_TRACE_OFFSET'] = 0
+        self.params['WLC.GENERAL.RECENTER_TRACE_POSITION'] = False
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -1384,7 +1396,7 @@ class Instrument:
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         # deal with no trace map required
-        if self.params['WLC']['GENERAL']['TRACE_WIDTH_EXTRACTION'] < 1:
+        if self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION'] < 1:
             # set the tracemap to ones
             tracemap = np.ones((ysize, xsize), dtype=bool)
             # return the tracemap
@@ -1394,9 +1406,9 @@ class Instrument:
         tracemap = self.get_trace_positions()
         # ---------------------------------------------------------------------
         # deal with wavelength domain cut down
-        if self.params['GENERAL']['WLC_DOMAIN'] is not None:
+        if self.params['GENERAL.WLC_DOMAIN'] is not None:
             # get the low and high values
-            wavelow, wavehigh = self.params['GENERAL']['WLC_DOMAIN']
+            wavelow, wavehigh = self.params['GENERAL.WLC_DOMAIN']
             # print that we are cutting
             if log:
                 msg = 'We cut the domain of the WLC to {0:.2f} - {1:.2f} um'
@@ -1428,7 +1440,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.get_wavegrid()'
         # get wlc generation parameters
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        wlc_gen_params = self.params.get('WLC.GENERAL')
         # get x and y size from cube
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         xsize = self.get_variable('DATA_X_SIZE', func_name)
@@ -1436,7 +1448,7 @@ class Instrument:
         yoffset = wlc_gen_params['Y_TRACE_OFFSET']
         trace_wid_mask = wlc_gen_params['TRACE_WIDTH_MASKING']
         # load the trace position
-        tbl_ref = self.load_table(self.params['GENERAL']['POS_FILE'],
+        tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
                                   ext=order_num)
         # ---------------------------------------------------------------------
         # get columns
@@ -1514,7 +1526,7 @@ class Instrument:
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         # deal with case where we need POS_FILE and it is not given
-        if self.params['GENERAL']['POS_FILE'] is None:
+        if self.params['GENERAL.POS_FILE'] is None:
             emsg = (f'POS_FILE must be defined for {self.name}'
                     f'\n\tfunction = {func_name}')
             raise exceptions.SossisseInstException(emsg, self.name)
@@ -1527,9 +1539,9 @@ class Instrument:
         # otherwise we use POS_FILE
         else:
             # get x trace offset
-            xtraceoffset = self.params['X_TRACE_OFFSET']
+            xtraceoffset = self.params['WLC.GENERAL.X_TRACE_OFFSET']
             # get the trace position file
-            tbl_ref = self.load_table(self.params['GENERAL']['POS_FILE'],
+            tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
                                       ext=order_num)
             # # get the valid pixels
             # valid = tbl_ref['X'] > 0
@@ -1569,8 +1581,8 @@ class Instrument:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL']['ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL']['USE_TEMPORARY']
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
@@ -1591,7 +1603,7 @@ class Instrument:
             cond &= os.path.exists(tmp_before_after_c1f)
             cond &= os.path.exists(tmp_transit_invsout)
             # only look for fit pca file if we are fitting pca
-            if self.params['WLC']['LMODEL']['FIT_PCA']:
+            if self.params['WLC.LMODEL.FIT_PCA']:
                 cond &= os.path.exists(tmp_pcas)
             # if all conditions are satisfied we load the files
             if cond:
@@ -1613,7 +1625,7 @@ class Instrument:
                             'info')
                 transit_invsout = self.load_data(tmp_transit_invsout)
                 # only look for fit pca file if we are fitting pca
-                if self.params['WLC']['LMODEL']['FIT_PCA']:
+                if self.params['WLC.LMODEL.FIT_PCA']:
                     misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
                     pcas = self.load_data(tmp_pcas)
                 else:
@@ -1640,7 +1652,7 @@ class Instrument:
         oot_domain_after = self.get_variable('OOT_DOMAIN_AFTER', func_name)
         int_domain = self.get_variable('INT_DOMAIN', func_name)
         # get flag for median out of transit
-        med_oot = self.params['WLC']['GENERAL']['MEDIAN_OOT']
+        med_oot = self.params['WLC.GENERAL.MEDIAN_OOT']
         # ---------------------------------------------------------------------
         # deal with creating median
         with warnings.catch_warnings(record=True) as _:
@@ -1757,7 +1769,7 @@ class Instrument:
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
         # get the contact points
-        cframes = self.params['WLC']['INPUTS']['CONTACT_FRAMES']
+        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
         # deal with no cframes set (can happen)
         if cframes is None:
             # set flag
@@ -1774,7 +1786,7 @@ class Instrument:
 
             return
         # get the rejection domain
-        rej_domain = self.params['WLC']['INPUTS']['REJECT_DOMAIN']
+        rej_domain = self.params['WLC.INPUTS.REJECT_DOMAIN']
         # if we don't have out-of-transit domain work it out
         valid_oot = np.ones(data_n_frames, dtype=bool)
         # set the frames in the transit to False
@@ -1846,7 +1858,7 @@ class Instrument:
         # print progress
         misc.printc('\tSubtracting 1/f noise', 'info')
         # get the degree for the 1/f polynomial fit
-        degree_1f_corr = self.params['WLC']['GENERAL']['DEGREE_1F_CORR']
+        degree_1f_corr = self.params['WLC.GENERAL.DEGREE_1F_CORR']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
@@ -1913,19 +1925,19 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL']['ALLOW_TEMPORARY']
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         # update meta data
         self.update_meta_data()
         # get tag1
         tag1 = self.get_variable('TAG1', func_name)
         # make sure we have a pca file
         tmp_pcas = 'temporary_pcas.fits'.format(tag1)
-        tmp_pcas = os.path.join(self.params['PATHS']['TEMP_PATH'], tmp_pcas)
+        tmp_pcas = os.path.join(self.params['PATHS.TEMP_PATH'], tmp_pcas)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         # ---------------------------------------------------------------------
         # get whether to fit pca and the number of fit components
-        flag_fit_pca = self.params['WLC']['LMODEL']['FIT_PCA']
-        n_comp = self.params['WLC']['LMODEL']['FIT_N_PCA']
+        flag_fit_pca = self.params['WLC.LMODEL.FIT_PCA']
+        n_comp = self.params['WLC.LMODEL.FIT_N_PCA']
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
             return None
@@ -2048,7 +2060,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.recenter_trace_position()'
 
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        wlc_gen_params = self.params.get('WLC.GENERAL')
         # deal with not wanting to recenter trace position
         if not wlc_gen_params['RECENTER_TRACE_POSITION']:
             return tracemap
@@ -2200,7 +2212,7 @@ class Instrument:
         # set up the mask trace (all true to start)
         mask_trace_pos = np.ones_like(med, dtype=int)
         # get the wlc general params
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        wlc_gen_params = self.params.get('WLC.GENERAL')
         # ---------------------------------------------------------------------
         if wlc_gen_params['TRACE_WIDTH_MASKING'] != 0:
             mask_trace_pos[~tracemap] = 0
@@ -2294,7 +2306,7 @@ class Instrument:
         output_units.append('flux')
         output_factor.append(1.0)
         # get the linear model params
-        lm_params = self.params['WLC']['LMODEL']
+        lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
         # deal with fit dx
         if lm_params['FIT_DX']:
@@ -2404,7 +2416,7 @@ class Instrument:
         # get parameters
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         output_names = self.get_variable('OUTPUT_NAMES', func_name)
-        zpoint = self.params['WLC']['LMODEL']['FIT_ZERO_POINT_OFFSET']
+        zpoint = self.params['WLC.LMODEL.FIT_ZERO_POINT_OFFSET']
         # vectors to keep track of the rotation/amplitudes/dx/dy
         all_recon = np.zeros_like(cube)
         # ---------------------------------------------------------------------
@@ -2589,9 +2601,9 @@ class Instrument:
             return cube
         # ---------------------------------------------------------------------
         # get the polynomial degree for the transit baseline
-        poly_order = self.params['WLC']['GENERAL']['TRANSIT_BASELINE_POLYORD']
+        poly_order = self.params['WLC.GENERAL.TRANSIT_BASELINE_POLYORD']
         # get the contact frames
-        cframes = self.params['WLC']['INPUTS']['CONTACT_FRAMES']
+        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
         # get the mid transit frame
         mid_transit_frame = int(np.nanmean(cframes))
         # get the image for the mid transit frame
@@ -2768,7 +2780,7 @@ class Instrument:
         mean_energy_weighted = part1b / part2b
         # ---------------------------------------------------------------------
         # deal with WLC domain
-        if self.params['GENERAL']['WLC_DOMAIN'] is not None:
+        if self.params['GENERAL.WLC_DOMAIN'] is not None:
             msg = 'Domain:\t {0:.3f} -- {1:.3f} um'
             margs = self.params['WLO_DOMAIN']
             misc.printc(msg.format(*margs), 'number')
@@ -2834,7 +2846,7 @@ class Instrument:
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
         self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
         # get the trace width extraction
-        trace_width = self.params['WLC']['GENERAL']['TRACE_WIDTH_EXTRACTION']
+        trace_width = self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION']
         # ---------------------------------------------------------------------
         # construct the sed
         sp_sed = np.zeros(med.shape[1])
@@ -2870,7 +2882,7 @@ class Instrument:
         # the model starts as the recon
         model = np.array(recon)
         # deal with masking order zero
-        if self.params['WLC']['GENERAL']['MASK_ORDER_ZERO']:
+        if self.params['WLC.GENERAL.MASK_ORDER_ZERO']:
             # load the mask trace position
             mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, tracemap)
             # need to re-get the mask order zero
@@ -2913,7 +2925,7 @@ class Instrument:
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # get the trace width extraction
-        trace_width = self.params['WLC']['GENERAL']['TRACE_WIDTH_EXTRACTION']
+        trace_width = self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION']
         # ---------------------------------------------------------------------
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
@@ -2973,7 +2985,7 @@ class Instrument:
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # get the polynomial degree for trace baseline
-        polydeg = self.params['WLC']['GENERAL']['TRACE_BASELINE_POLYORD']
+        polydeg = self.params['WLC.GENERAL.TRACE_BASELINE_POLYORD']
         # get the out-of-transit domain
         self.get_valid_oot()
         has_oot = self.get_variable('HAS_OOT', func_name)
@@ -3062,7 +3074,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_transit_depth()'
         # get the spectral extraction parameters
-        spec_ext_params = self.params['SPEC_EXT']
+        spec_ext_params = self.params.get('SPEC_EXT')
         # deal with the case where we are not in "compute" mode
         if spec_ext_params['TDEPTH_MODE'] != 'compute':
             # user must set the transit depth if this is the case
@@ -3161,7 +3173,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we have removed a trend, we need to add in quadrature
         #  out-of-transit  errors to in-transit
-        if self.params['SPEC_EXT']['REMOVE_TREND']:
+        if self.params['SPEC_EXT.REMOVE_TREND']:
             spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
         # ---------------------------------------------------------------------
         # chane infinite values to nan
@@ -3182,7 +3194,7 @@ class Instrument:
         
         """
         # get resolution_bin
-        res_bin = self.params['SPEC_EXT']['RESOLUTION_BIN']
+        res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
         # get the wavelength bins
         with warnings.catch_warnings(record=True) as _:
             # log the wavelength
@@ -3212,7 +3224,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_results()'
         # deal with not saving results --> return
-        if not self.params['GENERAL']['SAVE_RESULTS']:
+        if not self.params['GENERAL.SAVE_RESULTS']:
             # print message saving results are not saved 
             msg = 'Results not saved as SAVE_RESUILTS is False'
             misc.printc(msg, 'info')
@@ -3239,7 +3251,7 @@ class Instrument:
         # Save the SED table
         # ---------------------------------------------------------------------
         # get objname
-        objname = self.params['INPUTS']['OBJECTNAME']
+        objname = self.params['INPUTS.OBJECTNAME']
         # construct sed table name
         sed_table_name = self.get_variable('SPE_SED_TBL', func_name)
         sed_table_name = sed_table_name.format(objname=objname,
@@ -3319,7 +3331,7 @@ class Instrument:
         # Save the transit spectrum for this trace order (binned) to file
         # ---------------------------------------------------------------------
         # get resolution_bin
-        res_bin = self.params['SPEC_EXT']['RESOLUTION_BIN']
+        res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
         # get file name
         transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
         transit_bin_file = transit_bin_file.format(trace_order=trace_order,
@@ -3367,7 +3379,7 @@ class Instrument:
             # storage for time info
             time_arr = []
             # loop around raw files
-            for filename in self.params['GENERAL']['FILES']:
+            for filename in self.params['GENERAL.FILES']:
                 # get time array data
                 tmp_table = io.load_table(filename, hdu='INT_TIMES')
                 # get the int_mid_bjd_tdb column

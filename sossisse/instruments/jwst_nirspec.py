@@ -58,9 +58,9 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # run the super version first, then override after
         super().param_override()
         # we do not mask order zero for NIRSPEC PRISM
-        self.params['WLC']['GENERAL']['MASK_ORDER_ZERO'] = False
+        self.params['WLC.GENERAL.MASK_ORDER_ZERO'] = False
         # for NIRSPEC PRISM we shouldn't have recenter trace position
-        self.params['WLC']['GENERAL']['RECENTER_TRACE_POSITION'] = False
+        self.params['WLC.GENERAL.RECENTER_TRACE_POSITION'] = False
 
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
@@ -72,8 +72,8 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_trace_positions()'
 
-        gen_params = self.params['GENERAL']
-        wlc_gen_params = self.params['WLC']['GENERAL']
+        gen_params = self.params.get('GENERAL')
+        wlc_gen_params = self.params.get('WLC.GENERAL')
         # must have pos file defined in file
         if gen_params['POS_FILE'] is None:
             emsg = f'POS_FILE must be defined for {func_name}'
@@ -119,10 +119,10 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             # print that we are writing pos file
             if log:
                 msg = 'Writing POS_FILE={0}'
-                margs = [self.params['GENERAL']['POS_FILE']]
+                margs = [self.params['GENERAL.POS_FILE']]
                 misc.printc(msg.format(*margs), msg_type='info')
             # write trace file
-            tracetable.write(self.params['GENERAL']['POS_FILE'], overwrite=True)
+            tracetable.write(self.params['GENERAL.POS_FILE'], overwrite=True)
         # ---------------------------------------------------------------------
         # get the trace positions from the white light curve
         tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
@@ -147,12 +147,12 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         # get wave file definition
-        wave_file = self.params['GENERAL']['WAVE_FILE']
+        wave_file = self.params['GENERAL.WAVE_FILE']
         # get pos file definition
-        pos_file = self.params['GENERAL']['POS_FLE']
+        pos_file = self.params['GENERAL.POS_FLE']
         # deal with wave grid coming from params
         if source == 'params' and wave_file is not None:
-            wavepath = os.path.join(self.params['PATHS']['CALIBPATH'],
+            wavepath = os.path.join(self.params['PATHS.CALIBPATH'],
                                     wave_file)
             hf = h5py.File(wavepath, 'r')
             xpix, wave = hf['x'], hf['wave_1d']

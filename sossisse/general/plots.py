@@ -42,18 +42,18 @@ def save_show_plot(params: Dict[str, Any], outname: str):
     :return:
     """
     # loop around figure types
-    for figtype in params['PLOTS']['FIGURE_TYPES']:
+    for figtype in params['PLOTS.FIGURE_TYPES']:
         # construct the basename with extension
         basename = f'{outname}.{figtype}'
         # contstruct the full path
-        abspath = os.path.join(params['PATHS']['PLOT_PATH'], basename)
+        abspath = os.path.join(params['PATHS.PLOT_PATH'], basename)
         # say that we are plotting graph
         msg = f'Plotting graph: {basename}'
         misc.printc(msg, msg_type='info')
         # save the figure
         plt.savefig(abspath)
     # if we want to show the plot do it now
-    if params['PLOTS']['SHOW']:
+    if params['PLOTS.SHOW']:
         # show the plot
         plt.show()
     # finally close the plot
@@ -389,8 +389,8 @@ def plot_stability(inst: Any, table: Table):
     output_units = inst.get_variable('OUTPUT_UNITS', func_name)
     output_factor = inst.get_variable('OUTPUT_FACTOR', func_name)
     # get object name and suffix
-    objname = inst.params['INPUTS']['OBJECTNAME']
-    suffix = inst.params['INPUTS']['SUFFIX']
+    objname = inst.params['INPUTS.OBJECTNAME']
+    suffix = inst.params['INPUTS.SUFFIX']
     # -------------------------------------------------------------------------
     # get the number of outputs
     noutputs = len(output_names)
@@ -414,10 +414,10 @@ def plot_stability(inst: Any, table: Table):
     index = np.arange(npoints)
     # -------------------------------------------------------------------------
     # get the domain text
-    if inst.params['GENERAL']['WLC_DOMAIN'] is not None:
-        dargs = [inst.params['GENERAL']['WLC_DOMAIN'][0],
-                 inst.params['GENERAL']['WLC_DOMAIN'][1],
-                 inst.params['INPUTS']['SID']]
+    if inst.params['GENERAL.WLC_DOMAIN'] is not None:
+        dargs = [inst.params['GENERAL.WLC_DOMAIN'][0],
+                 inst.params['GENERAL.WLC_DOMAIN'][1],
+                 inst.params['INPUTS.SID']]
         domain = '({0:.2f} - {1:.2f}µm)\nunique ID {2}\n'.format(*dargs)
     else:
         domain = ''
@@ -497,13 +497,13 @@ def plot_transit(inst: Any, table: Table):
     # get wlc_params
     wlc_params = inst.params['WLC']
     # get object name and suffix
-    objname = inst.params['INPUTS']['OBJECTNAME']
-    suffix = inst.params['INPUTS']['SUFFIX']
+    objname = inst.params['INPUTS.OBJECTNAME']
+    suffix = inst.params['INPUTS.SUFFIX']
     # get the polynomial degree for the transit baseline
-    poly_order = wlc_params['GENERAL']['TRANSIT_BASELINE_POLYORD']
+    poly_order = wlc_params['GENERAL.TRANSIT_BASELINE_POLYORD']
     # -------------------------------------------------------------------------
     # get the contact points
-    cframes = wlc_params['INPUTS']['CONTACT_FRAMES']
+    cframes = wlc_params['INPUTS.CONTACT_FRAMES']
     # get the number of points
     npoints = len(table['amplitude'])
     # -------------------------------------------------------------------------
@@ -587,8 +587,8 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     # set function name
     # func_name = f'{__NAME__}.plot_sed()'
     # get object name and suffix
-    objname = inst.params['INPUTS']['OBJECTNAME']
-    suffix = inst.params['INPUTS']['SUFFIX']
+    objname = inst.params['INPUTS.OBJECTNAME']
+    suffix = inst.params['INPUTS.SUFFIX']
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # plot the SED
@@ -610,10 +610,10 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # get resolution_bin
-    res_bin = inst.params['SPEC_EXT']['RESOLUTION_BIN']
+    res_bin = inst.params['SPEC_EXT.RESOLUTION_BIN']
     # get object name and suffix
-    objname = inst.params['INPUTS']['OBJECTNAME']
-    suffix = inst.params['INPUTS']['SUFFIX']
+    objname = inst.params['INPUTS.OBJECTNAME']
+    suffix = inst.params['INPUTS.SUFFIX']
     # loop around tarce orders
     for trace_order in plot_storage.keys():
         # deal with trace order

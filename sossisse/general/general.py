@@ -43,7 +43,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     # print the splash
     misc.sossart()
     # get parameters from instrumental parameters
-    objname = inst.params['INPUTS']['OBJECTNAME']
+    objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
     print(misc.art('White light curve ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
@@ -115,7 +115,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     ltable = inst.normalize_sum_trace(ltable)
     # -------------------------------------------------------------------------
     # per pixel baseline
-    if inst.params['WLC']['GENERAL']['PER_PIXEL_BASELINE_CORRECTION']:
+    if inst.params['WLC.GENERAL.PER_PIXEL_BASELINE_CORRECTION']:
         misc.printc('Performing per-pixel baseline subtraction', 'info')
         cube = inst.per_pixel_baseline(cube, valid_cube)
     # -------------------------------------------------------------------------
@@ -161,7 +161,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # print the splash
     misc.sossart()
     # get parameters from instrumental parameters
-    objname = inst.params['INPUTS']['OBJECTNAME']
+    objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
     print(misc.art('Spectral timeseries ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
@@ -172,7 +172,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     storage = dict()
     # -------------------------------------------------------------------------
     # loop around trace orders
-    for trace_order in inst.params['GENERAL']['TRACE_ORDERS']:
+    for trace_order in inst.params['GENERAL.TRACE_ORDERS']:
         # print progress
         misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
         # load the median image
@@ -211,7 +211,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
                                                       posmax)
         # ---------------------------------------------------------------------
         # remove the out-of-transit trend on the spectrum
-        if inst.params['SPEC_EXT']['REMOVE_TREND']:
+        if inst.params['SPEC_EXT.REMOVE_TREND']:
             spec = inst.remove_trend_spec(spec)
         # -----------------------------------------------------------------
         # reshape the amplitudes into an image
@@ -221,7 +221,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         spec2 = spec + amp_image
         # ---------------------------------------------------------------------
         # remove the out-of-transit trend on the photometric time series
-        if inst.params['SPEC_EXT']['REMOVE_TREND']:
+        if inst.params['SPEC_EXT.REMOVE_TREND']:
             ltable = inst.remove_trend_phot(spec, ltable)
         # ---------------------------------------------------------------------
         # compute or set transit depth

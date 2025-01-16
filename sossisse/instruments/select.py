@@ -54,7 +54,7 @@ def load_instrument(params: ParamDict) -> default.Instrument:
     :param params: dict, the parameters for the instrument
     :return: the instrument class
     """
-    instrument_mode = params['INPUTS']['INSTRUMENTMODE']
+    instrument_mode = params['INPUTS.INSTRUMENTMODE']
     # if we have the instrument return it
     if instrument_mode in INSTRUMENTS:
         return INSTRUMENTS[instrument_mode](params)

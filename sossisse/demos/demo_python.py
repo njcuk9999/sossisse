@@ -22,7 +22,7 @@ if __name__ == "__main__":
     param_file = 'demo.yaml'
     # any other keywords can be put in here
     pkwargs = dict()
-    # pkwargs['INPUTS']['SOSSIOPATH'] = '/path/to/data/demo/'
+    # pkwargs['INPUTS.SOSSIOPATH'] = '/path/to/data/demo/'
 
     # ----------------------------------------------------------------------
     # deal with parameters
@@ -32,13 +32,13 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------
     # white light curve
     # ----------------------------------------------------------------------
-    if inst.params['SWITCHES']['WHITE_LIGHT_CURVE']:
+    if inst.params['SWITCHES.WHITE_LIGHT_CURVE']:
         sossisse.white_light_curve(inst)
 
     # ----------------------------------------------------------------------
     # spectral extraction
     # ----------------------------------------------------------------------
-    if inst.params['SWITCHES']['SPECTRAL_EXTRACTION']:
+    if inst.params['SWITCHES.SPECTRAL_EXTRACTION']:
         sossisse.spectral_extraction(inst)
 
 
