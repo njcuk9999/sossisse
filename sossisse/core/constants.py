@@ -459,7 +459,7 @@ CDict.add('FIT_QUAD_TERM', value=False, dtype=bool,
 # -----------------------------------------------------------------------------
 # fit the 2nd derivative in y, good to find glitches!
 #  Formally ddy
-CDict.add('FIT_DDY', value=False, dtype=bool,
+CDict.add('FIT_DDY', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the 2nd derivative in y, good to find '
                       'glitches!')
@@ -563,7 +563,7 @@ CDict.add('USE_FANCY_CENTERING', value=True, dtype=bool,
                       'RECENTER_TRACE_POSITION to False')
 # -----------------------------------------------------------------------------
 # Whether to fit a per pixel baseline correction
-CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=False, dtype=bool,
+CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Whether to fit a per pixel baseline correction')
 # -----------------------------------------------------------------------------

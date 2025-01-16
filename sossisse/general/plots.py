@@ -495,7 +495,7 @@ def plot_transit(inst: Any, table: Table):
     has_oot = inst.get_variable('HAS_OOT', func_name)
     oot_domain = inst.get_variable('OOT_DOMAIN', func_name)
     # get wlc_params
-    wlc_params = inst.params['WLC']
+    wlc_params = inst.params.get('WLC')
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
     suffix = inst.params['INPUTS.SUFFIX']

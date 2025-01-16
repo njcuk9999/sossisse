@@ -267,8 +267,8 @@ def run_time_params(params: ParamDict, only_create: bool = False
     #   note we add the sid to the path for multiple reductions
     if paths['SID_PATH'] is None:
         paths['SID_PATH'] = os.path.join(paths['OBJECTPATH'], inputs['SID'])
-        paths['SID_PATH'] = func_name
-    io.create_directory(paths['OBJECTPATH'])
+        paths.set_source('SID_PATH', func_name)
+    io.create_directory(paths['SID_PATH'])
     # -------------------------------------------------------------------------
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
