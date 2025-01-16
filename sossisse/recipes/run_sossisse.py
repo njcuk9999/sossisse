@@ -38,13 +38,13 @@ def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # white light curve
     # ----------------------------------------------------------------------
-    if inst.params['SWITCHES']['WHITE_LIGHT_CURVE']:
+    if inst.params['SWITCHES.WHITE_LIGHT_CURVE']:
         inst = sossisse.white_light_curve(inst)
 
     # ----------------------------------------------------------------------
     # spectral extraction
     # ----------------------------------------------------------------------
-    if inst.params['SWITCHES']['SPECTRAL_EXTRACTION']:
+    if inst.params['SWITCHES.SPECTRAL_EXTRACTION']:
         inst = sossisse.spectral_extraction(inst)
 
     # -------------------------------------------------------------------------
