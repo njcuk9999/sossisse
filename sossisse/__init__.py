@@ -10,6 +10,7 @@ i.e. those expected to be used in the notebooks
 @author: cook
 """
 from sossisse.core import base
+from sossisse.core import constants
 from sossisse.core import const_funcs
 from sossisse.general import general
 
@@ -29,6 +30,9 @@ white_light_curve = general.white_light_curve
 
 # top level function for running the spectral extraction step
 spectral_extraction = general.spectral_extraction
+
+# Get the constants dictionary
+CDict = constants.CDict
 
 # =============================================================================
 # End of code
