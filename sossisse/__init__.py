@@ -26,7 +26,7 @@ __authors__ = base.__authors__
 get_parameters = const_funcs.get_parameters
 
 # top level function for running the white light curve step
-white_light_curve = general.white_light_curve
+linear_recon = general.linear_recon
 
 # top level function for running the spectral extraction step
 spectral_extraction = general.spectral_extraction

@@ -31,7 +31,7 @@ __authors__ = base.__authors__
 # =============================================================================
 # Define functions
 # =============================================================================
-def white_light_curve(inst: Instrument) -> Instrument:
+def linear_recon(inst: Instrument) -> Instrument:
     """
     White light curve functionality
 
@@ -39,7 +39,7 @@ def white_light_curve(inst: Instrument) -> Instrument:
     :return:
     """
     # set the function name
-    func_name = f'{__NAME__}.white_light_curve'
+    func_name = f'{__NAME__}.linear_recon'
     # print the splash
     misc.sossart()
     # get parameters from instrumental parameters

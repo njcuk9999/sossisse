@@ -55,17 +55,17 @@ CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
 # =============================================================================
 # Define switches
 # =============================================================================
-cgroup = 'SWITCHES'
+cgroup = 'RUN'
 CDict.add_group(cgroup,
                 description='Switches to turn large parts of the code on/off',
                 active=True, user=True, source=__NAME__)
 # -----------------------------------------------------------------------------
 # Switch for turning on/off the white light curve step
-CDict.add('WHITE_LIGHT_CURVE', value=True, dtype=bool,
+CDict.add('LINEAR_RECON', value=True, dtype=bool,
           source=__NAME__, user=True, active=True,
           group=cgroup,
-          description='Switch for turning on/off the white light '
-                      'curve step')
+          description='Switch for turning on/off the linear '
+                      'reconstruction step')
 # -----------------------------------------------------------------------------
 # Switch for turning on/off the spectral extraction step
 CDict.add('SPECTRAL_EXTRACTION', value=True, dtype=bool,

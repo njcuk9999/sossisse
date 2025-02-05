@@ -51,7 +51,7 @@ Make sure you are in `sossisse-env` conda environment (or equivalent) and then r
 ```
 cd {SOSSISSE_ROOT}
 
-pip install -U -e .
+pip install -U -e .[full]
 ```
 
 Note `{SOSSISSE_ROOT}` is the path to the cloned GitHub repository (i.e. `/path/to/sossisse`)
