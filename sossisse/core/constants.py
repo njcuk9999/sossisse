@@ -113,10 +113,10 @@ CDict.add('OBJECTNAME', value=None, dtype=str, not_none=True,
 # Instrument mode i.e. JWST.NIRISS.SOSS or JWST.NIRISS.PRISM
 CDict.add('INSTRUMENTMODE', value=None, dtype=str, not_none=True,
           source=__NAME__, user=True, active=True,
-          options=['JWST.NIRISS.SOSS', 'JWST.NIRISS.PRISM'],
+          options=['JWST.NIRISS.SOSS', 'JWST.NIRSPEC.PRISM'],
           cmd_arg='instmode', group=cgroup,
           description='Instrument mode i.e. JWST.NIRISS.SOSS or '
-                      'JWST.NIRISS.PRISM')
+                      'JWST.NIRSPEC.PRISM')
 # -----------------------------------------------------------------------------
 # A suffix to identify this setup (e.g. a specific visit)
 CDict.add('SUFFIX', value='', dtype=str,
@@ -221,8 +221,9 @@ CDict.add('SAVE_RESULTS', value=True, dtype=bool,
           description='Save results at the end')
 # -----------------------------------------------------------------------------
 # Define whether to use pixel level de-trending
-CDict.add('TRACE_ORDERS', value=[1, 2], dtype=list, dtypei=int,
+CDict.add('TRACE_ORDERS', value=None, dtype=list, dtypei=int,
           source=__NAME__, user=True, active=True, group=cgroup,
+          modes='JWST.NIRISS.SOSS',
           description='Define which orders to use e.g. \n - 1 \n - 2')
 
 # -----------------------------------------------------------------------------
@@ -386,9 +387,10 @@ CDict.add('CDS_RON', value=None, dtype=float, minimum=0.0,
 # -----------------------------------------------------------------------------
 # define the area around which we will optimize the background
 #   this should be a length 4 list (x start, x end, y start, y end)
-CDict.add('BACKGROUND_GLITCH_BOX', value=[650, 750, 200, 240],
+CDict.add('BACKGROUND_GLITCH_BOX', value=None,
           dtype=list, dtypei=int, length=4,
           source=__NAME__, user=True, active=True, group=cgroup,
+          modes='JWST.NIRISS.SOSS',
           description='define the area around which we will '
                       'optimize the background '
                       '\nThis should be a length 4 list '
@@ -396,9 +398,10 @@ CDict.add('BACKGROUND_GLITCH_BOX', value=[650, 750, 200, 240],
 # -----------------------------------------------------------------------------
 # define the area around which the background will be optimized
 #    should be a list (start, end, step)
-CDict.add('BACKGROUND_SHIFTS', value=[-5, 5, 0.2], dtype=list,
+CDict.add('BACKGROUND_SHIFTS', value=None, dtype=list,
           dtypei=float, length=3,
           source=__NAME__, user=True, active=True, group=cgroup,
+          modes='JWST.NIRISS.SOSS',
           description='define the area around which the background '
                       'will be optimized'
                       '\n   should be a list (start, end, step)')
@@ -532,14 +535,16 @@ CDict.add('Y_TRACE_OFFSET', value=0, dtype=int,
                       'offset the trace by')
 # -----------------------------------------------------------------------------
 # used for masking and white light curve
-CDict.add('TRACE_Y_SCALE', value=10, dtype=int,
+CDict.add('TRACE_Y_SCALE', value=None, dtype=int,
           source=__NAME__, user=True, active=True, group=cgroup,
+          modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
                       '-nbypix/trace_y_scale to +nbypix/tace_y_scale')
 # -----------------------------------------------------------------------------
 # used for masking and white light curve
-CDict.add('TRACE_X_SCALE', value=5, dtype=int,
+CDict.add('TRACE_X_SCALE', value=None, dtype=int,
           source=__NAME__, user=True, active=True, group=cgroup,
+          modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
                       '-nbxpix/trace_x_scale to +nbxpix/trace_x_scale')
 # -----------------------------------------------------------------------------

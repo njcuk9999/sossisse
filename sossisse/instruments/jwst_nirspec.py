@@ -149,7 +149,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # get wave file definition
         wave_file = self.params['GENERAL.WAVE_FILE']
         # get pos file definition
-        pos_file = self.params['GENERAL.POS_FLE']
+        pos_file = self.params['GENERAL.POS_FILE']
         # deal with wave grid coming from params
         if source == 'params' and wave_file is not None:
             wavepath = os.path.join(self.params['PATHS.CALIBPATH'],
