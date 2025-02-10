@@ -93,7 +93,10 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
                                                return_xpix=True)
             # get the median of the cleand data (patch isolated bads)
             clean_cube = self.get_variable('TEMP_CLEAN_NAN', func_name)
-            med = np.nanmedian(clean_cube, axis=0)
+            # load the data in the clean cube
+            clean_cube_fits = self.load_data(clean_cube)
+            # take the median of the clean cube
+            med = np.nanmedian(clean_cube_fits, axis=0)
             # get the indices of the median image
             pixy, pixx = np.indices(med.shape)
             # calculate the sum and running sum of the median image
@@ -115,7 +118,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             tracetable['WAVELENGTH'] = np.full(len(index), np.nan)
             # push in the wave sol
             valid_wave = np.array(xpix, dtype=int)
-            tracetable[valid_wave] = wavegrid
+            tracetable['WAVELENGTH'][valid_wave] = wavegrid[valid_wave]
             # print that we are writing pos file
             if log:
                 msg = 'Writing POS_FILE={0}'

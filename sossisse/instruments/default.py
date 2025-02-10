@@ -83,7 +83,6 @@ class Instrument:
         self._variables['TEMP_CLEAN_NAN'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
-        self._variables['TEMP_BEFORE_AFTER_CLEAN1F'] = None
         self._variables['TEMP_PCA_FILE'] = None
         self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
         # WLC files
@@ -102,18 +101,17 @@ class Instrument:
         self._variables['EUREKA_FILE'] = None
         # true/false flags
         self._variables['FLAG_CDS'] = None
-        self._variables['HAS_OOT'] = None
+        self._variables['HAS_OUT_TRANSIT'] = None
+        self._variables['HAS_IN_TRANSIT'] = None
         # meta data
-        self._variables['TAG1'] = None
-        self._variables['TAG2'] = None
         self._variables['META'] = None
         self._variables['OUTPUT_NAMES'] = None
         self._variables['OUTPUT_UNITS'] = None
         self._variables['OUTPUT_FACTOR'] = None
         # simple vectors
+        self._variables['BASELINE_INTS'] = None
+        self._variables['TRANSIT_INTS'] = None
         self._variables['OOT_DOMAIN'] = None
-        self._variables['OOT_DOMAIN_BEFORE'] = None
-        self._variables['OOT_DOMAIN_AFTER'] = None
         self._variables['INT_DOMAIN'] = None
         self._variables['IN_TRANSIT_INTEGRATE'] = None
         self._variables['PHOTO_WEIGHTED_MEAN'] = None
@@ -136,7 +134,6 @@ class Instrument:
         self.vsources['TEMP_CLEAN_NAN'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
-        self.vsources['TEMP_BEFORE_AFTER_CLEAN1F'] = define_func
         self.vsources['TEMP_PCA_FILE'] = define_func
         self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = define_func
         # WLC files
@@ -155,18 +152,17 @@ class Instrument:
         self.vsources['EUREKA_FILE'] = define_func
         # true/false flags
         self.vsources['FLAG_CDS'] = f'{self.name}.id_image_shape()'
-        self.vsources['HAS_OOT'] = f'{self.name}.get_valid_oot()'
+        self.vsources['HAS_OUT_TRANSIT'] = f'{self.name}.get_baseline_transit_params()'
+        self.vsources['HAS_IN_TRANSIT'] = f'{self.name}.get_baseline_transit_params()'
         # meta data
-        self.vsources['TAG1'] = f'{self.name}.update_meta_data()'
-        self.vsources['TAG2'] = f'{self.name}.update_meta_data()'
         self.vsources['META'] = f'{self.name}.update_meta_data()'
         self.vsources['OUTPUT_NAMES'] = f'{self.name}.setup_linear_reconstruction()'
         self.vsources['OUTPUT_UNITS'] = f'{self.name}.setup_linear_reconstruction()'
         self.vsources['OUTPUT_FACTOR'] = f'{self.name}.setup_linear_reconstruction()'
         # simple vectors
-        self.vsources['OOT_DOMAIN'] = f'{self.name}.get_valid_oot()'
-        self.vsources['OOT_DOMAIN_BEFORE'] = f'{self.name}.get_valid_oot()'
-        self.vsources['OOT_DOMAIN_AFTER'] = f'{self.name}.get_valid_oot()'
+        self.vsources['BASELINE_INTS'] = f'{self.name}.get_baseline_transit_params()'
+        self.vsources['TRANSIT_INTS'] = f'{self.name}.get_baseline_transit_params()'
+        self.vsources['OOT_DOMAIN'] = f'{self.name}.get_baseline_transit_params()'
         self.vsources['INT_DOMAIN'] = f'{self.name}.get_valid_int()'
         self.vsources['IN_TRANSIT_INTEGRATE'] = f'{self.name}.get_valid_int()'
         self.vsources['PHOTO_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
@@ -224,7 +220,7 @@ class Instrument:
 
     def update_meta_data(self):
         """
-        Update the meta data dictionary and the tag1 and tag2 for files
+        Update the meta data dictionary
 
         :return:
         """
@@ -232,7 +228,6 @@ class Instrument:
         # func_name = f'{__NAME__}.update_meta_data()'
         # set up storage
         meta_data = dict()
-        tag1, tag2 = '', ''
         # get wlc general properties
         wlc_gen_params = self.params.get('WLC.GENERAL')
         # get cds_ids
@@ -249,8 +244,6 @@ class Instrument:
                             'set to True. If input data is not a CDS please '
                             'set WLC.INPUTS.CDS_IDS.')
                     raise exceptions.SossisseConstantException(emsg)
-                # add to tag 1
-                tag1 += '_cds-{0}-{1}'.format(*cds_ids)
                 # add to meta data
                 meta_data['CDS'] = (True, 'Whether data is calculated from '
                                           'a CDS')
@@ -262,8 +255,6 @@ class Instrument:
         wlc_domain = self.params['GENERAL.WLC_DOMAIN']
 
         if wlc_domain is not None:
-            # add to tag 1
-            tag1 += '_wlcdomain-{0}-{1}um'.format(*wlc_domain)
             # add to meta data
             meta_data['WLC_DOM0'] = (wlc_domain[0],
                                      'Wavelength domain start [um]')
@@ -272,8 +263,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         # deal with median out of transit
         # ---------------------------------------------------------------------
-        # add to tag 1
-        tag1 += '_ootmed{0}'.format(int(wlc_gen_params['MEDIAN_OOT']))
         # add to meta data
         meta_data['OOTMED'] = (wlc_gen_params['MEDIAN_OOT'],
                                'Median out of transit')
@@ -286,68 +275,98 @@ class Instrument:
         if self.params['GENERAL.DO_BACKGROUND']:
             # get variable
             do_background = self.params['GENERAL.DO_BACKGROUND']
-            # add to tag 1
-            tag1 += '_bkg{0}'.format(int(do_background))
             # add to meta data
             meta_data['DO_BKG'] = (int(do_background),
                                    'Background was removed')
         # ---------------------------------------------------------------------
         # deal with degree of the polynomial for the 1/f correction
         # ---------------------------------------------------------------------
-        # add to tag 1
-        tag1 += '_1fpolyord{0}'.format(wlc_gen_params['DEGREE_1F_CORR'])
         # add to meta data
         meta_data['DEG1FCORR'] = (wlc_gen_params['DEGREE_1F_CORR'],
                                   'Degree of polynomial for 1/f correction')
         # ---------------------------------------------------------------------
         # deal with whether we fit the rotation in the linear model
         # ---------------------------------------------------------------------
-        # add to tag 1
-        tag1 += '_fitrot{0}'.format(int(lm_params['FIT_ROTATION']))
         # add to meta data
         meta_data['FITROT'] = (lm_params['FIT_ROTATION'],
                                'Rotation was fitted in linear model')
         # ---------------------------------------------------------------------
         # deal with whether we fit the zero point offset in the linear model
         # ---------------------------------------------------------------------
-        # add to tag 1
-        tag1 += '_fitzp{0}'.format(int(lm_params['FIT_ZERO_POINT_OFFSET']))
         # add to meta data
         meta_data['FITZP'] = (lm_params['FIT_ZERO_POINT_OFFSET'],
                               'Zero point offset was fitted in linear model')
         # ---------------------------------------------------------------------
         # deal with whether we fit the 2nd derivative in y
         # ---------------------------------------------------------------------
-        # add to tag 1
-        tag1 += '_fitddy{0}'.format(int(lm_params['FIT_DDY']))
         # add to meta data
         meta_data['FITDDY'] = (lm_params['FIT_DDY'],
                                '2nd derivative was fitted in y')
         # ---------------------------------------------------------------------
-        # add the transit points
+        # add the baseline integrations
         # ---------------------------------------------------------------------
-        # get contact frames
-        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
-        # check if we have contact frames
-        if cframes is None:
-            emsg = ('WLC.INPUTS.CONTACT_FRAMES not set. Please set the '
-                    'contact frames in the yaml file.')
-            raise exceptions.SossisseConstantException(emsg)
-        # add to tag 1
-        tag1 += '_it1-{0}-it4-{3}'.format(*cframes)
-        tag2 += tag1 + '_it2-{1}-it3-{2}'.format(*cframes)
+        # get baseline integrations
+        baseline_ints = self._variables['BASELINE_INTS']
         # add to meta data
-        meta_data['IT1'] = (cframes[0], '1st contact frame')
-        meta_data['IT2'] = (cframes[1], '2nd contact frame')
-        meta_data['IT3'] = (cframes[2], '3rd contact frame')
-        meta_data['IT4'] = (cframes[3], '4th contact frame')
+        if baseline_ints is None:
+            # set the number of baselines
+            meta_data[f'BL_INTS'] = (0, 'Number of baseline integration groups')
+        elif isinstance(baseline_ints, list):
+            # set the number of baselines
+            meta_data[f'BL_INTS'] = (len(baseline_ints), 
+                                     'Number of baseline integration groups')
+            # loop around baselines and add them to meta data
+            for it in range(len(baseline_ints)):
+                for jt in range(2):
+                    # assume we don't have more than 1000 baselines
+                    itstr = f'{str(it):03s}'
+                    # add to meta data
+                    if jt == 0:
+                        meta_data[f'BL{itstr}_0'] = (baseline_ints[it][jt],
+                                                     f'Baseline integration '
+                                                     f'[{it}] start')
+                    else:
+                        meta_data[f'BL{itstr}_{jt}'] = (baseline_ints[it][jt],
+                                                      f'Baseline integration '
+                                                      f'[{it}] end')
+        else:
+            emsg = 'BASELINE_INTS must be a list of lists'
+            raise exceptions.SossisseConstantException(emsg)
+        # ---------------------------------------------------------------------
+        # add the transit integrations
+        # ---------------------------------------------------------------------
+        # get the transit integrations
+        transit_ints = self._variables['TRANSIT_INTS']
+        # add to meta data
+        if transit_ints is None:
+            # set the number of baselines
+            meta_data[f'TR_INTS'] = (0, 'Number of transit integration groups')
+        elif isinstance(transit_ints, list):
+            # set the number of baselines
+            meta_data[f'TR_INTS'] = (len(transit_ints), 
+                                     'Number of transit integration groups')
+            # loop around baselines and add them to meta data
+            for it in range(len(transit_ints)):
+                for jt in range(2):
+                    # assume we don't have more than 1000 baselines
+                    itstr = f'{str(it):03s}'
+                    # add to meta data
+                    if jt == 0:
+                        meta_data[f'TR{itstr}_0'] = (baseline_ints[it][jt],
+                                                     f'Transit integration '
+                                                     f'[{it}] start')
+                    else:
+                        meta_data[f'TR{itstr}_{jt}'] = (baseline_ints[it][jt],
+                                                      f'Transit integration '
+                                                      f'[{it}] end')
+        else:
+            emsg = 'TRANSIT_INTS must be a list of lists'
+            raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         # deal with removing trend from out-of-transit data
         # ---------------------------------------------------------------------
         # get the spec extraction params
         spec_ext_params = self.params.get('SPEC_EXT')
-        # add to tag 2
-        tag2 += '_remoottrend{0}'.format(int(spec_ext_params['REMOVE_TREND']))
         # add to meta data
         meta_data['RMVTREND'] = (spec_ext_params['REMOVE_TREND'],
                                  'Trend was removed from out-of-transit')
@@ -358,8 +377,6 @@ class Instrument:
             transit_base_polyord = wlc_gen_params['TRANSIT_BASELINE_POLYORD']
         else:
             transit_base_polyord = 'None'
-        # add to tag 2
-        tag2 += '_transit-base-polyord-{0}'.format(transit_base_polyord)
         # ---------------------------------------------------------------------
         # get photo weighted mean and energy weighted mean
         # ---------------------------------------------------------------------
@@ -372,9 +389,7 @@ class Instrument:
         if ener_wmn is not None:
             meta_data['ENER_WMN'] = (ener_wmn, 'Energy weighted mean in um')
         # ---------------------------------------------------------------------
-        # push tag1, tag2 and meta data to variables
-        self.set_variable('TAG1', tag1)
-        self.set_variable('TAG2', tag2)
+        # push meta data to variables
         self.set_variable('META', meta_data)
 
     def define_filenames(self):
@@ -382,9 +397,6 @@ class Instrument:
         func_name = f'{__NAME__}.define_filenames()'
         # update meta data
         self.update_meta_data()
-        # get tag1
-        tag1 = self.get_variable('TAG1', func_name)
-        tag2 = self.get_variable('TAG2', func_name)
         # get file paths
         temppath = self.params['PATHS.TEMP_PATH']
         otherpath = self.params['PATHS.OTHER_PATH']
@@ -392,17 +404,13 @@ class Instrument:
         # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
-        median_image_file = 'median{0}.fits'.format(tag1)
+        median_image_file = 'median.fits'
         median_image_file = os.path.join(temppath, median_image_file)
         # ---------------------------------------------------------------------
-        clean_cube_file = 'cleaned_cube{0}.fits'.format(tag1)
+        clean_cube_file = 'cleaned_cube.fits'
         clean_cube_file = os.path.join(temppath, clean_cube_file)
         # ---------------------------------------------------------------------
-        tmp_before_after_clean1f = 'temporary_before_after_clean1f.fits'
-        tmp_before_after_clean1f = os.path.join(temppath,
-                                                tmp_before_after_clean1f)
-        # ---------------------------------------------------------------------
-        tmp_pcas = 'temporary_pcas.fits'.format(tag1)
+        tmp_pcas = 'temporary_pcas.fits'
         tmp_pcas = os.path.join(temppath, tmp_pcas)
         # ---------------------------------------------------------------------
         temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
@@ -426,41 +434,40 @@ class Instrument:
         tmp_ini_err_bkgrnd = 'temporary_initial_err_bkgrnd.fits'
         tmp_ini_err_bkgrnd = os.path.join(temppath, tmp_ini_err_bkgrnd)
         # ---------------------------------------------------------------------
-        errfile = os.path.join(temppath, 'errormap{}.fits'.format(tag1))
+        errfile = os.path.join(temppath, 'errormap.fits')
         # ---------------------------------------------------------------------
-        resfile = os.path.join(temppath, 'residual{}.fits'.format(tag1))
+        resfile = os.path.join(temppath, 'residual.fits')
         # ---------------------------------------------------------------------
-        reconfile = os.path.join(temppath, 'recon{}.fits'.format(tag1))
+        reconfile = os.path.join(temppath, 'recon.fits')
         # ---------------------------------------------------------------------
-        ltbl_file = os.path.join(otherpath, 'stability{}.csv'.format(tag1))
+        ltbl_file = os.path.join(otherpath, 'stability.csv')
         # ---------------------------------------------------------------------
         sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace_order}.csv')
         # ---------------------------------------------------------------------
-        res_no_grey_ord = 'residual_no_grey_ord{trace_order}' + tag2 + '.fits'
+        res_no_grey_ord = 'residual_no_grey_ord{trace_order}.fits'
         res_no_grey_ord = os.path.join(fitspath, res_no_grey_ord)
         # ---------------------------------------------------------------------
-        res_grey_ord = 'residual_grey_ord{trace_order}' + tag2 + '.fits'
+        res_grey_ord = 'residual_grey_ord{trace_order},fits'
         res_grey_ord = os.path.join(fitspath, res_grey_ord)
         # ---------------------------------------------------------------------
-        spectra_ord = 'spectra_ord{trace_order}' + tag2 + '.fits'
+        spectra_ord = 'spectra_ord{trace_order},fits'
         spectra_ord = os.path.join(fitspath, spectra_ord)
         # ---------------------------------------------------------------------
-        waveord_file = 'wavelength_ord{trace_order}' + tag2 + '.fits'
+        waveord_file = 'wavelength_ord{trace_order},fits'
         waveord_file = os.path.join(fitspath, waveord_file)
         # ---------------------------------------------------------------------
-        tspec_ord = 'tspec_ord{trace_order}' + tag2 + '.csv'
+        tspec_ord = 'tspec_ord{trace_order}.csv'
         tspec_ord = os.path.join(otherpath, tspec_ord)
         # ---------------------------------------------------------------------
-        tspec_ord_bin = 'tspec_ord_{trace_order}_bin{res}' + tag2 + '.csv'
+        tspec_ord_bin = 'tspec_ord_{trace_order}_bin{res}.csv'
         tspec_ord_bin = os.path.join(otherpath, tspec_ord_bin)
         # ---------------------------------------------------------------------
-        eureka_file = 'spectra_ord{trace_order}' + tag2 + '.h5'
+        eureka_file = 'spectra_ord{trace_order}.h5'
         eureka_file = os.path.join(fitspath, eureka_file)
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
         self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
-        self.set_variable('TEMP_BEFORE_AFTER_CLEAN1F', tmp_before_after_clean1f)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
@@ -1589,8 +1596,6 @@ class Instrument:
         # save these for later
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         clean_cube_file = self.get_variable('CLEAN_CUBE_FILE', func_name)
-        tmp_before_after_c1f = self.get_variable('TEMP_BEFORE_AFTER_CLEAN1F',
-                                                 func_name)
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         tmp_transit_invsout = self.get_variable('TEMP_TRANSIT_IN_VS_OUT',
                                                 func_name)
@@ -1600,7 +1605,6 @@ class Instrument:
             # make sure all required files exist
             cond = os.path.exists(median_image_file)
             cond &= os.path.exists(clean_cube_file)
-            cond &= os.path.exists(tmp_before_after_c1f)
             cond &= os.path.exists(tmp_transit_invsout)
             # only look for fit pca file if we are fitting pca
             if self.params['WLC.LMODEL.FIT_PCA']:
@@ -1616,10 +1620,6 @@ class Instrument:
                 # load the clean cube
                 misc.printc('\tReading: {0}'.format(clean_cube_file), 'info')
                 clean_cube = self.load_data(clean_cube_file)
-                # load the before after clean 1f
-                misc.printc('\tReading: {0}'.format(tmp_before_after_c1f),
-                            'info')
-                before_after_clean1f = self.load_data(tmp_before_after_c1f)
                 # load the transit in vs out
                 misc.printc('\tReading: {0}'.format(tmp_transit_invsout),
                             'info')
@@ -1631,8 +1631,7 @@ class Instrument:
                 else:
                     pcas = None
                 # return these files
-                return_list = [clean_cube, median_image, before_after_clean1f,
-                               transit_invsout, pcas]
+                return_list = [clean_cube, median_image, transit_invsout, pcas]
                 return return_list
         # ---------------------------------------------------------------------
         # do the 1/f filtering
@@ -1645,11 +1644,9 @@ class Instrument:
         # first estimate of the trace amplitude
         misc.printc('\tFirst median of cube to create trace esimate', 'info')
         # validate out-of-transit domain
-        self.get_valid_oot()
-        has_oot = self.get_variable('HAS_OOT', func_name)
+        self.get_baseline_transit_params()
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
         oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        oot_domain_before = self.get_variable('OOT_DOMAIN_BEFORE', func_name)
-        oot_domain_after = self.get_variable('OOT_DOMAIN_AFTER', func_name)
         int_domain = self.get_variable('INT_DOMAIN', func_name)
         # get flag for median out of transit
         med_oot = self.params['WLC.GENERAL.MEDIAN_OOT']
@@ -1681,21 +1678,8 @@ class Instrument:
         with warnings.catch_warnings(record=True) as _:
             if med_oot:
                 med = np.nanmedian(cube2[oot_domain], axis=0)
-                before = np.nanmedian(cube2[oot_domain_before], axis=0)
-                after = np.nanmedian(cube2[oot_domain_after], axis=0)
-                # get the median difference
-                med_diff = before - after
-                # low pass the median difference
-                for frame in tqdm(range(med_diff.shape[0])):
-                    med_diff[frame] = mp.lowpassfilter(med_diff[frame], 15)
-                # get the square ratio between median and med diff
-                ratio = np.sqrt(np.nansum(med ** 2) / np.nansum(med_diff ** 2))
-                # scale the median difference
-                med_diff *= ratio
             else:
                 med = np.nanmedian(cube2, axis=0)
-                # reset the median difference to the median
-                med_diff = np.array(med)
         # ---------------------------------------------------------------------
         # also keep track of the in vs out-of-transit 2D image.
         with warnings.catch_warnings(record=True) as _:
@@ -1743,16 +1727,142 @@ class Instrument:
                         'info')
             fits.writeto(tmp_transit_invsout, transit_invsout,
                          overwrite=True)
-            # write the before after clean 1f
-            misc.printc('\tWriting: {0}'.format(tmp_before_after_c1f),
-                        'info')
-            fits.writeto(tmp_before_after_c1f, med_diff, overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
-        return_list = [cube, med, med_diff, transit_invsout, pcas]
+        return_list = [cube, med, transit_invsout, pcas]
         return return_list
 
-    def get_valid_oot(self):
+    def process_baseline_ints(self,
+                             raw_baseline_ints: Union[None, List[List[int]]]
+                             ) -> List[List[int]]:
+        """
+        Make sure the TRANSIT_INTS parameter are in the correct format
+        i.e. None --> []
+             lists of len 2 are ints and forced to length 4 (2nd=1st, 3rd=4th)
+             lists of len 4 are ints
+
+        :param raw_transit_ints: Union[None, List[List[int]]], the raw transit
+                                 integrations
+        :return: List[List[int]], the processed transit integrations
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.process_transit_ints()'
+        # get the number of frames
+        data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
+        # if we don't have transit integrations defined we have no transit
+        if raw_baseline_ints is None:
+            baseline_ints = [[0, data_n_frames]]
+        # otherwise we need a list of lists(length 2 or 4)
+        elif isinstance(raw_baseline_ints, list):
+            # output transit integrations
+            baseline_ints = []
+            # loop around raw transit integrations
+            for row in range(len(raw_baseline_ints)):
+                # if we have a length 4 list
+                if len(raw_baseline_ints[row]) == 2:
+                    # storage for this specific transit/ecplise
+                    baseline_ints_row = []
+                    # make sure they are all integers
+                    try:
+                        for integration in raw_baseline_ints[row]:
+                            # test that we have a valid integer
+                            valid_int = int(integration)
+                            # deal with out-of-bounds value
+                            if valid_int < 0:
+                                valid_int = 0
+                            elif valid_int > data_n_frames:
+                                valid_int = data_n_frames
+                            # append to the list
+                            baseline_ints_row.append(valid_int)
+                    except Exception as _:
+                        emsg = ('BASELINE_INTS[{0}] must be a list of ints '
+                                'between 0 and {1}')
+                        emsg = emsg.format(row, data_n_frames)
+                        raise exceptions.SossisseConstantException(emsg)
+                    # we then add this row to the transit_ints
+                    # but sort from smallest to largest
+                    baseline_ints_row = np.sort(baseline_ints_row)
+                    baseline_ints.append(list(baseline_ints_row))
+                else:
+                    emsg = ('BASELINE_INTS[{0}] must be a list of ints of '
+                            'length 2').format(row)
+                    raise exceptions.SossisseConstantException(emsg)
+        else:
+            emsg = 'BASELINE_INTS must be a list of lists or None'
+            raise exceptions.SossisseConstantException(emsg)
+        # return the transit integrations in the correct format
+        return baseline_ints
+
+    def process_transit_ints(self,
+                             raw_transit_ints: Union[None, List[List[int]]]
+                             ) -> List[List[int]]:
+        """
+        Make sure the TRANSIT_INTS parameter are in the correct format
+        i.e. None --> []
+             lists of len 2 are ints and forced to length 4 (2nd=1st, 3rd=4th)
+             lists of len 4 are ints
+
+        :param raw_transit_ints: Union[None, List[List[int]]], the raw transit
+                                 integrations
+        :return: List[List[int]], the processed transit integrations
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.process_transit_ints()'
+        # get the number of frames
+        data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
+        # if we don't have transit integrations defined we have no transit
+        if raw_transit_ints is None:
+            transit_ints = []
+        # otherwise we need a list of lists(length 2 or 4)
+        elif isinstance(raw_transit_ints, list):
+            # output transit integrations
+            transit_ints = []
+            # loop around raw transit integrations
+            for row in range(len(raw_transit_ints)):
+                # if we have a length 4 list
+                if len(raw_transit_ints[row]) in [2, 4]:
+                    # storage for this specific transit/ecplise
+                    transit_int_row = []
+                    # make sure they are all integers
+                    try:
+                        for integration in raw_transit_ints[row]:
+                            # test that we have a valid integer
+                            valid_int = int(integration)
+                            # deal with out-of-bounds value
+                            if valid_int < 0:
+                                valid_int = 0
+                            elif valid_int > data_n_frames:
+                                valid_int = data_n_frames
+                            # if we get to here the transit is valid
+                            # if we have four entries we just add it once
+                            if len(raw_transit_ints[row]) == 4:
+                                transit_int_row.append(valid_int)
+                            # if we have two entries we add it twice (i.e. the
+                            # 2nd contact = 1st contact and 3rd contact =
+                            # 4th contact)
+                            else:
+                                transit_int_row.append(valid_int)
+                                transit_int_row.append(valid_int)
+                    except Exception as _:
+                        emsg = ('TRANSIT_INTS[{0}] must be a list of ints '
+                                'between 0 and {1}')
+                        emsg = emsg.format(row, data_n_frames)
+                        raise exceptions.SossisseConstantException(emsg)
+                    # we then add this row to the transit_ints
+                    # but sort from smallest to largest
+                    transit_int_row = np.sort(transit_int_row)
+                    transit_ints.append(list(transit_int_row))
+                else:
+                    emsg = ('TRANSIT_INTS[{0}] must be a list of ints of '
+                            'length 2 or 4').format(row)
+                    raise exceptions.SossisseConstantException(emsg)
+        else:
+            emsg = 'TRANSIT_INTS must be a list of lists or None'
+            raise exceptions.SossisseConstantException(emsg)
+        # return the transit integrations in the correct format
+        return transit_ints
+
+    def get_baseline_transit_params(self):
         """
         Get the out-of-transit domain (before, after and full removing any
         rejected domain)
@@ -1760,83 +1870,86 @@ class Instrument:
         :return:
         """
         # set function name
-        func_name = f'{__NAME__}.{self.name}.get_valid_oot()'
+        func_name = f'{__NAME__}.{self.name}.get_baseline_transit_params()'
         # get the oot domain
-        oot_domain = self._variables['OOT_DOMAIN']
-        # deal with value already found
-        if oot_domain is not None:
+        has_oot = self._variables['HAS_OUT_TRANSIT']
+        has_int = self._variables['HAS_IN_TRANSIT']
+        # deal with value already found (we don't need to run this again)
+        if has_oot is not None and has_int is not None:
             return
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
-        # get the contact points
-        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
-        # deal with no cframes set (can happen)
-        if cframes is None:
-            # set flag
-            self.set_variable('HAS_OOT', False)
-            # define sum dummy empty arrays
-            zero_fill = np.zeros(data_n_frames, dtype=bool)
-            one_fill = np.ones(data_n_frames, dtype=bool)
-            # update variables
-            self.set_variable('OOT_DOMAIN', zero_fill)
-            self.set_variable('OOT_DOMAIN_BEFORE', zero_fill)
-            self.set_variable('OOT_DOMAIN_AFTER', zero_fill)
-            self.set_variable('INT_DOMAIN', one_fill)
-            self.set_variable('IN_TRANSIT_INTEGRATE', one_fill)
-
-            return
+        # get the baseline integrations and the transit integrations
+        raw_baseline_ints = self.params['WLC.INPUTS.BASELINE_INTS']
+        raw_transit_ints = self.params['WLC.INPUTS.TRANSIT_INTS']
+        # process the baseline integrations
+        baseline_ints = self.process_baseline_ints(raw_baseline_ints)
+        # process transit integrations
+        transit_ints = self.process_transit_ints(raw_transit_ints)
         # get the rejection domain
         rej_domain = self.params['WLC.INPUTS.REJECT_DOMAIN']
-        # if we don't have out-of-transit domain work it out
-        valid_oot = np.ones(data_n_frames, dtype=bool)
-        # set the frames in the transit to False
-        # note +1 as the last point of contact is deemed part of the transit
-        valid_oot[cframes[0]:cframes[3] + 1] = False
-        # deal with the rejection of domain
-        if rej_domain is not None:
-            # get the rejection domain
-            for ireject in range(len(rej_domain) // 2):
-                # get the start and end of the domain to reject
-                start = rej_domain[ireject * 2]
-                end = rej_domain[ireject * 2 + 1]
-                # set to False in valid_oot
-                valid_oot[start:end] = False
-        # get the frames before
-        valid_oot_before = np.array(valid_oot)
-        valid_oot_before[cframes[0]:] = False
-        # get the frames after
-        valid_oot_after = np.array(valid_oot)
-        # note +1 as the last point of contact is deemed part of the transit
-        valid_oot_after[:cframes[3] + 1] = False
+        # ---------------------------------------------------------------------
+        # get the valid out of transit domain
+        # ---------------------------------------------------------------------
+        # at first everything is considered as "out of transit"
+        has_out_transit = True
+        valid_oot = np.zeros(data_n_frames, dtype=bool)
+        # loop around baseline integrations given
+        for cframe in baseline_ints:
+            # set the baseline frames to True
+            valid_oot[cframe[0]:cframe[1] + 1] = True
+            # deal with the rejection of domain
+            if rej_domain is not None:
+                # get the rejection domain
+                for ireject in range(len(rej_domain) // 2):
+                    # get the start and end of the domain to reject
+                    start = rej_domain[ireject * 2]
+                    end = rej_domain[ireject * 2 + 1]
+                    # set to False in valid_oot
+                    valid_oot[start:end] = False
         # ---------------------------------------------------------------------
         # get the valid in transit domain
-        valid_int = np.ones(data_n_frames, dtype=bool)
-        valid_int_integrate = np.ones(data_n_frames, dtype=bool)
-        # set the frames out of transit to False
-        #  note +1 as the last point of contact is deemed part of the transit
-        valid_int[:cframes[0]] = False
-        valid_int[cframes[3] + 1:] = False
-        # set the frames out of integration window to False
-        #  note +1 as the last point of contact is deemed part of the transit
-        valid_int_integrate[:cframes[1]] = False
-        valid_int_integrate[cframes[2] + 1:] = False
-        # deal with rejection of domain
-        if rej_domain is not None:
-            # get the rejection domain
-            for ireject in range(len(rej_domain) // 2):
-                # get the start and end of the domain to reject
-                start = rej_domain[ireject * 2]
-                end = rej_domain[ireject * 2 + 1]
-                # set to False in valid_int
-                valid_int[start:end] = False
-                valid_int_integrate[start:end] = False
+        # ---------------------------------------------------------------------
+        if len(transit_ints) == 0:
+            valid_int = np.zeros(data_n_frames, dtype=bool)
+            valid_int_integrate = np.zeros(data_n_frames, dtype=bool)
+            has_in_transit = False
+        else:
+            has_in_transit = True
+            valid_int = np.ones(data_n_frames, dtype=bool)
+            valid_int_integrate = np.ones(data_n_frames, dtype=bool)
+            # loop through the transit integrations
+            for cframe in transit_ints:
+                # set the frames out of transit to False
+                #  note +1 as the last point of contact is deemed part of the transit
+                valid_int[:cframe[0]] = False
+                valid_int[cframe[3] + 1:] = False
+                # set the frames out of integration window to False
+                #  note +1 as the last point of contact is deemed part of the transit
+                valid_int_integrate[:cframe[1]] = False
+                valid_int_integrate[cframe[2] + 1:] = False
+                # deal with rejection of domain
+                if rej_domain is not None:
+                    # get the rejection domain
+                    for ireject in range(len(rej_domain) // 2):
+                        # get the start and end of the domain to reject
+                        start = rej_domain[ireject * 2]
+                        end = rej_domain[ireject * 2 + 1]
+                        # set to False in valid_int
+                        valid_int[start:end] = False
+                        valid_int_integrate[start:end] = False
+        # ---------------------------------------------------------------------
+        # reject the valid in transit domain from the out-of-transit domain
+        # ---------------------------------------------------------------------
+        valid_oot &= ~valid_int
         # ---------------------------------------------------------------------
         # set flag
-        self.set_variable('HAS_OOT', True)
+        self.set_variable('HAS_OUT_TRANSIT', has_out_transit)
+        self.set_variable('HAS_IN_TRANSIT', has_in_transit)
         # update variables
+        self.set_variable('BASELINE_INTS', baseline_ints)
+        self.set_variable('TRANSIT_INTS', transit_ints)
         self.set_variable('OOT_DOMAIN', valid_oot)
-        self.set_variable('OOT_DOMAIN_BEFORE', valid_oot_before)
-        self.set_variable('OOT_DOMAIN_AFTER', valid_oot_after)
         self.set_variable('INT_DOMAIN', valid_int)
         self.set_variable('IN_TRANSIT_INTEGRATE', valid_int_integrate)
 
@@ -1928,10 +2041,8 @@ class Instrument:
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         # update meta data
         self.update_meta_data()
-        # get tag1
-        tag1 = self.get_variable('TAG1', func_name)
         # make sure we have a pca file
-        tmp_pcas = 'temporary_pcas.fits'.format(tag1)
+        tmp_pcas = 'temporary_pcas.fits'
         tmp_pcas = os.path.join(self.params['PATHS.TEMP_PATH'], tmp_pcas)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         # ---------------------------------------------------------------------
@@ -1945,9 +2056,9 @@ class Instrument:
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # validate out-of-transit domain
-        self.get_valid_oot()
-        has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_transit_params()
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the pca analysis
         if not has_oot:
@@ -1963,7 +2074,7 @@ class Instrument:
         nanmask = np.ones_like(tracemap, dtype=float)
         nanmask[~tracemap] = np.nan
         # copy the normalized cube
-        cube3ini = cube2[oot_domain]
+        cube3ini = cube2[out_transit_domain]
         # subtract off the median
         for iframe in tqdm(range(cube3ini.shape[0])):
             cube3ini[iframe] -= med
@@ -1971,7 +2082,7 @@ class Instrument:
         # copy the normalized cube
         cube3 = np.array(cube3ini)
         # get the valid error domain
-        err3 = err[oot_domain]
+        err3 = err[out_transit_domain]
         # apply the nanmask to the cube3
         for iframe in range(cube3.shape[0]):
             cube3[iframe] *= nanmask
@@ -2263,7 +2374,7 @@ class Instrument:
     def setup_linear_reconstruction(self, med: np.ndarray, dx: np.ndarray,
                                     dy: np.ndarray, rotxy: np.ndarray,
                                     ddy: np.ndarray, pca: np.ndarray,
-                                    med_diff: np.ndarray) -> np.ndarray:
+                                    ) -> np.ndarray:
         """
         Setup the linear reconstruction vector and output column names
 
@@ -2288,7 +2399,6 @@ class Instrument:
         :param rotxy: np.ndarray, the rotation pattern
         :param ddy: np.ndarray, the second derivative
         :param pca: np.ndarray, the pca components
-        :param med_diff: np.ndarray, the median difference
 
         :return: np.ndarray, the starting linear reconstruction vector
                  depending on which parameters are switched on
@@ -2343,13 +2453,6 @@ class Instrument:
             output_units.append('mpix$^2$')
             output_factor.append(1e6)
         # ---------------------------------------------------------------------
-        # deal with fit before / after
-        if lm_params['FIT_BEFORE_AFTER']:
-            vector.append(med_diff.ravel())
-            output_names.append('before_after')
-            output_units.append('ppm')
-            output_factor.append(1e6)
-        # ---------------------------------------------------------------------
         # deal with fit pca
         if lm_params['FIT_PCA'] and pca is not None:
             n_comp = lm_params['FIT_N_PCA']
@@ -2358,13 +2461,6 @@ class Instrument:
                 output_names.append(f'PCA{icomp + 1}')
                 output_units.append('ppm')
                 output_factor.append(1.0)
-        # ---------------------------------------------------------------------
-        # deal with quadratic term
-        if lm_params['FIT_QUAD_TERM']:
-            vector.append(med_diff.ravel() ** 2)
-            output_names.append('flux^2')
-            output_units.append('flux$^2$')
-            output_factor.append(1.0)
         # ---------------------------------------------------------------------
         # convert vector to numpy array
         vector = np.array(vector)
@@ -2542,22 +2638,12 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.normalize_sum_trace()'
         # validate out-of-transit domain
-        self.get_valid_oot()
-        has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        # ---------------------------------------------------------------------
-        # if we don't have oot domain we cannot do the normalization
-        if not has_oot:
-            wmsg = ('Cannot normalize sum trace without out-of-transit domain.'
-                    '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to normalize '
-                    'by the sum of the trace.')
-            misc.printc(wmsg, 'warning')
-            # return loutputs without normalization
-            return loutputs
+        self.get_baseline_transit_params()
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # get the normalization factor
         with warnings.catch_warnings(record=True) as _:
-            norm_factor = np.nanmedian(loutputs[oot_domain]['sum_trace'])
+            norm_factor = np.nanmedian(loutputs[out_transit_domain]['sum_trace'])
         # apply the normalization factor
         loutputs['sum_trace'] /= norm_factor
         loutputs['sum_trace_error'] /= norm_factor
@@ -2586,9 +2672,9 @@ class Instrument:
         # get the frame numbers
         frames = np.arange(nframes, dtype=float)
         # get the out-of-transit domain
-        self.get_valid_oot()
+        self.get_baseline_transit_params()
         has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the normalization
         if not has_oot:
@@ -2602,18 +2688,30 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the polynomial degree for the transit baseline
         poly_order = self.params['WLC.GENERAL.TRANSIT_BASELINE_POLYORD']
-        # get the contact frames
-        cframes = self.params['WLC.INPUTS.CONTACT_FRAMES']
-        # get the mid transit frame
-        mid_transit_frame = int(np.nanmean(cframes))
-        # get the image for the mid transit frame
-        mid_transit_slice = (cube[mid_transit_frame] *
-                             valid_arr[mid_transit_frame])
-        # get the rms of the cube (before correction) for mid transit
-        rms1_cube = mp.estimate_sigma(mid_transit_slice)
+        # get the transit integrations
+        transit_ints = self._variables['TRANSIT_INTS']
+        # storage of the mid transit frames
+        mid_transit_frames = []
+        # storage for rms's of the mid transit slice (before correction)
+        rms1_cube_list = []
+        # storage for rms's of the mid transit slice (after correction)
+        rms2_cube_list = []
+        # deal with transits (if we have them
+        if transit_ints is not None and isinstance(transit_ints, list):
+            for cframe in transit_ints:
+                # get the mid transit frame
+                mid_transit_frame = int(np.nanmean(cframe))
+                # get the image for the mid transit frame
+                mid_transit_slice = (cube[mid_transit_frame] *
+                                     valid_arr[mid_transit_frame])
+                # get the rms of the cube (before correction) for mid transit
+                rms1_cube = mp.estimate_sigma(mid_transit_slice)
+                # append to storage
+                mid_transit_frames.append(mid_transit_frame)
+                rms1_cube_list.append(rms1_cube)
         # ---------------------------------------------------------------------
         # print progress
-        msg = 'Correcting the per pixel transit baseline'
+        msg = 'Correcting the per pixel baseline'
         misc.printc(msg, 'info')
         # Precompute finite mask for the entire cube
         finite_mask_cube = np.isfinite(cube)
@@ -2635,11 +2733,11 @@ class Instrument:
                 # get the sample column
                 sample = cube_slice[:, iy]
                 # get the out of transit domain in the sample
-                sample_oot = sample[oot_domain]
+                sample_oot = sample[out_transit_domain]
                 # get the indices of the out of transit domain
-                frames_oot = frames[oot_domain]
+                frames_oot = frames[out_transit_domain]
                 # find any nans in the oot sample
-                finite_mask = finite_mask_slice[:, iy][oot_domain]
+                finite_mask = finite_mask_slice[:, iy][out_transit_domain]
                 # -------------------------------------------------------------
                 # only fit the polynomial if we have enough points
                 if np.sum(finite_mask) <= poly_order:
@@ -2662,19 +2760,27 @@ class Instrument:
             cube[:, :, ix] = np.array(cube_slice)
 
         # ---------------------------------------------------------------------
-        # re-get the image for the mid transit frame
-        mid_transit_slice = (cube[mid_transit_frame] *
-                             valid_arr[mid_transit_frame])
-        # recalculate the rms of the cube
-        rms2_cube = mp.estimate_sigma(mid_transit_slice)
+        # deal with transits (if we have them
+        if transit_ints is not None and isinstance(transit_ints, list):
+            for mid_transit_frame in mid_transit_frames:
+                # re-get the image for the mid transit frame
+                mid_transit_slice = (cube[mid_transit_frame] *
+                                     valid_arr[mid_transit_frame])
+                # recalculate the rms of the cube
+                rms2_cube = mp.estimate_sigma(mid_transit_slice)
+                # append to storage
+                rms2_cube_list.append(rms2_cube)
+        # ---------------------------------------------------------------------
         # print the mid transit frame used
-        msg = f'\tMid transit frame used: {mid_transit_frame}'
-        misc.printc(msg, 'info')
-        # print the rms of the cube before and after
-        msg_before = f'\tRMS[before]: {rms1_cube:.3f}'
-        misc.printc(msg_before, 'number')
-        msg_after = f'\tRMS[after]: {rms2_cube:.3f}'
-        misc.printc(msg_after, 'number')
+        for mit, mid_transit_frame in mid_transit_frames:
+            # prin the mid transit frame used for this transit
+            msg = f'\tMid transit[{mit+1}] frame used: {mid_transit_frame}'
+            misc.printc(msg, 'info')
+            # print the rms of the cube before and after
+            msg_before = f'\tRMS[{mit+1}][before]: {rms1_cube_list[mit]:.3f}'
+            misc.printc(msg_before, 'number')
+            msg_after = f'\tRMS[{mit+1}][after]: {rms2_cube_list[mit]:.3f}'
+            misc.printc(msg_after, 'number')
         # ---------------------------------------------------------------------
         # return the updated cube
         return cube
@@ -2987,23 +3093,13 @@ class Instrument:
         # get the polynomial degree for trace baseline
         polydeg = self.params['WLC.GENERAL.TRACE_BASELINE_POLYORD']
         # get the out-of-transit domain
-        self.get_valid_oot()
-        has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        # ---------------------------------------------------------------------
-        # deal with no out-of-transit domain defined
-        if not has_oot:
-            wmsg = ('Cannot remove trend without '
-                    'out-of-transit domain.'
-                    '\n\tPlease set CONTACT_FRAMES to remove_trend.')
-            misc.printc(wmsg, 'warning')
-            # return the spec and ltable without removing trend
-            return spec
+        self.get_baseline_transit_params()
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # loop around
         for ix in range(nbxpix):
             # get the slide without the transit
-            v1 = spec[oot_domain, ix]
+            v1 = spec[out_transit_domain, ix]
             # find valid pixels
             valid = np.isfinite(v1)
             # if we don't have enough good pixels skip removing trend for this
@@ -3011,7 +3107,7 @@ class Instrument:
             if np.sum(valid) < 2:
                 continue
             # get the valid xpix for this row
-            index = np.arange(nbframes)[oot_domain]
+            index = np.arange(nbframes)[out_transit_domain]
             # fit the trend
             tfit = np.polyfit(index[valid], v1[valid], polydeg)
             # remove the trend and update the spectrum
@@ -3032,18 +3128,9 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_trend_phot()'
         # get the out-of-transit domain
-        self.get_valid_oot()
+        self.get_baseline_transit_params()
         has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        # ---------------------------------------------------------------------
-        # deal with no out-of-transit domain defined
-        if not has_oot:
-            wmsg = ('Cannot remove trend without '
-                    'out-of-transit domain.'
-                    '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to remove_trend.')
-            misc.printc(wmsg, 'warning')
-            # return the spec and ltable without removing trend
-            return ltable
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # do the same for the photometric time series
         # ---------------------------------------------------------------------
@@ -3052,7 +3139,7 @@ class Instrument:
         # get an index array for v1
         index = np.arange(spec.shape[0])
         # fit the out-of-transit trend
-        tfit = np.polyfit(index[oot_domain], v1[oot_domain], 1)
+        tfit = np.polyfit(index[out_transit_domain], v1[out_transit_domain], 1)
         # remove this off the amplitudes
         ltable['amplitude'] /= np.polyval(tfit, index)
         # ---------------------------------------------------------------------
@@ -3093,10 +3180,10 @@ class Instrument:
         # otherwise we are in compute mode
         # ---------------------------------------------------------------------
         # get the out-of-transit domain
-        self.get_valid_oot()
+        self.get_baseline_transit_params()
         has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        in_domain_int = self.get_variable('IN_TRANSIT_INTEGRATE', func_name)
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE', func_name)
         # deal with out of transit domain not set
         if not has_oot:
             wmsg = ('Cannot calculate transit depth trend without '
@@ -3106,10 +3193,11 @@ class Instrument:
             # return the spec and ltable without removing trend
             return None
         # ---------------------------------------------------------------------
+        # TODO: Question does this work with multiple transits?
         # get the transit depth
         with warnings.catch_warnings(record=True) as _:
-            part1 = np.nanmedian(ltable['amplitude'][oot_domain])
-            part2 = np.nanmean(ltable['amplitude'][in_domain_int])
+            part1 = np.nanmedian(ltable['amplitude'][out_transit_domain])
+            part2 = np.nanmean(ltable['amplitude'][in_transit_domain])
             # transit depth is the median out-of-transit amplitudes
             # minus the mean of the in transit amplitudes
             transit_depth = part1 - part2
@@ -3135,39 +3223,31 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
         # get the out-of-transit domain
-        self.get_valid_oot()
+        self.get_baseline_transit_params()
         has_oot = self.get_variable('HAS_OOT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        in_domain_int = self.get_variable('IN_TRANSIT_INTEGRATE',
-                                                 func_name)
-        # ---------------------------------------------------------------------
-        # deal with no out-of-transit domain defined
-        if not has_oot:
-            wmsg = ('Cannot get in-transit spectrum without '
-                    'out-of-transit domain.'
-                    '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to remove_trend.')
-            misc.printc(wmsg, 'warning')
-            # return the spec and ltable without removing trend
-            return None, None, None
+        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE',
+                                              func_name)
         # ---------------------------------------------------------------------
         # weights of each point from uncertainties
         weight = 1 / spec_err ** 2
         # in transit spectrum and error
         with warnings.catch_warnings(record=True) as _:
+            sprod = spec[in_transit_domain] * weight[in_transit_domain]
             # calculate the weighted sum of the spectrum - in transit
-            sumspec_in = np.nansum(spec[in_domain_int] * weight[in_domain_int],
-                                   axis=0)
+            sumspec_in = np.nansum(sprod, axis=0)
             # calculate the sum of the weights - in transit
-            sumweight_in = np.nansum(weight[in_domain_int], axis=0)
+            sumweight_in = np.nansum(weight[in_transit_domain], axis=0)
             # calculate the in transit spectrum
             spec_in = sumspec_in / sumweight_in
             # calculate the in transit spectrum error
-            ispec_err2_in = np.nansum(1 / spec_err[in_domain_int] ** 2, axis=0)
+            ispec_err2_in = np.nansum(1 / spec_err[in_transit_domain] ** 2,
+                                      axis=0)
             spec_err_in = 1 / np.sqrt(ispec_err2_in)
 
         with warnings.catch_warnings(record=True) as _:
             # calculate the sum of the weights - out of transit
-            ispec_err2_out = np.nansum(1 / spec_err[oot_domain] ** 2, axis=0)
+            ispec_err2_out = np.nansum(1 / spec_err[out_transit_domain] ** 2, axis=0)
             # calculate the out-of-transit spectrum error
             spec_err_out = 1 / np.sqrt(ispec_err2_out)
         # ---------------------------------------------------------------------

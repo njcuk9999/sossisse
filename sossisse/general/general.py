@@ -80,7 +80,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
     out_c1f = inst.clean_1f(cube, err, tracemap)
-    cube, med, med_diff, transit_invsout, pcas = out_c1f
+    cube, med, transit_invsout, pcas = out_c1f
     # -------------------------------------------------------------------------
     # recenter the trace position
     tracemap = inst.recenter_trace_position(tracemap, med)
@@ -95,7 +95,7 @@ def linear_recon(inst: Instrument) -> Instrument:
 
     # setup the linear reconstruction vector based on the input parameters
     lvector = inst.setup_linear_reconstruction(med, dx, dy, rotxy, ddy,
-                                               pcas, med_diff)
+                                               pcas)
     # -----------------------------------------------------inst--------------------
     # find the best linear combination of scale/dx/dy/rotation from lvector
     # amps is a vector with the amplitude of all 4 fitted terms

@@ -346,15 +346,75 @@ CDict.add('VALID_DQ', value=None, dtype=list, dtypei=int,
           description='DQ flags that we should use (list)'
                       ' e.g. \n -0 \n -2')
 # -----------------------------------------------------------------------------
-# Define the Nth frame for 1st contact [it1], 2nd contact [it2], ... through
-#    to the 4th contact [itn]
-# formally "it"
-CDict.add('CONTACT_FRAMES', value=None, dtype=list, dtypei=int,
-          source=__NAME__, user=True, active=True,
-          not_none=False, length=4, minimum=0, group=cgroup,
-          description='Define the Nth frame for 1st contact [it1], '
-                      '2nd contact [it2] ... through 4th contact '
-                      'e.g. \n -90 \n -97 \n -103 \n -110')
+# Integrations used to construct a model PSF.
+#     This should be a list of [start, end] lists
+#     Ideally, these would be out-of-transit (if any) and without flares.
+#     If you observed constantly a variable object (brown dwarf, phase curve),
+#     you should enter the first to last as frame IDs, except significant
+#     flares.
+#     Note that on a first pass of data reduction, you may not know the
+#     optimal parameters. You can enter a guess and fine-tune in a second step.
+#     As a starting point, BASELINE_INTS can be [0, NINTS-1] where NINTS can
+#     be found in your fits header.
+#     Note the 1st frame is zero (pythonic numbering)
+#     Note that leaving this blank sets the baseline from 0 to NINTS-1
+#     E.g.
+#         BASELINE_INTS:
+#               - [0, 89]
+#               - [111, 230]
+CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
+          source=__NAME__, user=True, active=True, not_none=False,
+          group=cgroup,
+          description='Integrations used to construct a model PSF. ' 
+                       'This should be a list of [start, end] lists. '
+                      '\nIdeally, these would be out-of-transit (if any) and '
+                      'without flares. '
+                      '\nIf you observed constantly a variable '
+                      'object (brown dwarf, phase curve), you should enter the '
+                      'first to last as frame IDs, except significant flares. '
+                      'Note that on a first pass of data reduction, you may '
+                      'not know the optimal parameters. '
+                      '\nYou can enter a guess '
+                      'and fine-tune in a second step. As a starting point, '
+                      'BASELINE_INTS can be [0, NINTS-1] where NINTS can be '
+                      'found in your fits header. '
+                      '\nNote the 1st frame is zero '
+                      '(pythonic numbering). '
+                      '\nNote that leaving this blank sets '
+                      'the baseline from 0 to NINTS-1.'
+                      '\n    E.g. '
+                      '\n         BASELINE_INTS:'
+                      '\n            - [0, 89]'
+                      '\n           - [111, 230]')
+
+# -----------------------------------------------------------------------------
+# If there are transit(s)/eclipse(s) in the data, enter the frames
+#     corresponding to either the 1st, 2nd, 3rd and 4th contact [length 4 list]
+#     or the 1st to 4th contact [length 2 list].
+#     These should not overlap with the BASELINE_INTS,
+#     but there may be some domain that is neither because of flares
+#     (i.e., not within a transit but not within baseline).
+#     You can enter a guess and fine-tune in a second step.
+#     Note the 1st frame is zero (pythonic numbering)
+#     Note that leaving this blank assumes there is no transit/eclipse
+#     e.g. TRANSIT_INTS:
+#           - [90, 97, 103, 110]
+CDict.add('TRANSIT_INTS', value=None, dtype=list, dtypei=list,
+          source=__NAME__, user=True, active=True, not_none=False,
+          group=cgroup,
+          description='If there are transit(s)/eclipse(s) in the data, enter '
+                      'the frames corresponding to either the 1st, 2nd, 3rd '
+                      'and 4th contact [length 4 list] or the 1st to 4th '
+                      'contact [length 2 list]. These should not overlap with '
+                      'the BASELINE_INTS, but there may be some domain that '
+                      'is neither because of flares (i.e., not within a transit '
+                      'but not within baseline). '
+                      '\nYou can enter a guess and fine-tune in a second step.'
+                      '\nNote the 1st frame is zero (pythonic numbering)'
+                      '\nNote that leaving this blank assumes there is no '
+                      'transit/eclipse'
+                      '\ne.g. TRANSIT_INTS:'
+                      '\n         - [90, 97, 103, 110]')
 
 # -----------------------------------------------------------------------------
 # used to reject bits of domain from the analysis
