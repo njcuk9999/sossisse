@@ -2673,7 +2673,7 @@ class Instrument:
         frames = np.arange(nframes, dtype=float)
         # get the out-of-transit domain
         self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OOT', func_name)
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
         out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the normalization
@@ -2772,7 +2772,7 @@ class Instrument:
                 rms2_cube_list.append(rms2_cube)
         # ---------------------------------------------------------------------
         # print the mid transit frame used
-        for mit, mid_transit_frame in mid_transit_frames:
+        for mit, mid_transit_frame in enumerate(mid_transit_frames):
             # prin the mid transit frame used for this transit
             msg = f'\tMid transit[{mit+1}] frame used: {mid_transit_frame}'
             misc.printc(msg, 'info')
@@ -2941,6 +2941,19 @@ class Instrument:
     # ==========================================================================
     # Spectral Extraction functionality
     # ==========================================================================
+    def get_trace_orders(self) -> List[int]:
+        """
+        Get the trace orders
+        If None this is set to [0]
+        :return:
+        """
+        trace_orders = self.params['GENERAL.TRACE_ORDERS']
+        # deal with no trace orders set (or none needed)
+        if trace_orders is None:
+            return [0]
+        else:
+            return trace_orders
+
     def create_sed(self, med: np.ndarray, residual: np.ndarray,
                    wavegrid: np.ndarray, posmax: np.ndarray,
                    throughput: np.ndarray, med_clean: np.ndarray,
@@ -3129,7 +3142,7 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.remove_trend_phot()'
         # get the out-of-transit domain
         self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OOT', func_name)
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
         out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # do the same for the photometric time series
@@ -3181,7 +3194,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the out-of-transit domain
         self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OOT', func_name)
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
         out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE', func_name)
         # deal with out of transit domain not set
@@ -3224,7 +3237,7 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
         # get the out-of-transit domain
         self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OOT', func_name)
+        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
         out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
         in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE',
                                               func_name)

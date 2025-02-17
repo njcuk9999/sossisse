@@ -170,9 +170,11 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # plot / save storage
     storage = dict()
+    # get the trace orders
+    trace_orders = inst.get_trace_orders()
     # -------------------------------------------------------------------------
     # loop around trace orders
-    for trace_order in inst.params['GENERAL.TRACE_ORDERS']:
+    for trace_order in trace_orders:
         # print progress
         misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
         # load the median image
