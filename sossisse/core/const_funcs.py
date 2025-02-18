@@ -481,6 +481,9 @@ def hash_match(params: ParamDict) -> Union[str, None]:
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
+    # deal with a POGOs yaml_dict (need to get the SOSSSISE nested dictionary)
+    if 'SOSSISSE' in yaml_dict:
+        yaml_dict = yaml_dict['SOSSISSE']
     # remove SID from yaml_dict (we can't compare this)
     if 'SID' in yaml_dict['INPUTS']:
         del yaml_dict['INPUTS']['SID']
