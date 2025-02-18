@@ -306,9 +306,6 @@ pip install -U -e ./sossisse[dev]
 ```
 
 
-
-```bash
-
 [Back to top](#table-of-contents)
 
 ---
