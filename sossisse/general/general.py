@@ -45,7 +45,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     # get parameters from instrumental parameters
     objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
-    print(misc.art('White light curve ' + objname, 'blue', 'CYAN'))
+    print(misc.art('Linear Recon ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
