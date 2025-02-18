@@ -81,15 +81,18 @@ def get_parameters(no_yaml: bool = False,
     # get the descriptions and inputs
     description = DESCRIPTIONS.get(kwargs['__NAME__'], 'UNKNOWN')
     inputs = INPUTARGS.get(kwargs['__NAME__'], None)
-    # -------------------------------------------------------------------------
-    # get parameters
-    params = load_functions.get_all_params(name=__NAME__,
-                                           description=description,
-                                           inputargs=inputs,
-                                           param_file_path='INPUTS.PARAM_FILE',
-                                           config_list=[constants.CDict],
-                                           from_file=not no_yaml,
-                                           kwargs=kwargs)
+    # deal with yaml dict passed
+    if '__YAML_DICT__' in kwargs:
+        params = kwargs['__YAML_DICT__']
+    else:
+        # get parameters
+        params = load_functions.get_all_params(name=__NAME__,
+                                               description=description,
+                                               inputargs=inputs,
+                                               param_file_path='INPUTS.PARAM_FILE',
+                                               config_list=[constants.CDict],
+                                               from_file=not no_yaml,
+                                               kwargs=kwargs)
     # ask user for any missing arguments
     params = load_functions.ask_for_missing_args(params)
     # -------------------------------------------------------------------------
