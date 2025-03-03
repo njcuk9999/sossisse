@@ -12,6 +12,7 @@ Created on 2022-09-20
 Rules: no sosssise imports
 """
 from pathlib import Path
+import yaml
 
 # =============================================================================
 # Define variables
@@ -19,12 +20,17 @@ from pathlib import Path
 __NAME__ = 'sossisse.core.base'
 
 __PATH__ = Path(__file__).parent.parent
-with open(__PATH__.parent.joinpath('version.txt'), 'r') as vfile:
-    vtext = vfile.readlines()
+# load the yaml file
+__YAML__ = yaml.load(open(__PATH__.joinpath('info.yaml')),
+                     Loader=yaml.FullLoader)
 
-__version__ = vtext[0].strip()
-__date__ = vtext[1].strip()
-__authors__ = 'Etienne Artigau, Neil James Cook, Loic Albert'
+# =============================================================================
+# Get variables from info.yaml
+# =============================================================================
+__version__ = __YAML__['DRS.VERSION']
+__authors__ = __YAML__['DRS.AUTHORS']
+__date__ = __YAML__['DRS.DATE']
+__release__ = __YAML__['DRS.RELEASE']
 
 # Define basic types (non nested)
 BASIC_TYPES = (int, float, bool, str)
