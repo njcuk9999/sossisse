@@ -447,13 +447,13 @@ class Instrument:
         res_no_grey_ord = 'residual_no_grey_ord{trace_order}.fits'
         res_no_grey_ord = os.path.join(fitspath, res_no_grey_ord)
         # ---------------------------------------------------------------------
-        res_grey_ord = 'residual_grey_ord{trace_order},fits'
+        res_grey_ord = 'residual_grey_ord{trace_order}.fits'
         res_grey_ord = os.path.join(fitspath, res_grey_ord)
         # ---------------------------------------------------------------------
-        spectra_ord = 'spectra_ord{trace_order},fits'
+        spectra_ord = 'spectra_ord{trace_order}.fits'
         spectra_ord = os.path.join(fitspath, spectra_ord)
         # ---------------------------------------------------------------------
-        waveord_file = 'wavelength_ord{trace_order},fits'
+        waveord_file = 'wavelength_ord{trace_order}.fits'
         waveord_file = os.path.join(fitspath, waveord_file)
         # ---------------------------------------------------------------------
         tspec_ord = 'tspec_ord{trace_order}.csv'
@@ -975,10 +975,21 @@ class Instrument:
         # calculate the mean of the cube (along time axis)
         with warnings.catch_warnings(record=True) as _:
             mcube = np.nanmean(cube, axis=0)
+        # ---------------------------------------------------------------------
         # get the box size from params
         box = self.params['WLC.INPUTS.BACKGROUND_GLITCH_BOX']
+        if box is None:
+            emsg = ('WLC.INPUTS.BACKGROUND_GLITCH_BOX not set. '
+                    'Please set the valid DQ values')
+            raise exceptions.SossisseConstantException(emsg)
+        # ---------------------------------------------------------------------
         # get the background shifts
         bgnd_shifts_values = self.params['WLC.INPUTS.BACKGROUND_SHIFTS']
+        if bgnd_shifts_values is None:
+            emsg = ('WLC.INPUTS.BACKGROUND_SHIFTS not set. '
+                    'Please set the valid DQ values')
+            raise exceptions.SossisseConstantException(emsg)
+        # ---------------------------------------------------------------------
         bgnd_shifts = np.arange(*bgnd_shifts_values)
         # print progress
         msg = '\tTweaking the position of the background'
