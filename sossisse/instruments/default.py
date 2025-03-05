@@ -12,7 +12,7 @@ Created on 2024-08-13 at 11:23
 import copy
 import os
 import warnings
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from astropy.io import fits
@@ -1529,7 +1529,8 @@ class Instrument:
             return posmax, throughput
 
     def get_wavegrid(self, order_num: Union[int, None] = None,
-                     return_xpix: bool = False
+                     return_xpix: bool = False,
+                     source: Optional[str] = None
                      ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get the wave grid for the instrument
@@ -1541,42 +1542,73 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_wavegrid()'
+        # get wave file definition
+        wave_file = self.params['GENERAL.WAVE_FILE']
+        # get the wave type
+        wave_type = self.params['GENERAL.WAVE_FILE_TYPE']
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
-        # deal with case where we need POS_FILE and it is not given
-        if self.params['GENERAL.POS_FILE'] is None:
-            emsg = (f'POS_FILE must be defined for {self.name}'
-                    f'\n\tfunction = {func_name}')
-            raise exceptions.SossisseInstException(emsg, self.name)
-        # deal with order num not being set
-        elif order_num is None:
-            emsg = ('order_num must be defined when using source="pos"'
-                    '\n\tfunction = {0}')
-            raise exceptions.SossisseInstException(emsg.format(func_name),
-                                                   self.name)
-        # otherwise we use POS_FILE
+        # ---------------------------------------------------------------------
+        # if order_num is set currently we have to get wavelength solution from
+        # the position file (this may change in the future)
+        if order_num is not None:
+            source = 'pos'
+        # if we have a wave file set and a wave type set then we should
+        # be loading from wavefile
+        elif source is None and wave_file is not None and wave_type is not None:
+            source = 'wavefile'
+            # deal with base wave type
+            if wave_type not in ['ext1d', 'fits', 'hdf5']:
+                emsg = f'WAVE_TYPE must be ext1d, fits or hdf5'
+                raise exceptions.SossisseConstantException(emsg)
+        # if source is still None set it to "pos"
+        if source is None:
+            source = 'pos'
+        # ---------------------------------------------------------------------
+        # Deal with ext1d wave file - by default not valid
+        if wave_type == 'ext1d' and source == 'wavefile':
+            # get the full path to wave file
+            wavepath = os.path.join(self.params['PATHS.CALIBPATH'], wave_file)
+            # use the default function to load the wave fits file
+            xpix, wavevector = io.load_wave_ext1d(str(wavepath))
+        # ---------------------------------------------------------------------
+        # Deal with fits file wave file
+        elif wave_type == 'fits' and source == 'wavefile':
+            # get the full path to wave file
+            wavepath = os.path.join(self.params['PATHS.CALIBPATH'], wave_file)
+            # use the default function to load the wave fits file
+            xpix, wavevector = io.load_wave_fits(str(wavepath))
+        # ---------------------------------------------------------------------
+        # Deal with hdf5 fits file wave file
+        elif wave_type == 'hdf5' and source == 'wavefile':
+            # get the full path to wave file
+            wavepath = os.path.join(self.params['PATHS.CALIBPATH'],
+                                    wave_file)
+            # use the default function to load the wave fits file
+            xpix, wavevector = io.load_wave_hdf5(str(wavepath), xsize)
+        # ---------------------------------------------------------------------
+        # otherwise we load from pos file
         else:
-            # get x trace offset
-            xtraceoffset = self.params['WLC.GENERAL.X_TRACE_OFFSET']
-            # get the trace position file
-            tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
-                                      ext=order_num)
-            # # get the valid pixels
-            # valid = tbl_ref['X'] > 0
-            # valid &= tbl_ref['X'] < xsize - 1
-            # valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
-            # # mask the table by these valid positions
-            # tbl_ref = tbl_ref[valid]
-            # sort by the x positions
-            tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
-            # spline the wave grid
-            spl_wave = ius(tbl_ref['X'], tbl_ref['WAVELENGTH'], ext=1, k=1)
-            # push onto our wave grid
-            wavevector = spl_wave(np.arange(xsize) - xtraceoffset)
-            # deal with zeros
-            wavevector[wavevector == 0] = np.nan
-            # get xpix
-            xpix = np.arange(xsize)
+            # deal with case where we need POS_FILE and it is not given
+            if self.params['GENERAL.POS_FILE'] is None:
+                emsg = (f'POS_FILE must be defined for {self.name}'
+                        f'\n\tfunction = {func_name}')
+                raise exceptions.SossisseConstantException(emsg)
+            # deal with order num not being set
+            elif order_num is None:
+                emsg = ('order_num must be defined when using source="pos"'
+                        f'\n\tfunction = {func_name}')
+                raise exceptions.SossisseConstantException(emsg)
+            # otherwise we use POS_FILE
+            else:
+                # get x trace offset
+                xtraceoffset = self.params['WLC.GENERAL.X_TRACE_OFFSET']
+                # get the trace position file
+                tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
+                                          ext=order_num)
+                xpix, wavevector = io.load_wave_posfile(tbl_ref, xsize,
+                                                        xtraceoffset)
+        # ---------------------------------------------------------------------
         # return the wave grid
         if return_xpix:
             return xpix, wavevector

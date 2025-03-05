@@ -195,11 +195,17 @@ CDict.add('POS_FILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Trace position file')
 # -----------------------------------------------------------------------------
-# wavelength calibration file (just for SOSS/FGS)
+# wavelength calibration
 CDict.add('WAVE_FILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='Wavelength calibration file',
-          modes='JWST.NIRISS.PRISM')
+          description='Wavelength calibration file')
+# -----------------------------------------------------------------------------
+# Wavelength calibration file type
+CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
+          options=['ext1d', 'fits', 'hdf5'],
+          source=__NAME__, user=True, active=True, group=cgroup,
+          description='Wavelength calibration file type')
+
 # -----------------------------------------------------------------------------
 # allow for temporary files to speed the process if you run the code more
 #    than once

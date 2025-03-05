@@ -89,8 +89,7 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             xoffset = wlc_gen_params['X_TRACE_OFFSET']
             yoffset = wlc_gen_params['Y_TRACE_OFFSET']
             # get the wave grid from the parameters
-            xpix, wavegrid = self.get_wavegrid(source='params',
-                                               return_xpix=True)
+            xpix, wavegrid = self.get_wavegrid(return_xpix=True)
             # get the median of the cleand data (patch isolated bads)
             clean_cube = self.get_variable('TEMP_CLEAN_NAN', func_name)
             # load the data in the clean cube
@@ -132,76 +131,6 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
         # return the trace positions
         return tracemap
 
-    def get_wavegrid(self, source: str ='pos',
-                     order_num: Union[int, None] = None,
-                     return_xpix: bool = False
-                     ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-        """
-        Get the wave grid for the instrument
-
-        :param source: str, the source of the wave grid
-        :param order_num: int, the order number to use (if source is pos)
-        :param return_xpix: bool, if True return xpix as well as wave
-
-        :return: np.ndarray, the wave grid
-        """
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.get_wavegrid()'
-        # get x size from cube
-        xsize = self.get_variable('DATA_X_SIZE', func_name)
-        # get wave file definition
-        wave_file = self.params['GENERAL.WAVE_FILE']
-        # get pos file definition
-        pos_file = self.params['GENERAL.POS_FILE']
-        # deal with wave grid coming from params
-        if source == 'params' and wave_file is not None:
-            wavepath = os.path.join(self.params['PATHS.CALIBPATH'],
-                                    wave_file)
-            hf = h5py.File(wavepath, 'r')
-            xpix, wave = hf['x'], hf['wave_1d']
-            # set up a wave vector across the x direction
-            wavevector = np.full(xsize, np.nan)
-            # push values into wave vector at correct position
-            wavevector[np.array(xpix, dtype=int)] = wave
-        # deal with case where we need WAVE_FILE and it is not given
-        elif source == 'params' and wave_file is None:
-            emsg = f'WAVE_FILE must be defined for {func_name}'
-            raise exceptions.SossisseInstException(emsg, self.name)
-        # deal with case where we need POS_FILE and it is not given
-        elif pos_file is None:
-            emsg = f'POS_FILE must be defined for {func_name}'
-            raise exceptions.SossisseInstException(emsg, self.name)
-        # deal with order num not being set
-        elif order_num is None:
-            emsg = ('order_num must be defined when using source="pos"'
-                    '\n\tfunction = {0}')
-            raise exceptions.SossisseInstException(emsg.format(func_name),
-                                                   self.name)
-        # otherwise we use POS_FILE
-        else:
-            # get the trace position file
-            tbl_ref = self.load_table(pos_file, ext=order_num)
-            # get the valid pixels
-            valid = tbl_ref['X'] > 0
-            valid &= tbl_ref['X'] < xsize - 1
-            valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
-            # mask the table by these valid positions
-            tbl_ref = tbl_ref[valid]
-            # sort by the x positions
-            tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
-            # spline the wave grid
-            spl_wave = ius(tbl_ref['X'], tbl_ref['WAVELENGTH'], ext=1, k=1)
-            # push onto our wave grid
-            wavevector = spl_wave(np.arange(xsize))
-            # deal with zeros
-            wavevector[wavevector == 0] = np.nan
-            # get xpix
-            xpix = np.arange(xsize)
-        # return the wave grid
-        if return_xpix:
-            return xpix, wavevector
-        else:
-            return wavevector
 
 # =============================================================================
 # Start of code

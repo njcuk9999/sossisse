@@ -16,11 +16,14 @@ import os
 import shutil
 import time
 from string import Template
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 
+import h5py
 import numpy as np
 from astropy.io import fits
 from astropy.table import Table
+from scipy.interpolate import InterpolatedUnivariateSpline as ius
+
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
@@ -450,6 +453,140 @@ def save_eureka(filename: str, flux: np.ndarray, flux_err: np.ndarray,
     outdata.coords['time'] = time_arr
     # write file
     xrio.writeXR(filename, outdata, verbose=False)
+
+
+
+# =============================================================================
+# Wavelength loading functions
+# =============================================================================
+def load_wave_ext1d(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load wave from a jwst data model of the x1dints file
+
+    :param filepath: str, path to hdf5 file
+
+    :return: tuple, 1. np.ndarray x pixel values, 2. np.ndarray wavelength
+         values for each pixel
+    """
+    # try to import jwst (maybe user didn't install)
+    try:
+        from jwst import datamodels
+    except ImportError:
+        emsg = ('Please install the jwst package to use WAVE_TYPE=ext1d')
+        raise exceptions.SossisseException(emsg)
+    # -------------------------------------------------------------------------
+    # try to open the file
+    try:
+        fileobj = datamodels.open(filepath)
+    except Exception as e:
+        emsg = 'Could not open WAVE from EXT1D file: {0}\n\t{1}:{2}'
+        eargs = [filepath, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # -------------------------------------------------------------------------
+    # try to load wavelength
+    try:
+        wavevector = fileobj.spec[0].spec_table['wavelength']
+    except Exception as e:
+        emsg = 'Could not read wavelength from EXT1D file: {0}\n\t{1}:{2}'
+        eargs = [filepath, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # get xpix
+    xpix = np.arange(len(wavevector))
+    # return the xpix and wave vector
+    return xpix, wavevector
+
+
+def load_wave_fits(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load wave from FITS file.
+
+    :param filepath: str, path to hdf5 file
+
+    :return: tuple, 1. np.ndarray x pixel values, 2. np.ndarray wavelength
+         values for each pixel
+    """
+    # try to load the wave table
+    try:
+        wave_table = Table.read(filepath)
+    except Exception as e:
+        emsg = 'Could not load WAVE FITS file: {0}\n\t{1}: {2}'
+        eargs = [filepath, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # try to get the vectors
+    try:
+        xpix = np.array(wave_table['xpix'])
+        wavevector = np.array(wave_table['wavevector'])
+    except Exception as e:
+        emsg = ('FITS file: {0} in wrong format (requires xpix and '
+                'wavevector columns)'.format(filepath))
+        raise exceptions.SossisseFileException(emsg)
+    # return the xpix and wave vector
+    return xpix, wavevector
+
+
+def load_wave_hdf5(filepath: str, xsize: int) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load wave from HDF5 file.
+
+    :param filepath: str, path to hdf5 file
+    :param xsize: int, size of x axis
+
+    :return: tuple, 1. np.ndarray x pixel values, 2. np.ndarray wavelength
+         values for each pixel
+    """
+    # try to load the hdf5 file
+    try:
+        hf = h5py.File(filepath, 'r')
+    except Exception as e:
+        emsg = 'Could not open HDF5 file: {0}\n\t{1}:{2}'
+        eargs = [filepath, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # try to get the vectors
+    try:
+        xpix, wave = hf['x'], hf['wave_1d']
+    except Exception as e:
+        emsg = ('HDF5 file: {0} in wrong format (requires x and '
+                'wave_1d vectors)'.format(filepath))
+        raise exceptions.SossisseFileException(emsg)
+    # set up a wave vector across the x direction
+    wavevector = np.full(xsize, np.nan)
+    # push values into wave vector at correct position
+    wavevector[np.array(xpix, dtype=int)] = wave
+    # return the xpix and wave vector
+    return xpix, wavevector
+
+
+def load_wave_posfile(tbl_ref: Table, xsize, xtraceoffset: int
+                      ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Load wavevector from position file
+
+    :param tbl_ref: Table, the position file astropy.table.Table
+    :param xsize: int, size of the wavevector expected
+    :param xtraceoffset: int, offset of the wavevector
+
+    :return: tuple, 1. np.ndarray x pixel values, 2. np.ndarray wavelength
+             values for each pixel
+    """
+    # get the valid pixels
+    valid = tbl_ref['X'] > 0
+    valid &= tbl_ref['X'] < xsize - 1
+    valid &= np.isfinite(np.array(tbl_ref['WAVELENGTH']))
+    # mask the table by these valid positions
+    tbl_ref = tbl_ref[valid]
+    # sort by the x positions
+    tbl_ref = tbl_ref[np.argsort(tbl_ref['X'])]
+    # spline the wave grid
+    spl_wave = ius(tbl_ref['X'], tbl_ref['WAVELENGTH'], ext=1, k=1)
+    # push onto our wave grid
+    wavevector = spl_wave(np.arange(xsize) - xtraceoffset)
+    # deal with zeros
+    wavevector[wavevector == 0] = np.nan
+    # get xpix
+    xpix = np.arange(xsize)
+    # return the xpix and wave vector
+    return xpix, wavevector
+
 
 
 # =============================================================================
