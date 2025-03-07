@@ -11,6 +11,7 @@ Created on 2024-08-13 at 11:23
 """
 import copy
 import os
+import time
 import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -1249,7 +1250,7 @@ class Instrument:
         xpix, ypix = np.meshgrid(np.arange(med.shape[1]), np.arange(med.shape[0]))
         # ---------------------------------------------------------------------
         # print progress
-        misc.printc('\tFinding the brighest+surrounding pixels', 'info')
+        misc.printc('\tFinding the brighest+surrounding pixels', '')
         # calculate a mask of the brightest pixels and surrounding "width"
         # pixels
         width = 20
@@ -3089,6 +3090,9 @@ class Instrument:
         # get the trace width extraction
         trace_width = self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION']
         # ---------------------------------------------------------------------
+        # print progress
+        misc.printc('Finding the ratio of residuals to the trace', '')
+        time.sleep(0.1)
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
         spec_err = np.full([nbframes, nbxpix], np.nan)
@@ -3338,16 +3342,18 @@ class Instrument:
             # get the wavelength binning
             wbin = np.floor(logwave * res_bin)
         # create a wavebin, fluxbin and corresponding error vectors for output
-        wave_bin = np.array(list(set(wbin)))
-        flux_bin = np.zeros_like(wave_bin)
-        err_bin = np.zeros_like(wave_bin)
+        bin_num = np.array(list(set(wbin[np.isfinite(wbin)])))
+        wave_bin = np.zeros_like(bin_num)
+        flux_bin = np.zeros_like(bin_num)
+        err_bin = np.zeros_like(bin_num)
         # loop around bins in wavelength
-        for ibin in range(len(wave_bin)):
+        for ibin in range(len(bin_num)):
             # find all wavelengths in this bin
-            valid = wbin == wave_bin[ibin]
+            valid = wbin == bin_num[ibin]
             # get the flux and error using odd_ratio_mean
             flux, error = mp.odd_ratio_mean(spec_in[valid], spec_err_in[valid])
             # push into array
+            wave_bin[ibin] = np.mean(wavegrid[valid])
             flux_bin[ibin] = flux
             err_bin[ibin] = error
         # return the binned data

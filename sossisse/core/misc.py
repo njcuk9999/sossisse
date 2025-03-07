@@ -242,12 +242,12 @@ def printc(message: str, msg_type: str, print_time: bool = True,
     :return: None, prints to screen
     """
     # get time now
-    time = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│ '
+    timenow = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│ '
 
-    subsequent_indent = ' ' * (len(time) - 2) + '| '
+    subsequent_indent = ' ' * (len(timenow) - 2) + '| '
     # wrap messages
     if wrap:
-        message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(time),
+        message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(timenow),
                                 break_long_words=False, break_on_hyphens=False,
                                 initial_indent='',
                                 subsequent_indent=subsequent_indent)
@@ -267,13 +267,14 @@ def printc(message: str, msg_type: str, print_time: bool = True,
         msg_color = 'green'
     # get the time message
     if not print_time:
-        time = ''
+        timenow = ''
     # at this point we set everything else at the info level
     if msg_type.upper() not in LOG_LEVELS:
         msg_type = 'INFO'
     # print if the log level is high enough
     if LOG_LEVELS[msg_type.upper()] >= LOG_LEVELS[LOG_LEVEL.upper()]:
-        print(color(time + message, msg_color), flush=True)
+        print(color(timenow + message, msg_color), flush=True)
+        time.sleep(0.01)
 
 
 def sossice_unique_id(param_file: str) -> str:

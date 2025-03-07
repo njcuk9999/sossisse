@@ -629,13 +629,17 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
     suffix = inst.params['INPUTS.SUFFIX']
     # loop around tarce orders
     for trace_order in plot_storage.keys():
+
         # deal with trace order
-        if trace_order == 1:
-            fmt1 = 'g.'
-            fmt2 = 'ro--'
+        if trace_order == 0:
+            pkwargs1 = dict(color='b', marker='.', ls='None')
+            pkwargs2 = dict(color='orange', marker='o', ls='--')
+        elif trace_order == 1:
+            pkwargs1 = dict(color='g', marker='.', ls='None')
+            pkwargs2 = dict(color='r', marker='o', ls='--')
         elif trace_order == 2:
-            fmt1 = 'c.'
-            fmt2 = 'mo--'
+            pkwargs1 = dict(color='c', marker='.', ls='None')
+            pkwargs2 = dict(color='m', marker='o', ls='--')
         else:
             continue
         # get this trace orders parameters
@@ -649,23 +653,25 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
         flux_bin = plot_storage[trace_order]['flux_bin']
         flux_bin_err = plot_storage[trace_order]['flux_bin_err']
         # plot the SED
-        frame.plot(wavegrid, sed_spec / throughtput,
+        frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
                          'order {0}'.format(trace_order))
         # plot the in-transit spectrum
         frame.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
-                    yerr=spec_err_in * 1e6,
-                    fmt=fmt1, alpha=0.25,
-                    label='in-transit, order {}'.format(trace_order))
+                       yerr=spec_err_in * 1e6, alpha=0.25,
+                       label='in-transit, order {}'.format(trace_order),
+                       **pkwargs1)
         # plot the binned in-transit spectrum
         binlabelargs = [res_bin, trace_order]
         binlabel = 'Resolution {}, order {}'.format(*binlabelargs)
         frame.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
-                    yerr=flux_bin_err * 1e6, fmt=fmt2,
-                    label=binlabel)
+                       yerr=flux_bin_err * 1e6, label=binlabel,
+                       **pkwargs2)
     # -------------------------------------------------------------------------
     # construct title
     title = f'{objname} -- {suffix}'
+
+    plt.legend(loc=0)
     # set the axis labels
     frame.set(xlabel=r'Wavelength [$\mu$m]', ylabel='ppm',
               title=title)

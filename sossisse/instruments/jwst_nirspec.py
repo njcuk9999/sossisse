@@ -121,10 +121,10 @@ class JWST_NIRSPEC_PRISM(default.Instrument):
             # print that we are writing pos file
             if log:
                 msg = 'Writing POS_FILE={0}'
-                margs = [self.params['GENERAL.POS_FILE']]
+                margs = [gen_params['POS_FILE']]
                 misc.printc(msg.format(*margs), msg_type='info')
             # write trace file
-            tracetable.write(self.params['GENERAL.POS_FILE'], overwrite=True)
+            tracetable.write(gen_params['POS_FILE'], overwrite=True)
         # ---------------------------------------------------------------------
         # get the trace positions from the white light curve
         tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
