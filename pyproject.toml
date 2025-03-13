@@ -19,6 +19,7 @@ dependencies = [
     "ipython==8.32.0",
     "scipy==1.15.2",
     "matplotlib==3.10.1",
+    "numexpr==2.10.2",
     "tqdm==4.67.1",
     "h5py==3.13.0",
     "ruamel.yaml==0.18.10",

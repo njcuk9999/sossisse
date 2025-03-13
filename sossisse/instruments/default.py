@@ -16,6 +16,7 @@ import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import numexpr as ne
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
@@ -897,8 +898,43 @@ class Instrument:
         # return the cube
         return cube
 
-    def remove_background(self, cube: np.ndarray, err: np.ndarray,
-                          dq: np.ndarray
+    def apply_dq(self, cube: np.ndarray, err: np.ndarray, dq: np.ndarray
+                 ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Apply dq to the cube
+
+        :param cube: np.ndarray, the cube to remove the background from
+        :param err: np.ndarray, the error cube
+        :param dq: np.ndarray, the data quality cube
+
+        :return: tuple, 1. np.ndarray, the background corrected cube
+                        2. np.ndarray, the background corrected error cube
+        """
+        # get wlc_params
+        wlc_params = self.params.get('WLC')
+        # ---------------------------------------------------------------------
+        # get valid dq values
+        valid_dqs = wlc_params['INPUTS.VALID_DQ']
+        if valid_dqs is None:
+            emsg = 'WLC.INPUTS.VALID_DQ not set. Please set the valid DQ values'
+            raise exceptions.SossisseConstantException(emsg)
+        # ---------------------------------------------------------------------
+        # trick to get a mask where True is valid
+        cube_mask = np.zeros_like(cube, dtype=bool)
+        for valid_dq in valid_dqs:
+            # print DQ values
+            misc.printc(f'Accepting DQ = {valid_dq}', 'number')
+            # get the mask
+            cube_mask[dq == valid_dq] = True
+        # ---------------------------------------------------------------------
+        # mask the values in cube_mask
+        cube[~cube_mask] = np.nan
+        err[~cube_mask] = np.inf
+        # ---------------------------------------------------------------------
+        # return the background corrected cube
+        return cube, err
+
+    def remove_background(self, cube: np.ndarray, err: np.ndarray
                           ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Removes the background with a 3 DOF model. It's the background image
@@ -908,7 +944,6 @@ class Instrument:
 
         :param cube: np.ndarray, the cube to remove the background from
         :param err: np.ndarray, the error cube
-        :param dq: np.ndarray, the data quality cube
 
         :return: tuple, 1. np.ndarray, the background corrected cube
                         2. np.ndarray, the background corrected error cube
@@ -921,8 +956,6 @@ class Instrument:
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
-        # get wlc_params
-        wlc_params = self.params.get('WLC')
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -948,21 +981,6 @@ class Instrument:
             return cube, err
         # update the meta data
         self.update_meta_data()
-
-        # ---------------------------------------------------------------------
-        # get valid dq values
-        valid_dqs = wlc_params['INPUTS.VALID_DQ']
-        if valid_dqs is None:
-            emsg = 'WLC.INPUTS.VALID_DQ not set. Please set the valid DQ values'
-            raise exceptions.SossisseConstantException(emsg)
-        # ---------------------------------------------------------------------
-        # trick to get a mask where True is valid
-        cube_mask = np.zeros_like(cube, dtype=bool)
-        for valid_dq in valid_dqs:
-            # print DQ values
-            misc.printc(f'Accepting DQ = {valid_dq}', 'number')
-            # get the mask
-            cube_mask[dq == valid_dq] = True
         # ---------------------------------------------------------------------
         # optimal background correction
         # ---------------------------------------------------------------------
@@ -1080,10 +1098,6 @@ class Instrument:
             # subtract the low pass filter from this frame of the cube
             cubetile = np.tile(lowp, mcube.shape[0]).reshape(mcube.shape)
             cube[iframe] -= cubetile
-        # ---------------------------------------------------------------------
-        # mask the values in cube_mask
-        cube[~cube_mask] = np.nan
-        err[~cube_mask] = np.inf
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         # we re-save these with the background removed
@@ -2580,6 +2594,8 @@ class Instrument:
         # ---------------------------------------------------------------------
         # storage a trace correction array
         trace_corr = np.zeros(nframes, dtype=float)
+        # print progress
+        misc.printc('Linear recon of trace model', '')
         # loop around the frames
         for iframe in tqdm(range(cube.shape[0])):
             # find the best combination of scale/dx/dy/rotation
@@ -3096,41 +3112,70 @@ class Instrument:
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
         spec_err = np.full([nbframes, nbxpix], np.nan)
+
+        # get width
+        width = trace_width // 2
+
+        # get the positions in the spatial dimensions of the trace
+        posmax_x2d = []
+        posmax_y2d = []
+        for iwidth in range(-width,width+1):
+            posmax_x2d.append(posmax+iwidth)
+            posmax_y2d.append(np.arange(len(posmax)))
+        posmax_x2d = np.array(posmax_x2d)
+        posmax_y2d = np.array(posmax_y2d)
+        # get a cut down (for every frame) around the trace
+        model_cut = np.array(model[:, posmax_x2d, posmax_y2d])
+        residual_cut = np.array(residual[:, posmax_x2d, posmax_y2d])
+        err_cut = np.array(err[:,posmax_x2d,posmax_y2d])
+        nans = ~np.isfinite(residual_cut+err_cut)
+        residual_cut[nans]=0
+        err_cut[nans] = np.inf
+        # get the size in the spatial dimension of the spectrum
+        ysize = posmax_x2d.shape[0]
         # loop through observations and spectral bins
         for iframe in tqdm(range(nbframes)):
-
-            tmp_model = np.array(model[iframe])
-            tmp_residual = np.array(residual[iframe])
-            tmp_err = np.array(err[iframe])
-
-            for ix in range(nbxpix):
-                # get width
-                width = trace_width // 2
-                # get start and end positions
-                ystart = posmax[ix] - width
-                yend = posmax[ix] + width
-                # model of the trace for that observation
-                v0 = tmp_model[ystart:yend, ix]
-                # residual of the trace
-                v1 = tmp_residual[ystart:yend, ix]
-                # corresponding error
-                v2 = tmp_err[ystart:yend, ix]
-                # don't continue if we have all nans in v0
-                if np.sum(np.isfinite(v0)) == 0:
-                    continue
-                # calculate the ratio
+            # get the model, residual and uncertainy for this frame
+            tmp_model = np.array(model_cut[iframe])
+            tmp_residual = np.array(residual_cut[iframe])
+            tmp_err = np.array(err_cut[iframe])
+            # zero the arrays
+            mean1 = np.zeros(tmp_model.shape[1])
+            sig1 = np.zeros(tmp_model.shape[1])
+            # calculate the ratio and respective ratio
+            ratio1 = tmp_residual / tmp_model
+            noise_ratio1 = tmp_err / tmp_model
+            # probability that any given pixel is consistent with uncertainties
+            p_valid = np.ones_like(tmp_model)
+            # place holder for the change between steps in likelihood
+            max_dp_valid = 1
+            # counter for how many iterations we have done
+            counter = 0
+            # iterate until we get a dp below 1e-4
+            while max_dp_valid > 1e-4 and counter < 10:
                 with warnings.catch_warnings(record=True) as _:
-                    # noinspection PyBroadException
-                    try:
-                        ratio, err_ratio = mp.odd_ratio_mean(v1 / v0, v2 / v0)
-                    except Exception as _:
-                        ratio, err_ratio = np.nan, 0
-                # the above code does the eqiuvalent of a sigma-clipped mean
-                # and returns the uncertainty
-                if err_ratio != 0:
-                    # update the cube
-                    spec[iframe, ix] = ratio
-                    spec_err[iframe, ix] = err_ratio
+                    # calculate the weight
+                    weight = p_valid / noise_ratio1 ** 2
+                    # get the weighted mean per column
+                    mean1 = np.sum(ratio1 * weight, axis=0) / np.sum(weight, axis=0)
+                    # convert mean1 into a 2D array of xsize x ysize
+                    model2 = np.tile(mean1, (ysize, 1)) * tmp_model
+                    nsig = (tmp_residual - model2) / tmp_err
+                    p1 = ne.evaluate('exp(-0.5*nsig**2)')
+                    p2 = 1e-4
+                    p_valid_prev = p_valid.copy()
+                    p_valid = ne.evaluate('p1/(p1+p2)')
+                    dp_valid = np.abs(p_valid - p_valid_prev)
+                    max_dp_valid = np.max(dp_valid)
+                    sigsum = np.sum(p_valid / noise_ratio1 ** 2, axis=0)
+                    sig1 = np.sqrt(1 / sigsum)
+            # deal with no convergence
+            if counter >= 10:
+                emsg = 'ratio_residual_to_trace did not converge'
+                raise exceptions.SossisseException(emsg)
+            # update the cube
+            spec[iframe, :] = mean1
+            spec_err[iframe, :] = sig1
         # ---------------------------------------------------------------------
         # return the spectrum and corresponding error
         return spec, spec_err

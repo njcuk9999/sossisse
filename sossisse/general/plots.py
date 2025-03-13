@@ -55,7 +55,7 @@ def save_show_plot(params: Dict[str, Any], outname: str):
     # if we want to show the plot do it now
     if params['PLOTS.SHOW']:
         # show the plot
-        plt.show()
+        plt.show(block=True)
     # finally close the plot
     plt.close()
 

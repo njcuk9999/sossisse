@@ -53,7 +53,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     # get the stabiblity table file name
     wlc_ltbl_file = inst.get_variable('WLC_LTBL_FILE', func_name)
     # return if we have the soss_stablity file
-    if os.path.exists(wlc_ltbl_file):
+    if os.path.exists(wlc_ltbl_file) and inst.params['GENERAL.USE_TEMPORARY']:
         msg = 'File {0} exists we skip white light curve step'
         misc.printc(msg.format(wlc_ltbl_file), 'info')
         return inst
@@ -64,8 +64,11 @@ def linear_recon(inst: Instrument) -> Instrument:
     # load the image, error and data quality
     cube, err, dq = inst.load_data_with_dq()
     # -------------------------------------------------------------------------
+    # apply the dq to the cube
+    cube, err = inst.apply_dq(cube, err, dq)
+    # -------------------------------------------------------------------------
     # remove the background
-    cube, err = inst.remove_background(cube, err, dq)
+    cube, err = inst.remove_background(cube, err)
     # -------------------------------------------------------------------------
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.

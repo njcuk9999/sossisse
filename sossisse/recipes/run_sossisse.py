@@ -35,6 +35,9 @@ def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     inst = sossisse.get_parameters(__NAME__=__NAME__, **kwargs)
 
+    # print instrument + mode
+    misc.modeart(inst.name)
+
     # ----------------------------------------------------------------------
     # white light curve
     # ----------------------------------------------------------------------

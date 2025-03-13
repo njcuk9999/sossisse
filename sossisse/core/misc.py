@@ -144,15 +144,29 @@ def sossart():
         # add the white space
         v = v.replace('\n', '\n' + ' ' * dw)
     # otherwise we print the normal SOSSISSE logo
-    v = art('SOSSISSE', color1='white')
+    title = art('SOSSISSE', color1='white')
     # print to screen
-    print(v)
+    print(title)
     # version string
     vstring = f'SOSSISSE: v{__version__} - {__date__}'
     # print date and version
     header_line()
     printc(vstring, 'ALERT', print_time=False)
     header_line()
+
+
+def modeart(mode: str):
+    """
+    Print the instrument+mode
+
+    :param mode: str, the instrument + mode to print
+
+    :return: None, prints to stdout
+    """
+    # print date and version
+    mode_title = art(mode, color1='white')
+    print(mode_title)
+
 
 def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     """
@@ -252,10 +266,10 @@ def printc(message: str, msg_type: str, print_time: bool = True,
                                 initial_indent='',
                                 subsequent_indent=subsequent_indent)
     # formally bad1
-    if msg_type.lower() in 'warning':
+    if msg_type.lower() == 'warning':
         msg_color = 'yellow'
     # formally bad2
-    elif msg_type.lower() in 'error':
+    elif msg_type.lower() == 'error':
         msg_color = 'red'
     # formally bad3
     elif msg_type.lower() == 'alert':
