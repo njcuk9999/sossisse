@@ -50,6 +50,13 @@ INSTRUMENTS['JWST.NIRSPEC.G253'] = jwst_nirspec.JWST_NIRSPEC_G235
 INSTRUMENTS['JWST.NIRSPEC.G140'] = jwst_nirspec.JWST_NIRSPEC_G140
 
 
+# check that instrument/mode is in base instruments list
+for instrument in INSTRUMENTS.keys():
+    if instrument not in base.INSTRUMENTS:
+        emsg = 'Instrument "{}" must be in base.INSTRUMENTS'
+        eargs = ['instruments']
+        raise exceptions.SossisseException(emsg.format(*eargs))
+
 
 # =============================================================================
 # Define functions

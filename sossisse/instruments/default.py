@@ -2756,7 +2756,7 @@ class Instrument:
         rms1_cube_list = []
         # storage for rms's of the mid transit slice (after correction)
         rms2_cube_list = []
-        # deal with transits (if we have them
+        # deal with transits (if we have them)
         if transit_ints is not None and isinstance(transit_ints, list):
             for cframe in transit_ints:
                 # get the mid transit frame

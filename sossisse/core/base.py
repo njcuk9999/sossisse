@@ -38,6 +38,16 @@ BASIC_TYPES = (int, float, bool, str)
 # Define console width
 CONSOLE_WIDTH = 120
 
+# supported instruments modes
+# JWST NIRISS SOSS
+INSTRUMENTS = ['JWST.NIRISS.SOSS',
+               'JWST.NIRISS.FGS',
+               'JWST.NIRSPEC.PRISM',
+               'JWST.NIRSPEC.G395',
+               'JWST.NIRSPEC.G253',
+               'JWST.NIRSPEC.G140']
+
+
 # =============================================================================
 # Define functions
 # =============================================================================

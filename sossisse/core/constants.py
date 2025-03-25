@@ -113,10 +113,10 @@ CDict.add('OBJECTNAME', value=None, dtype=str, not_none=True,
 # Instrument mode i.e. JWST.NIRISS.SOSS or JWST.NIRISS.PRISM
 CDict.add('INSTRUMENTMODE', value=None, dtype=str, not_none=True,
           source=__NAME__, user=True, active=True,
-          options=['JWST.NIRISS.SOSS', 'JWST.NIRSPEC.PRISM'],
+          options=base.INSTRUMENTS,
           cmd_arg='instmode', group=cgroup,
-          description='Instrument mode i.e. JWST.NIRISS.SOSS or '
-                      'JWST.NIRSPEC.PRISM')
+          description='Instrument mode e.g. one of the following: {0}'
+                      ''.format('\n\t'.join(base.INSTRUMENTS)))
 # -----------------------------------------------------------------------------
 # A suffix to identify this setup (e.g. a specific visit)
 CDict.add('SUFFIX', value='', dtype=str,
@@ -204,7 +204,7 @@ CDict.add('WAVE_FILE', value=None, dtype=str,
 CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
           options=['ext1d', 'fits', 'hdf5'],
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='Wavelength calibration file type')
+          description='Wavelength calibration file type [ext1d, fits, hdf5]')
 
 # -----------------------------------------------------------------------------
 # allow for temporary files to speed the process if you run the code more
@@ -346,7 +346,7 @@ CDict.add_group(cgroup,
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
 # DQ flags that we should use (list)
-CDict.add('VALID_DQ', value=None, dtype=list, dtypei=int,
+CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int,
           source=__NAME__, user=True, active=True,
           not_none=False, minimum=0, group=cgroup,
           description='DQ flags that we should use (list)'
