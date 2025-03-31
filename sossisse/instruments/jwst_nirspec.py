@@ -74,11 +74,6 @@ class JWST_NIRSPEC(default.Instrument):
 
         gen_params = self.params.get('GENERAL')
         wlc_gen_params = self.params.get('WLC.GENERAL')
-        # must have pos file defined in file
-        if gen_params['POS_FILE'] is None:
-            wmsg = f'No POS_FILE set, creating pos_file.fits'
-            misc.printc(wmsg, msg_type='warning')
-            gen_params['POS_FILE'] = 'pos_file.fits'
         # deal with no trace pos file for prism
         if not os.path.exists(gen_params['POS_FILE']):
             # log that we don't have a POS_FILE and are creating one

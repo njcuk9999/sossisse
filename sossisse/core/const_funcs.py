@@ -10,13 +10,16 @@ Created on 2024-08-13
 import sys
 import json
 import os
-from typing import List, Union
+from typing import Dict, List, Union
 
 import yaml
 
 from aperocore.constants import load_functions
 from aperocore.core import drs_log
 from aperocore.constants import param_functions
+from aperocore.constants.param_functions import ParamDict
+from aperocore.constants.param_functions import SubParamDict
+from aperocore.constants.constant_functions import ConstantsDict
 
 from sossisse.core import base
 from sossisse.core import constants
@@ -25,6 +28,7 @@ from sossisse.core import io
 from sossisse.core import misc
 from sossisse.instruments import load_instrument, Instrument
 
+
 # =============================================================================
 # Define variables
 # =============================================================================
@@ -32,8 +36,6 @@ __NAME__ = 'sossisse.core.constants'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
-# Get the parameter dictionary
-ParamDict = param_functions.ParamDict
 # get the logger
 WLOG = drs_log.wlog
 # Set the description of SOSSISSE
@@ -59,7 +61,7 @@ EXCLUDED_HASH_KEYS = ['SID']
 # =============================================================================
 def get_parameters(no_yaml: bool = False,
                    only_create: bool = False, log_level: str = None,
-                   **kwargs) -> Instrument:
+                   setup_mode: bool = False, **kwargs) -> Instrument:
     """
     Get the parameters from the constants module
 
@@ -77,6 +79,11 @@ def get_parameters(no_yaml: bool = False,
     """
     # print splash
     misc.sossart()
+    # in setup mode we force some parameters
+    if setup_mode:
+        no_yaml = True
+        only_create = True
+        log_level = 'setup'
     # -------------------------------------------------------------------------
     # get the descriptions and inputs
     description = DESCRIPTIONS.get(kwargs['__NAME__'], 'UNKNOWN')
@@ -93,6 +100,15 @@ def get_parameters(no_yaml: bool = False,
                                                config_list=[constants.CDict],
                                                from_file=not no_yaml,
                                                kwargs=kwargs)
+    # -------------------------------------------------------------------------
+    # deal with start point (setup only)
+    if setup_mode:
+        # only load this if we are in setup mode
+        from sossisse.resources import demos as demo_mod
+        # ask user to start from demo or blank
+        params = load_functions.starting_point(params, 'INPUTS.INSTRUMENTMODE',
+                                               demo_mod)
+    # -------------------------------------------------------------------------
     # ask user for any missing arguments
     params = load_functions.ask_for_missing_args(params)
     # -------------------------------------------------------------------------
@@ -163,7 +179,6 @@ def get_parameters(no_yaml: bool = False,
         param_file_csv = str(os.path.join(params['PATHS.OTHER_PATH'],
                                           param_file_basename))
         io.copy_file(param_file, param_file_csv)
-    # -------------------------------------------------------------------------
     # re-create the yaml with updated parameters but at the new path
     if no_yaml:
         _ = create_yaml(params, log=False, outpath=tmp_path)
@@ -185,7 +200,6 @@ def get_parameters(no_yaml: bool = False,
     instrument = load_instrument(params)
     # return the parameters
     return instrument
-
 
 
 def run_time_params(params: ParamDict, only_create: bool = False
@@ -341,13 +355,22 @@ def run_time_params(params: ParamDict, only_create: bool = False
                                            general['FLATFILE']))
             general['FLATFILE'] = io.get_file(absflatfile, 'flat')
             general.set_source('FLATFILE', func_name)
+
+        # ---------------------------------------------------------------------
         # find the trace position file
         if general['POS_FILE'] is not None:
             absposfile = str(os.path.join(paths['CALIBPATH'],
                                           general['POS_FILE']))
-            general['POS_FILE'] = io.get_file(absposfile, 'trace',
-                                              required=False)
-            general.set_source('POS_FILE', func_name)
+        # if no pos file was given we create it
+        else:
+            wmsg = f'No POS_FILE set, creating pos_file.fits'
+            misc.printc(wmsg, msg_type='warning')
+            absposfile = str(os.path.join(paths['CALIBPATH'], 'pos_file.fits'))
+        # update POS_FILE in parameter dictionary
+        general['POS_FILE'] = io.get_file(absposfile, 'trace',
+                                          required=False)
+        general.set_source('POS_FILE', func_name)
+        # ---------------------------------------------------------------------
         # deal with no background file given - other we use that the user set
         if general['BKGFILE'] is None:
             general['DO_BACKGROUND'] = False

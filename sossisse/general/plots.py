@@ -273,7 +273,7 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'apperture_correction')
+    save_show_plot(inst.params, 'aperture_correction')
 
 
 def plot_trace_flux_loss(inst: Any, sums: np.ndarray,

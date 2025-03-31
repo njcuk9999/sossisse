@@ -41,9 +41,7 @@ def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     try:
         inst = sossisse.get_parameters(__NAME__=__NAME__,
-                                       no_yaml=True,
-                                       only_create=True,
-                                       log_level='setup',
+                                       setup_mode=True,
                                        **kwargs)
     except exceptions.SossisseException as e:
         misc.printc(e.message, msg_type='error')

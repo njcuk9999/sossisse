@@ -1473,6 +1473,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.get_wavegrid()'
         # get wlc generation parameters
+        gen_params = self.params.get('GENERAL')
         wlc_gen_params = self.params.get('WLC.GENERAL')
         # get x and y size from cube
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
@@ -1481,8 +1482,7 @@ class Instrument:
         yoffset = wlc_gen_params['Y_TRACE_OFFSET']
         trace_wid_mask = wlc_gen_params['TRACE_WIDTH_MASKING']
         # load the trace position
-        tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
-                                  ext=order_num)
+        tbl_ref = self.load_table(gen_params['POS_FILE'], ext=order_num)
         # ---------------------------------------------------------------------
         # get columns
         xpos = np.array(tbl_ref['X'])

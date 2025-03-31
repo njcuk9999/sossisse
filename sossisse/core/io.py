@@ -23,6 +23,9 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from aperocore.constants.param_functions import ParamDict
+from aperocore.constants.param_functions import SubParamDict
+from aperocore.constants.constant_functions import ConstantsDict
 
 from sossisse.core import base
 from sossisse.core import exceptions
@@ -312,7 +315,23 @@ def save_table(filename: str, data: Table, fmt: str = 'csv'):
         raise exceptions.SossisseFileException(emsg.format(*eargs))
 
 
-def params_to_html(params: Dict[str, Any]):
+def info_html(params: Dict[str, Any]):
+
+    # get time now
+    timenow = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # get version
+    version = base.__version__
+    vdate = base.__date__
+    # push into html
+    html = '<ul>'
+    html += f'<li><b>Reduction date</b>: {timenow}</li>'
+    html += f'<li><b>SOSSISSE Version</b>: {version}</li>'
+    html += f'<li><b>SOSSISSE date</b>: {vdate}</li>'
+    html += '</ul>'
+    return html
+
+
+def params_to_html(params: Dict[str, Any], html: str = None):
     """
     Convert a dictionary of parameters to an html list
     in the form of a bulleted list as follows
@@ -325,17 +344,65 @@ def params_to_html(params: Dict[str, Any]):
     """
     # define the html string
     html = '<ul>'
+
+    # sort keys alphabetically
+    keys = np.sort(params.keys())
     # loop around all parameters
-    for key in params:
+    for key in keys:
+        # do not add these keys
+        if key.startswith('DRS.'):
+            continue
+        if key.startswith('LOG.'):
+            continue
+        if key == 'RECIPE_SHORT':
+            continue
         # get the raw value
         rawvalue = params[key]
-        # make the value a string
+        # ignore param dicts
+        if isinstance(rawvalue, (ParamDict, SubParamDict, ConstantsDict)):
+            continue
+        # deal with lists
         if isinstance(rawvalue, (list, np.ndarray)):
-            value = ', '.join([str(val) for val in rawvalue])
+            # quick check for valid sub-list data
+            subvalues = []
+            for val in rawvalue:
+                if isinstance(val, (ParamDict, SubParamDict, ConstantsDict)):
+                    continue
+                else:
+                    subvalues.append(val)
+            # deal with no valid values
+            if len(subvalues) == 0:
+                continue
+            # create a sub-list
+            html += f'<li><b>{key}</b>:<ul>'
+            for val in subvalues:
+                html += f'<li> - {val}</li>'
+            # end the list
+            html += '</ul></li>'
+        # deal with dictionaries
+        elif isinstance(rawvalue, dict):
+            # quick check for valid sub-dict data
+            subvalues = dict()
+            for subkey in rawvalue:
+                val = rawvalue[subkey]
+                if isinstance(val, (ParamDict, SubParamDict, ConstantsDict)):
+                    continue
+                else:
+                    subvalues[subkey] = val
+            # deal with no valid values
+            if len(subvalues) == 0:
+                continue
+            # create a sub-list
+            html += f'<li><b>{key}</b>:<ul>'
+            for subkey in subvalues:
+                html += f'<li> - {subkey}: {rawvalue[subkey]}</li>'
+            # end the list
+            html += '</ul></li>'
+        # else convert to string
         else:
             value = str(rawvalue)
-        # create a list item
-        html += '<li><b>{0}</b>: {1}</li>'.format(key, value)
+            # create a list item
+            html += '<li><b>{0}</b>: {1}</li>'.format(key, value)
     # end the list
     html += '</ul>'
     # return the html string
@@ -381,7 +448,7 @@ def csv_to_html(params: Dict[str, Any]):
         # get the filename
         filename = os.path.basename(csv_file)
         # create the html string
-        html_list = '<li><a href="{0}">{0}</a><br><br><br></li>'
+        html_list = '<li><a href="{0}">{0}</a></li>'
         html += html_list.format(filename)
     # end the list
     html += '</ul>'
@@ -401,11 +468,13 @@ def summary_html(params: Dict[str, Any]):
         template = Template(template_file.read())
     # get the objectname
     objname = params['INPUTS.OBJECTNAME']
+    imode = params['INPUTS.INSTRUMENTMODE']
     # define the data to insert into the template
     data = dict()
     # add the data to the dictionary for the html sections
-    data['title'] = 'SOSSISSE Summary: {0}'.format(objname)
-    data['datenow'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    targs = [objname, imode]
+    data['title'] = 'SOSSISSE Summary: <br> {0} [{1}]'.format(*targs)
+    data['info'] = info_html(params)
     data['plots'] = plots_to_html(params)
     data['csvlist'] = csv_to_html(params)
     data['paramlist'] = params_to_html(params)

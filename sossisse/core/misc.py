@@ -275,7 +275,7 @@ def printc(message: str, msg_type: str, print_time: bool = True,
     elif msg_type.lower() == 'alert':
         msg_color = 'magenta'
 
-    elif msg_type.lower() == 'number':
+    elif msg_type.lower() == 'number' or msg_type.lower() == 'info':
         msg_color = 'blue'
     else:
         msg_color = 'green'
