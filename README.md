@@ -211,22 +211,8 @@ where `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` are the values you e
 
 ## 5. Example data set
 
-The sample dataset provided as a demonstration of the code is the transit of TRAPPIST-1b observed with the SOSS mode.
-The data is saved in two fits files (rateints data product) that sample 150 frames. The transit happens between 
-frames 90 and 110 (1st and 4th contact) with a depth of ~0.88%. The point-to-point RMS of the white light curve over 
-the SOSS domain is ~160 ppt.
-
-For this example data set:
-- [SOSSIOPATH] = /YourPath/Your_SOSSISSE_folder/
-- [INSTRUMENTMODE] = JWST.NIRISS.SOSS
-- [OBJECTNAME] = t1b
-
-Within the `/YourPath/Your_SOSSISSE_folder/JWST.NIRISS.SOSS/t1b/rawdata/` folder, you should place the raw data files.
-
-A demo dataset (Trappist-1b) can be dowloaded from http://www.astro.umontreal.ca/~artigau/soss/t1b_sample.tar. 
-
-You will also need to put reference files, in the relevant subfolders, that can be downloaded from http://www.astro.umontreal.ca/~artigau/soss/ref_files.tar.
-Place them for example in the following folder: `/YourPath/Your_SOSSISSE_folder//JWST.NIRISS.SOSS/calibrations/*.fits `
+This are provided as part of the setup - select the demo you wish to start with and a sample 
+data set will be downloaded (if requested).
 
 [Back to top](#table-of-contents)
 
