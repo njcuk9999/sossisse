@@ -35,7 +35,7 @@ we recommend a new clean environment to avoid module conflicts.
 
 
 ```bash
-conda create --name sossisse-env python=3.10
+conda create --name sossisse-env python=3.11
 ```
 
 ```bash
