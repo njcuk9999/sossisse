@@ -120,6 +120,15 @@ cgroup = 'WLC.INPUTS'
 Cdict.set('BASELINE_INTS', group=cgroup, source=__NAME__,
           value=None)
 
+# Whether there is a transit/eclipse in the data.
+# If this is set to False TRANSIT_INTS is ignored
+# If this is set to True and TRANSIT_INTS is None a graph will help you
+#    decide where the transit should be
+# If this is set to True and TRANSIT_INTS is set the code will process transits
+#    and treat the data as such
+Cdict.set('HAS_TRANSIT', dtype=bool, source=__NAME__,
+          value=True)
+
 # If there are transit(s)/eclipse(s) in the data, enter the frames
 #     corresponding to either the 1st, 2nd, 3rd and 4th contact [length 4 list]
 #     or the 1st to 4th contact [length 2 list].

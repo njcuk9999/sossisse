@@ -121,6 +121,9 @@ def linear_recon(inst: Instrument) -> Instrument:
     # get outputs of apply_amp_recon
     ltable, lrecon, valid_cube = amp_out
     # -------------------------------------------------------------------------
+    # At this point we can look at the transit
+    inst.define_transit_ints(ltable)
+    # -------------------------------------------------------------------------
     # normalize the trace but a normalization factor
     ltable = inst.normalize_sum_trace(ltable)
     # -------------------------------------------------------------------------

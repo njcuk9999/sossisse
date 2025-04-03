@@ -13,6 +13,7 @@ import os
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Button
 import numpy as np
 
 from aperocore import math as mp
@@ -680,3 +681,136 @@ def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'sed_{0}'.format(objname))
+
+
+# =============================================================================
+# Define the interactive transit plot functions
+# =============================================================================
+class InteractiveTransitPlot:
+    def __init__(self, **kwargs):
+        # get values out of kwargs
+        self.x = np.arange(len(kwargs['amps']))
+        self.y = kwargs['amps']
+        self.yerr = kwargs['eamps']
+        self.mask = kwargs['oot_domain']
+        self.objname = kwargs['OBJECTNAME']
+        # Store selected points
+        self.selected_points = []
+        self.lines = []
+        self.fig = None
+        self.frame = None
+        self.frame_reset = None
+        self.frame_accept = None
+        self.btn_reset = None
+        self.btn_accept = None
+        # store outputs
+        self.success = False
+        self.transit_ints = []
+
+    def plot(self):
+        # try to do the plot
+        try:
+            # close any previously open plots
+            plt.close()
+            # Create figure and plot
+            self.fig, self.frame = plt.subplots()
+            plt.subplots_adjust(bottom=0.2)
+
+            # plot out of transit domain in blue
+            self.frame.errorbar(self.x[self.mask], self.y[self.mask],
+                                yerr=self.yerr[self.mask],
+                                linestyle='None', marker='o', color='b',
+                                label='BASELINE_INTS')
+            # plot rejected points in black
+            self.frame.errorbar(self.x[~self.mask], self.y[~self.mask],
+                                yerr=self.yerr[~self.mask],
+                                linestyle='None', marker='o', color='b',
+                                label='Rest of domain')
+            # set title
+            self.frame.set(xlabel='Integration number',
+                           ylabel='Flux',
+                           title=self.objname)
+            # Create buttons
+            self.frame_reset = plt.axes([0.3, 0.05, 0.2, 0.075])
+            self.frame_accept = plt.axes([0.55, 0.05, 0.2, 0.075])
+            self.btn_reset = Button(self.frame_reset, 'Reset')
+            self.btn_accept = Button(self.frame_accept, 'Accept')
+
+            self.btn_reset.on_clicked(self.reset)
+            self.btn_accept.on_clicked(self.accept)
+
+            self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+            plt.show(block=True)
+        except Exception as e:
+            misc.printc(str(e), 'error')
+            self.success = False
+
+    def on_click(self, event):
+        """Handles mouse clicks to select points."""
+        print('ON_CLICK')
+        if event.inaxes != self.frame or len(self.selected_points) >= 4:
+            return
+
+        x_selected = event.xdata
+        self.selected_points.append(x_selected)
+
+        line = self.frame.axvline(x_selected, color='r', linestyle='--')
+        self.lines.append(line)
+        self.fig.canvas.draw()
+
+    def reset(self, event):
+        """Clears selected points and removes lines."""
+        _ = event
+        print('RESET')
+        self.selected_points.clear()
+        for line in self.lines:
+            line.remove()
+        self.lines.clear()
+        self.fig.canvas.draw()
+
+    def accept(self, event):
+        """Accepts selections and closes the plot."""
+        _ = event
+        # ask user whether they want to continue
+        if self.continue_box():
+            return
+        # close the
+        plt.close(self.fig)
+        # set success to True
+        self.success = True
+        # make sure we don't have any previous points
+        self.transit_ints = []
+        # loop through point and make them integers
+        for point in self.selected_points:
+            self.transit_ints.append(int(point))
+        # sort in ascending order
+        self.transit_ints.sort()
+
+    def continue_box(self) -> bool:
+        """
+        Ask user if they want to continue
+        :return:
+        """
+        # deal with not having 4 points
+        if len(self.selected_points) == 4:
+            return False
+        # try to create a warning message box
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            root = tk.Tk()
+            root.withdraw()
+            title = 'Selection Error'
+            msg = ('Please select exactly 4 points. '
+                   '\nDo you want to continue selecting?')
+            uinput = messagebox.askquestion(title, msg, icon='warning')
+            if uinput == 'no':
+                self.success = False
+                self.transit_ints = []
+                return False
+        except Exception as e:
+            misc.printc(str(e), 'error')
+            self.success = False
+            return False
+        # if we get here return True
+        return True

@@ -28,13 +28,14 @@ from scipy.optimize import curve_fit
 from tqdm import tqdm
 from wpca import EMPCA
 
-from aperocore.constants import param_functions
 from aperocore import math as mp
+from aperocore.constants import param_functions
 
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
+from sossisse.core import const_funcs
 from sossisse.general import plots
 
 # =============================================================================
@@ -1928,11 +1929,15 @@ class Instrument:
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
         # get the baseline integrations and the transit integrations
         raw_baseline_ints = self.params['WLC.INPUTS.BASELINE_INTS']
+        has_transit = self.params['WLC.INPUTS.HAS_TRANSIT']
         raw_transit_ints = self.params['WLC.INPUTS.TRANSIT_INTS']
         # process the baseline integrations
         baseline_ints = self.process_baseline_ints(raw_baseline_ints)
         # process transit integrations
-        transit_ints = self.process_transit_ints(raw_transit_ints)
+        if has_transit:
+            transit_ints = self.process_transit_ints(raw_transit_ints)
+        else:
+            transit_ints = []
         # get the rejection domain
         rej_domain = self.params['WLC.INPUTS.REJECT_DOMAIN']
         # ---------------------------------------------------------------------
@@ -1999,6 +2004,84 @@ class Instrument:
         self.set_variable('OOT_DOMAIN', valid_oot)
         self.set_variable('INT_DOMAIN', valid_int)
         self.set_variable('IN_TRANSIT_INTEGRATE', valid_int_integrate)
+
+    def define_transit_ints(self, ltable: Table):
+        """
+        Manually define the transit parameters
+
+
+        :param ltable:
+        :return:
+        """
+        # set function name
+        func_name = __NAME__ + '.define_transit_ints()'
+        # get the baseline integrations and the transit integrations
+        raw_baseline_ints = self.params['WLC.INPUTS.BASELINE_INTS']
+        has_transit = self.params['WLC.INPUTS.HAS_TRANSIT']
+        raw_transit_ints = self.params['WLC.INPUTS.TRANSIT_INTS']
+        # ---------------------------------------------------------------------
+        # if the user has flagged there is no transit/eclipse we just return
+        # here
+        if not has_transit:
+            return
+        # ---------------------------------------------------------------------
+        # if the user has given transit integrations we jst return here
+        if raw_transit_ints is not None:
+            return
+        # ---------------------------------------------------------------------
+        # we re-get baseline_transit parameters
+        self.get_baseline_transit_params()
+        # ---------------------------------------------------------------------
+        # setup for the interactive plot
+        ikwargs = dict()
+        ikwargs['oot_domain'] = self.get_variable('OOT_DOMAIN', func_name)
+        ikwargs['amps'] = ltable['amplitude']
+        ikwargs['eamps'] = ltable['amplitude_error']
+        ikwargs['OBJECTNAME'] = self.params['INPUTS.OBJECTNAME']
+        # ---------------------------------------------------------------------
+        # run interactive plot
+        itransit_plot = plots.InteractiveTransitPlot(**ikwargs)
+        itransit_plot.plot()
+        # deal with failure
+        if not itransit_plot.success:
+            msg = ('Unable to interactively get transit integrations,'
+                   ' please set TRANSIT_INTS or set HAS_TRANSIT to False')
+            raise exceptions.SossisseConstantException(msg)
+        # ---------------------------------------------------------------------
+        # print raw transit parameters
+        misc.printc('Using transit parameters: ', 'number')
+        for r_it, r_int in enumerate(itransit_plot.transit_ints):
+            misc.printc('\t{0}: {1}'.format(r_it + 1, r_int), 'number')
+        # ---------------------------------------------------------------------
+        # now we have the transit we can set variables
+        self.params['WLC.INPUTS.TRANSIT_INTS'] = itransit_plot.transit_ints
+        # set the oot domain and has in transit to None
+        self._variables['HAS_OUT_TRANSIT'] = None
+        self._variables['HAS_IN_TRANSIT'] = None
+        # we re-get baseline_transit parameters
+        self.get_baseline_transit_params()
+        # ---------------------------------------------------------------------
+        # we can also update the input yaml file (but just for SOSSSISE)
+        # we can't update a POGOS one yet
+        # ---------------------------------------------------------------------
+        # get parameter file path
+        outpath = self.params['INPUTS.PARAM_FILE']
+        # update the sossisse backup
+        const_funcs.create_yaml(self.params, log=True)
+        # deal with a SOSSISSE input
+        if self.params['__SOURCE__'] == 'SOSSISSE':
+            # get parameter file path
+            outpath = self.params['INPUTS.PARAM_FILE']
+            # create yaml
+            const_funcs.create_yaml(self.params, log=True, outpath=outpath)
+        else:
+            # print message
+            misc.printc('Please save transit ints to: {0}'.format(outpath),
+                        'warning')
+            # display warning
+            misc.printc('Cannot write over POGOS input: {0}'.format(outpath),
+                        'warning')
+
 
     def subtract_1f(self, residuals: np.ndarray,
                     cube: np.ndarray, err: np.ndarray,
@@ -2745,8 +2828,8 @@ class Instrument:
         # if we don't have oot domain we cannot do the normalization
         if not has_oot:
             wmsg = ('Cannot do per pixel baseline correction without '
-                    'out-of-transit domain.'
-                    '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to do per pixel'
+                    'baseline domain.'
+                    '\n\tPlease set WLC.INPUTS.BASELINE_INTS to do per pixel'
                     ' baseline correction.')
             misc.printc(wmsg, 'warning')
             # return loutputs without normalization
@@ -3298,8 +3381,8 @@ class Instrument:
         # deal with out of transit domain not set
         if not has_oot:
             wmsg = ('Cannot calculate transit depth trend without '
-                    'out-of-transit domain.'
-                    '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to remove_trend.')
+                    'baseline domain.'
+                    '\n\tPlease set WLC.INPUTS.BASELINE_INTS to remove_trend.')
             misc.printc(wmsg, 'warning')
             # return the spec and ltable without removing trend
             return None

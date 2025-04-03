@@ -394,6 +394,22 @@ CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
                       '\n           - [111, 230]')
 
 # -----------------------------------------------------------------------------
+# Whether there is a transit/eclipse in the data.
+# If this is set to False TRANSIT_INTS is ignored
+# If this is set to True and TRANSIT_INTS is None a graph will help you
+#    decide where the transit should be
+# If this is set to True and TRANSIT_INTS is set the code will process transits
+#    and treat the data as such
+CDict.add('HAS_TRANSIT', value=True, dtype=bool, source=__NAME__,
+          user=True, active=True, group=cgroup, not_none=True,
+          description='Whether there is a transit/eclipse in the data. '
+                      '\nIf this is set to False TRANSIT_INTS is ignored. '
+                      '\nIf this is set to True and TRANSIT_INTS is None a '
+                      'graph will help you decide where the transit should be. '
+                      '\n If this is set to True and TRANSIT_INTS is set the '
+                      'code will process transits and treat the data as such')
+
+# -----------------------------------------------------------------------------
 # If there are transit(s)/eclipse(s) in the data, enter the frames
 #     corresponding to either the 1st, 2nd, 3rd and 4th contact [length 4 list]
 #     or the 1st to 4th contact [length 2 list].

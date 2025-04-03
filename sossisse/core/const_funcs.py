@@ -77,6 +77,8 @@ def get_parameters(no_yaml: bool = False,
 
     :return: Instrument, the correct instrument class with all parameters
     """
+    # set function name
+    func_name = __NAME__ + '.get_parameters()'
     # print splash
     misc.sossart()
     # in setup mode we force some parameters
@@ -91,6 +93,7 @@ def get_parameters(no_yaml: bool = False,
     # deal with yaml dict passed
     if '__YAML_DICT__' in kwargs:
         params = kwargs['__YAML_DICT__']
+        params.set('__SOURCE__', 'POGOS', source=func_name)
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
@@ -100,6 +103,8 @@ def get_parameters(no_yaml: bool = False,
                                                config_list=[constants.CDict],
                                                from_file=not no_yaml,
                                                kwargs=kwargs)
+        # set source from SOSSISSE
+        params.set('__SOURCE__', 'SOSSISSE', source=func_name)
     # -------------------------------------------------------------------------
     # deal with start point (setup only)
     if setup_mode:
@@ -191,7 +196,7 @@ def get_parameters(no_yaml: bool = False,
         params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
     # -------------------------------------------------------------------------
     # create a copy of the yaml file in the object path
-    _ = create_yaml(params, log=False)
+    _ = create_yaml(params, log=False, outpath=outpath)
     # -------------------------------------------------------------------------
     # create hash file (for quick check on SID
     create_hash(params)
@@ -396,8 +401,12 @@ def create_yaml(params: ParamDict, log: bool = True,
     """
     # get the output path
     if outpath is None:
-        outpath = os.path.join(params['PATHS.OTHER_PATH'],
-                               'params_backup.yaml')
+        if params['__SOURCE__'] == 'POGOS':
+            outpath = os.path.join(params['PATHS.OTHER_PATH'],
+                                   'params_backup_sossisse.yaml')
+        else:
+            outpath = os.path.join(params['PATHS.OTHER_PATH'],
+                                   'params_backup.yaml')
     # -------------------------------------------------------------------------
     # print progress
     if log:
