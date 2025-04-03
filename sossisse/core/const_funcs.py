@@ -196,7 +196,7 @@ def get_parameters(no_yaml: bool = False,
         params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
     # -------------------------------------------------------------------------
     # create a copy of the yaml file in the object path
-    _ = create_yaml(params, log=False, outpath=outpath)
+    _ = create_yaml(params, log=False)
     # -------------------------------------------------------------------------
     # create hash file (for quick check on SID
     create_hash(params)
