@@ -14,6 +14,8 @@
 
 ## 1. Installation
 
+Note if you are a developer please see [Dev mode](#7-dev-mode)
+
 #### Step 1: Download the GitHub repository
 
 ```bash
