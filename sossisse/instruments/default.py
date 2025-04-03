@@ -1682,14 +1682,8 @@ class Instrument:
                 misc.printc('\tReading: {0}'.format(tmp_transit_invsout),
                             'info')
                 transit_invsout = self.load_data(tmp_transit_invsout)
-                # only look for fit pca file if we are fitting pca
-                if self.params['WLC.LMODEL.FIT_PCA']:
-                    misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
-                    pcas = self.load_data(tmp_pcas)
-                else:
-                    pcas = None
                 # return these files
-                return_list = [clean_cube, median_image, transit_invsout, pcas]
+                return_list = [clean_cube, median_image, transit_invsout]
                 return return_list
         # ---------------------------------------------------------------------
         # do the 1/f filtering
@@ -1766,11 +1760,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         cube = self.subtract_1f(residuals, cube, err, tracemap)
         # ---------------------------------------------------------------------
-        # fit the pca
-        # ---------------------------------------------------------------------
-        # fit the pca
-        pcas = self.fit_pca(cube2, err, med, tracemap)
-        # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
         if allow_temp:
@@ -1787,7 +1776,7 @@ class Instrument:
                          overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
-        return_list = [cube, med, transit_invsout, pcas]
+        return_list = [cube, med, transit_invsout]
         return return_list
 
     def process_baseline_ints(self,
@@ -2097,6 +2086,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # update meta data
         self.update_meta_data()
         # make sure we have a pca file
@@ -2107,9 +2097,16 @@ class Instrument:
         # get whether to fit pca and the number of fit components
         flag_fit_pca = self.params['WLC.LMODEL.FIT_PCA']
         n_comp = self.params['WLC.LMODEL.FIT_N_PCA']
+
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
             return None
+
+        # only look for fit pca file if we are fitting pca
+        if allow_temp and use_temp and os.path.exists(tmp_pcas):
+            misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
+            return self.load_data(tmp_pcas)
+
         # get the shape of the data
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
@@ -2160,13 +2157,22 @@ class Instrument:
             valid = np.where(np.nanmean(weights != 0, axis=0) > 0.95)[0]
         # ---------------------------------------------------------------------
         # print process
-        misc.printc('\tComputing principle components...', 'info')
+        margs = [n_comp]
+        msg = '\tComputing principle components (ncomp={0})...'
+        misc.printc(msg.format(*margs), 'info')
         # compute the principle components
         with warnings.catch_warnings(record=True) as _:
             # set up the pca class
             pca_class = EMPCA(n_components=n_comp)
+            # process
+            misc.printc('\t\tRunning PCA fit, please wait...', 'number')
+            start = time.time()
             # fit out data
             pca_fit = pca_class.fit(cube3[:, valid], weights=weights[:, valid])
+            # process
+            margs = [time.time() - start]
+            misc.printc('\t\tFinished PCA fit, took {0:.2f}s'.format(*margs),
+                        'number')
             # get the raito of all components
             variance_ratio = np.array(pca_class.explained_variance_ratio_)
             # normalize by the ratio of the first component

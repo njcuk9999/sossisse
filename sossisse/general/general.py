@@ -83,10 +83,17 @@ def linear_recon(inst: Instrument) -> Instrument:
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
     out_c1f = inst.clean_1f(cube, err, tracemap)
-    cube, med, transit_invsout, pcas = out_c1f
+    cube, med, transit_invsout = out_c1f
+
+    # -------------------------------------------------------------------------
+    # construct the principal component model from the out of transit domain
+    # using pca (we deal with not fitting the PCA inside)
+    pcas = inst.fit_pca(cube, err, med, tracemap)
+
     # -------------------------------------------------------------------------
     # recenter the trace position
     tracemap = inst.recenter_trace_position(tracemap, med)
+
     # -------------------------------------------------------------------------
     # Part of the code that does rotation/shift/amplitude
     # -------------------------------------------------------------------------
