@@ -693,7 +693,12 @@ class InteractiveTransitPlot:
         self.y = kwargs['amps']
         self.yerr = kwargs['eamps']
         self.mask = kwargs['oot_domain']
-        self.objname = kwargs['OBJECTNAME']
+        # Set title
+        self.title = ('Pick groups of 4 transit integrations'
+                      '\n1: First Contact, 2: Second Contact,'
+                      '3: Third Contact, 4: Fourth Contact'
+                      '\n\nObject name = {0}'.format(kwargs['OBJECTNAME']))
+
         # Store selected points
         self.selected_points = []
         self.lines = []
@@ -729,7 +734,7 @@ class InteractiveTransitPlot:
             # set title
             self.frame.set(xlabel='Integration number',
                            ylabel='Flux',
-                           title=self.objname)
+                           title=self.title)
             # Create buttons
             self.frame_reset = plt.axes([0.3, 0.05, 0.2, 0.075])
             self.frame_accept = plt.axes([0.55, 0.05, 0.2, 0.075])
@@ -747,8 +752,7 @@ class InteractiveTransitPlot:
 
     def on_click(self, event):
         """Handles mouse clicks to select points."""
-        print('ON_CLICK')
-        if event.inaxes != self.frame or len(self.selected_points) >= 4:
+        if event.inaxes != self.frame:
             return
 
         x_selected = event.xdata
@@ -761,7 +765,6 @@ class InteractiveTransitPlot:
     def reset(self, event):
         """Clears selected points and removes lines."""
         _ = event
-        print('RESET')
         self.selected_points.clear()
         for line in self.lines:
             line.remove()
@@ -772,27 +775,34 @@ class InteractiveTransitPlot:
         """Accepts selections and closes the plot."""
         _ = event
         # ask user whether they want to continue
-        if self.continue_box():
+        if self.try_again():
             return
         # close the
         plt.close(self.fig)
         # set success to True
         self.success = True
-        # make sure we don't have any previous points
-        self.transit_ints = []
+        # sort selected points
+        selected_points = list(self.selected_points)
+        selected_points.sort()
+        # storage for transit groups
+        transit_group = []
         # loop through point and make them integers
-        for point in self.selected_points:
-            self.transit_ints.append(int(point))
+        for point in selected_points:
+            if len(transit_group) < 4:
+                transit_group.append(int(point))
+            else:
+                self.transit_ints.append(transit_group)
+                transit_group = [int(point)]
         # sort in ascending order
         self.transit_ints.sort()
 
-    def continue_box(self) -> bool:
+    def try_again(self) -> bool:
         """
         Ask user if they want to continue
         :return:
         """
-        # deal with not having 4 points
-        if len(self.selected_points) == 4:
+        # deal with having 4 points (continue)
+        if len(self.selected_points) % 4 == 0:
             return False
         # try to create a warning message box
         try:
@@ -801,12 +811,12 @@ class InteractiveTransitPlot:
             root = tk.Tk()
             root.withdraw()
             title = 'Selection Error'
-            msg = ('Please select exactly 4 points. '
+            msg = ('Please select groups of exactly 4 points. '
                    '\nDo you want to continue selecting?')
             uinput = messagebox.askquestion(title, msg, icon='warning')
             if uinput == 'no':
                 self.success = False
-                self.transit_ints = []
+                self.transit_ints = [[]]
                 return False
         except Exception as e:
             misc.printc(str(e), 'error')
