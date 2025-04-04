@@ -1230,6 +1230,9 @@ class Instrument:
         # deal with no pos file
         if gen_params['POS_FILE'] is None:
             return
+        # deal with no pos file existing on disk (it can be set before this)
+        if not os.path.exists(gen_params['POS_FILE']):
+            return
         # construct the suffix to add to the new pos file
         name_sequence = self.params['INPUTS.OBJECTNAME']
         if len(self.params['INPUTS.SUFFIX']) > 0:
