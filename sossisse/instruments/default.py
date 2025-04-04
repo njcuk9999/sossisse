@@ -1859,7 +1859,7 @@ class Instrument:
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
         # if we don't have transit integrations defined we have no transit
-        if raw_transit_ints is None:
+        if raw_transit_ints in [None, 'None', '']:
             transit_ints = []
         # otherwise we need a list of lists(length 2 or 4)
         elif isinstance(raw_transit_ints, list):
