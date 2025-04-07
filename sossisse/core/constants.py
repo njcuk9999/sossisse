@@ -344,6 +344,13 @@ CDict.add_group(cgroup,
                 description='Definition of inputs related to the position '
                             'within data cube timeseries',
                 source=__NAME__, user=True, active=True)
+
+# -----------------------------------------------------------------------------
+# Apply DQ flags
+CDict.add('APPLY_DQ_FLAGS', value=True, dtype=bool, source=__NAME__,
+          user=True, active=True, group=cgroup,
+          description='Apply DQ flags')
+
 # -----------------------------------------------------------------------------
 # DQ flags that we should use (list)
 CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int,
@@ -351,6 +358,12 @@ CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int,
           not_none=False, minimum=0, group=cgroup,
           description='DQ flags that we should use (list)'
                       ' e.g. \n -0 \n -2')
+# -----------------------------------------------------------------------------
+# Correct 1/f
+CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
+          user=True, active=True, group=cgroup,
+          description='Apply 1/f correction')
+
 # -----------------------------------------------------------------------------
 # Integrations used to construct a model PSF.
 #     This should be a list of [start, end] lists

@@ -620,7 +620,7 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     save_show_plot(inst.params, 'sed_{0}_ord{1}'.format(objname, trace_order))
 
 
-def plot_full_sed(inst: Any, plot_storage: Dict[str, Dict[str, Any]]):
+def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # get resolution_bin

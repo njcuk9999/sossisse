@@ -169,8 +169,6 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     :param inst: Instrument, the instrument object
     :return:
     """
-    # set the function name
-    func_name = f'{__NAME__}.spectral_extraction'
     # print the splash
     misc.sossart()
     # get parameters from instrumental parameters
@@ -190,30 +188,12 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     for trace_order in trace_orders:
         # print progress
         misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
-        # load the median image
-        med_file = inst.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        med = io.load_fits(med_file)
-        # get clean median trace for spectrum
-        dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
-        # load the residuals
-        res_file = inst.get_variable('WLC_RES_FILE', func_name)
-        residual = io.load_fits(res_file)
-        # load the error file
-        err_file = inst.get_variable('WLC_ERR_FILE', func_name)
-        err = io.load_fits(err_file)
-        # load the residuals
-        recon_file = inst.get_variable('WLC_RECON_FILE', func_name)
-        recon = io.load_fits(recon_file)
-        # load the linear fit table
-        ltable_file = inst.get_variable('WLC_LTBL_FILE', func_name)
-        ltable = io.load_table(ltable_file)
-        # for future reference in the code, we keep track of data size
-        inst.set_variable('DATA_X_SIZE', med.shape[1], func_name)
-        inst.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
-        # get the trace position
-        posmax, throughput = inst.get_trace_pos(order_num=trace_order)
-        # get wave grid
-        wavegrid = inst.get_wavegrid(order_num=trace_order)
+        # ---------------------------------------------------------------------
+        # load data for this trace order
+        indata = inst.load_input_spec_data(trace_order)
+        med, dx, dy, rotxy, ddy, med_clean, residual, err = indata[:8]
+        recon, ltable, posmax, throughput, wavegrid = indata[8:]
+        # ---------------------------------------------------------------------
         # create the SED
         sp_sed = inst.create_sed(med, residual, wavegrid, posmax, throughput,
                                  med_clean, trace_order)

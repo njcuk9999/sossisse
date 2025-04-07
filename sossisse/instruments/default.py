@@ -868,7 +868,12 @@ class Instrument:
         :return: np.ndarray, the cube with cosmic rays removed
         """
         # see if user wants to remove cosmics
-        if not self.params['WLC.GENERAL.REMOVE_COSMIC_RAYS']:
+        if not self.params['WLC.GENERAL.REMOVE_COSMIC_RAYS']:      
+            # print message that we are not removing cosmic rays
+            msg = ('WLC.GENERAL.REMOVE_COSMIC_RAYS=False. '
+                   'Not removing cosmic rays')
+            misc.printc(msg, 'info')
+            # return original cube
             return cube
         # print progress
         msg = 'We remove cosmisc rays'
@@ -913,6 +918,14 @@ class Instrument:
         """
         # get wlc_params
         wlc_params = self.params.get('WLC')
+        # ---------------------------------------------------------------------
+        # deal with user not wanting to apply dq flags
+        if not wlc_params['INPUTS.APPLY_DQ_FLAGS']:
+            # print message that we are not patching isolated bad pixels
+            msg = 'WLC.INPUTS.APPLY_DQ_FLAGS = False. Not applying DQ flags'
+            misc.printc(msg, 'info')
+            # return original cube and error
+            return cube, err
         # ---------------------------------------------------------------------
         # get valid dq values
         valid_dqs = wlc_params['INPUTS.VALID_DQ']
@@ -976,7 +989,7 @@ class Instrument:
         # deal with not doing background correction
         if not self.params['GENERAL.DO_BACKGROUND']:
             # print progress
-            msg = 'We do not clean background. BKGFILE is not set.'
+            msg = 'We do not clean background. GENERAL.DO_BACKGROUND=False'
             misc.printc(msg, 'warning')
             # return the cube (unchanged)
             return cube, err
@@ -1137,7 +1150,8 @@ class Instrument:
         # deal with no patching isolated bad pixels
         if not self.params['WLC.GENERAL.PATCH_ISOLATED_BADS']:
             # print message that we are not patching isolated bad pixels
-            msg = 'We do not patch isolated bad pixels'
+            msg = ('WLC.GENERAL.PATCH_ISOLATED_BADS=False. Not patching '
+                   'isolated bad pixels')
             misc.printc(msg, 'info')
             # return the cube (unchanged)
             return cube
@@ -1224,14 +1238,19 @@ class Instrument:
 
         # set function name
         func_name = f'{__NAME__}.fancy_centering()'
-        # deal with switching off fancy centering
-        if not wlc_gen_params['USE_FANCY_CENTERING']:
-            return
         # deal with no pos file
         if gen_params['POS_FILE'] is None:
             return
         # deal with no pos file existing on disk (it can be set before this)
         if not os.path.exists(gen_params['POS_FILE']):
+            return
+
+        # deal with switching off fancy centering
+        if not wlc_gen_params['USE_FANCY_CENTERING']:
+            # print message that we are not patching isolated bad pixels
+            msg = ('WLC.GENERAL.USE_FANCY_CENTERING=False. '
+                   'Not recalculating trace.')
+            misc.printc(msg, 'info')
             return
         # construct the suffix to add to the new pos file
         name_sequence = self.params['INPUTS.OBJECTNAME']
@@ -1649,6 +1668,7 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         use_temp = self.params['GENERAL.USE_TEMPORARY']
@@ -1690,10 +1710,6 @@ class Instrument:
                 return_list = [clean_cube, median_image, transit_invsout]
                 return return_list
         # ---------------------------------------------------------------------
-        # do the 1/f filtering
-        # ---------------------------------------------------------------------
-        # print progress
-        misc.printc('Cleaning 1/f noise', 'info')
         # create a copy of the cube, we will normalize the amplitude of each
         # trace
         cube2 = np.array(cube, dtype=float)
@@ -1743,6 +1759,14 @@ class Instrument:
             med_in = np.nanmedian(cube2[int_domain], axis=0)
         # get the diff in vs out
         transit_invsout = med_in - med_out
+        # ---------------------------------------------------------------------
+        # Dealing with user turning this off
+        if not self.params['WLC.INPUTS.APPLY_1F_CORR']:
+            # print message that we are not removing cosmic rays
+            msg = ('WLC.INPUTS.APPLY_1F_CORR=False. '
+                   'Not applying 1/f correction')
+            misc.printc(msg, 'info')
+            return [cube, med, transit_invsout]
         # ---------------------------------------------------------------------
         # print progress
         misc.printc('\nCalculating residuals', 'info')
@@ -2183,11 +2207,14 @@ class Instrument:
         # get whether to fit pca and the number of fit components
         flag_fit_pca = self.params['WLC.LMODEL.FIT_PCA']
         n_comp = self.params['WLC.LMODEL.FIT_N_PCA']
-
+        # ---------------------------------------------------------------------
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
+            msg = ('WLC.LMODEL.FIT_PCA={0}  WLC.LMODEL.FIT_N_PCA={1}'
+                   'Not fitting with PCA').format(flag_fit_pca, n_comp)
+            misc.printc(msg, 'info')
             return None
-
+        # ---------------------------------------------------------------------
         # only look for fit pca file if we are fitting pca
         if allow_temp and use_temp and os.path.exists(tmp_pcas):
             misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
@@ -2324,6 +2351,10 @@ class Instrument:
         wlc_gen_params = self.params.get('WLC.GENERAL')
         # deal with not wanting to recenter trace position
         if not wlc_gen_params['RECENTER_TRACE_POSITION']:
+            # print message that we are not removing cosmic rays
+            msg = ('WLC.GENERAL.RECENTER_TRACE_POSITION=False. '
+                   'Not recentering trace position')
+            misc.printc(msg, 'info')
             return tracemap
         # print progress
         msg = 'Recentering trace position'
@@ -3105,6 +3136,62 @@ class Instrument:
             return [0]
         else:
             return trace_orders
+
+
+    def load_input_spec_data(self, trace_order: int = 0) -> List[np.ndarray]:
+        """
+        Load input data for this trace order for the spectral extraction
+
+        :param trace_order: int, trace order to load
+
+        returns:
+        - med: np.ndarray
+        - dx: np.ndarray
+        - dy: np.ndarray
+        - rotxy: np.ndarray
+        - ddy: np.ndarray
+        - med_clean: np.ndarray
+        - residual: np.ndarray
+        - err: np.ndarray
+        - recon: np.ndarray
+        - ltable: np.ndarray
+        - posmax: np.ndarray
+        - throughput: np.ndarray
+        - wavegrid: np.ndarray
+
+        :return: list of numpy arrays: loaded input data (see above)
+        """
+        # set the function name
+        func_name = f'{__NAME__}.spectral_extraction'
+        # load the median image
+        med_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
+        med = io.load_fits(med_file)
+        # get clean median trace for spectrum
+        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med)
+        # load the residuals
+        res_file = self.get_variable('WLC_RES_FILE', func_name)
+        residual = io.load_fits(res_file)
+        # load the error file
+        err_file = self.get_variable('WLC_ERR_FILE', func_name)
+        err = io.load_fits(err_file)
+        # load the residuals
+        recon_file = self.get_variable('WLC_RECON_FILE', func_name)
+        recon = io.load_fits(recon_file)
+        # load the linear fit table
+        ltable_file = self.get_variable('WLC_LTBL_FILE', func_name)
+        ltable = io.load_table(ltable_file)
+        # for future reference in the code, we keep track of data size
+        self.set_variable('DATA_X_SIZE', med.shape[1], func_name)
+        self.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
+        # get the trace position
+        posmax, throughput = self.get_trace_pos(order_num=trace_order)
+        # get wave grid
+        wavegrid = self.get_wavegrid(order_num=trace_order)
+        # return all input data
+        return [med, dx, dy, rotxy, ddy, med_clean, residual, err,
+                recon, ltable, posmax, throughput, wavegrid]
+
+
 
     def create_sed(self, med: np.ndarray, residual: np.ndarray,
                    wavegrid: np.ndarray, posmax: np.ndarray,
