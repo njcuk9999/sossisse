@@ -29,6 +29,14 @@ INFO['instrument'] = 'JWST.NIRSPEC.PRISM'
 INFO['description'] = 'WASP 39b transit observed XXX'
 INFO['date'] = '2025-03-25'
 INFO['author'] = 'Loic Albert'
+# url for data download
+URL = 'https://www.astro.umontreal.ca/~cook/pogo-data/'
+# download: key = file, value = local path
+DOWNLOAD = dict()
+DOWNLOAD['GENERAL.FILES'] = 'PATHS.RAWPATH'
+DOWNLOAD['GENERAL.BKGFILE'] = 'PATHS.CALIBPATH'
+DOWNLOAD['GENERAL.FLATFILE'] = 'PATHS.CALIBPATH'
+DOWNLOAD['GENERAL.POS_FILE'] = 'PATHS.CALIBPATH'
 
 # =============================================================================
 # Switches to turn large parts of the code on/off
@@ -103,6 +111,7 @@ Cdict.set('WAVE_FILE_TYPE', group=cgroup, source=__NAME__,
 # =============================================================================
 cgroup = 'WLC.INPUTS'
 
+
 # Integrations used to construct a model PSF.
 #     This should be a list of [start, end] lists
 #     Ideally, these would be out-of-transit (if any) and without flares.
@@ -128,7 +137,7 @@ Cdict.set('BASELINE_INTS', group=cgroup, source=__NAME__,
 #    decide where the transit should be
 # If this is set to True and TRANSIT_INTS is set the code will process transits
 #    and treat the data as such
-Cdict.set('HAS_TRANSIT', dtype=bool, source=__NAME__,
+Cdict.set('HAS_TRANSIT', group=cgroup, source=__NAME__,
           value=True)
 
 # If there are transit(s)/eclipse(s) in the data, enter the frames
@@ -143,12 +152,16 @@ Cdict.set('HAS_TRANSIT', dtype=bool, source=__NAME__,
 #     e.g. TRANSIT_INTS:
 #           - [90, 97, 103, 110]
 Cdict.set('TRANSIT_INTS', group=cgroup, source=__NAME__,
-          value = [8200, 9500, 14500, 15700])
+          value = [[8200, 9500, 14500, 15700]])
 
 # =============================================================================
 # Definition of inputs related to handling of the data within each frame
 # =============================================================================
 cgroup = 'WLC.GENERAL'
+
+# Use fancy centering of the trace (sets RECENTER_TRACE_POSITION to False)
+Cdict.set('USE_FANCY_CENTERING', group=cgroup, source=__NAME__,
+          value=False)
 
 # Trace extraction width. Set to 0 to use the full image
 Cdict.set('TRACE_WIDTH_EXTRACTION', group=cgroup, source=__NAME__,

@@ -177,6 +177,11 @@ def get_parameters(no_yaml: bool = False,
     # get run time parameters (set in the code)
     params = run_time_params(params, only_create=only_create)
     # -------------------------------------------------------------------------
+    # deal with downloading the data (setup mode only)
+    if setup_mode:
+        # ask for data download
+        load_functions.download_data(params)
+    # -------------------------------------------------------------------------
     # copy parameter file to other path
     # -------------------------------------------------------------------------
     if not only_create:
