@@ -355,7 +355,7 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     frames[1].imshow(sqrtabsim, origin='lower', cmap='gray',
                      aspect='auto', vmin=vmin, vmax=vmax)
     frames[1].plot(x1, y1, 'g-')
-    frames[1].plot(x2, y2, 'r=')
+    frames[1].plot(x2, y2, 'r-')
     # -------------------------------------------------------------------------
     # force a tight layout
     plt.tight_layout()
