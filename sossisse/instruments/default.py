@@ -1013,14 +1013,14 @@ class Instrument:
         box = self.params['WLC.INPUTS.BACKGROUND_GLITCH_BOX']
         if box is None:
             emsg = ('WLC.INPUTS.BACKGROUND_GLITCH_BOX not set. '
-                    'Please set the valid DQ values')
+                    'Please set the BACKGROUND_GLITCH_BOX')
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         # get the background shifts
         bgnd_shifts_values = self.params['WLC.INPUTS.BACKGROUND_SHIFTS']
         if bgnd_shifts_values is None:
             emsg = ('WLC.INPUTS.BACKGROUND_SHIFTS not set. '
-                    'Please set the valid DQ values')
+                    'Please set the BACKGROUND_SHIFTS')
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         bgnd_shifts = np.arange(*bgnd_shifts_values)
@@ -1306,8 +1306,7 @@ class Instrument:
         tracepos_fit = np.full_like(tracepos, np.nan)
         # ---------------------------------------------------------------------
         # get the original trace position table (first extension)
-        pos_table1 = io.load_table(gen_params['POS_FILE'],
-                                   fmt='fits')
+        pos_table1 = io.load_table(gen_params['POS_FILE'], fmt='fits')
         # sort by the x pixel positions
         pos_table1 = pos_table1[np.argsort(pos_table1['X'])]
         # spline the X and y positions
@@ -1358,7 +1357,7 @@ class Instrument:
         plots.plot_fancy_centering1(self, xpix, tracepos, tracepos_fit)
         # ---------------------------------------------------------------------
         # read the pos tables
-        pos_table1 = io.load_table(gen_params['POS_FILE'], fmt='fits')
+        pos_table1 = io.load_table(gen_params['POS_FILE'], fmt='fits', hdu=1)
         pos_table2 = io.load_table(gen_params['POS_FILE'], fmt='fits', hdu=2)
         # get values out
         x1, x2 = np.array(pos_table1['X']), np.array(pos_table2['X'])
