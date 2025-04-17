@@ -75,10 +75,9 @@ cgroup = 'GENERAL'
 #  - file2
 #  - file3
 Cdict.set('FILES', group=cgroup, source=__NAME__,
-          value=['jw01366004001_04101_00001-seg001_nrs1_rateints.fits',
-                 'jw01366004001_04101_00001-seg002_nrs1_rateints.fits',
-                 'jw01366004001_04101_00001-seg003_nrs1_rateints.fits',
-                 'jw01366004001_04101_00001-seg004_nrs1_rateints.fits'])
+          value=['jw01366003001_04101_00001-seg001_nrs2_rateints.fits',
+                 'jw01366003001_04101_00001-seg002_nrs2_rateints.fits',
+                 'jw01366003001_04101_00001-seg003_nrs2_rateints.fits'])
 
 # background file --> leave as None if the is no background available for
 #    the mode - if empty DO_BACKGROUND is set to False regardless of the value
@@ -99,7 +98,7 @@ Cdict.set('POS_FILE', group=cgroup, source=__NAME__,
 
 # Wavelength calibration file
 Cdict.set('WAVE_FILE', group=cgroup, source=__NAME__,
-          value='jw02055001001_04102_00001-seg002_nrs1_x1dints.fits')
+          value='jw01366003001_04101_00001-seg001_nrs2_x1dints.fits')
 
 # Wavelength calibration file type
 Cdict.set('WAVE_FILE_TYPE', group=cgroup, source=__NAME__,
