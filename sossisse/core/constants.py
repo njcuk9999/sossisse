@@ -226,7 +226,9 @@ CDict.add('SAVE_RESULTS', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Save results at the end')
 # -----------------------------------------------------------------------------
-# Define whether to use pixel level de-trending
+# Define which orders to use e.g.
+# - 1
+# - 2
 CDict.add('TRACE_ORDERS', value=None, dtype=list, dtypei=int,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
