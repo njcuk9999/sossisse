@@ -692,7 +692,8 @@ CDict.add('DEGREE_1F_CORR', value=0, dtype=int, minimum=0,
 CDict.add('TRACE_WIDTH_EXTRACTION', value=40, dtype=int, minimum=0,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Trace extraction width. Set to 0 to use the '
-                      'full image')
+                      'full image. Should be equal or smaller than '
+                      'TRACE_WIDTH_MASKING.')
 # -----------------------------------------------------------------------------
 # define the width for masking the white light curve trace
 CDict.add('TRACE_WIDTH_MASKING', value=40, dtype=int, minimum=0,

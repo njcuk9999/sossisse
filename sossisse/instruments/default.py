@@ -1290,7 +1290,7 @@ class Instrument:
         misc.printc('\tFinding the brighest+surrounding pixels', '')
         # calculate a mask of the brightest pixels and surrounding "width"
         # pixels
-        width = 20
+        width = wlc_gen_params['TRACE_WIDTH_EXTRACTION']
         mask = np.zeros_like(med, dtype=bool)
         # loop around all pixels
         for ix in tqdm(range(med.shape[1])):
