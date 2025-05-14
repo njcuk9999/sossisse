@@ -31,13 +31,7 @@ __authors__ = base.__authors__
 # =============================================================================
 # Define functions
 # =============================================================================
-def linear_recon(inst: Instrument) -> Instrument:
-    """
-    White light curve functionality
-
-    :param inst: Instrument, the instrument object
-    :return:
-    """
+def linear_recon_init(inst):
     # set the function name
     func_name = f'{__NAME__}.linear_recon'
     # print the splash
@@ -56,6 +50,19 @@ def linear_recon(inst: Instrument) -> Instrument:
     if os.path.exists(wlc_ltbl_file) and inst.params['GENERAL.USE_TEMPORARY']:
         msg = 'File {0} exists we skip white light curve step'
         misc.printc(msg.format(wlc_ltbl_file), 'info')
+        return True
+    # if we've got here return false
+    return False
+
+def linear_recon(inst: Instrument) -> Instrument:
+    """
+    White light curve functionality
+
+    :param inst: Instrument, the instrument object
+    :return:
+    """
+    # linear recon initialization (hidden for notebook use)
+    if linear_recon_init(inst):
         return inst
     # -------------------------------------------------------------------------
     # fancy centering - recalculate trace file
@@ -231,28 +238,13 @@ def spectral_extraction(inst: Instrument) -> Instrument:
                                                              spec_in,
                                                              spec_err_in)
         # ---------------------------------------------------------------------
-        # reshape the wave grid into an image
-        wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
-        # save for plotting (outside the trace_order loop) / saving
-        storage_it = dict()
-        storage_it['wavegrid'] = wavegrid
-        storage_it['sp_sed'] = sp_sed
-        storage_it['throughput'] = throughput
-        storage_it['spec'] = spec
-        storage_it['spec_err'] = spec_err
-        storage_it['ltable'] = ltable
-        storage_it['spec2'] = spec2
-        storage_it['wavegrid_2d'] = wavegrid_2d
-        storage_it['spec_in'] = spec_in
-        storage_it['spec_err_in'] = spec_err_in
-        storage_it['transit_depth'] = transit_depth
-        storage_it['wave_bin'] = wave_bin
-        storage_it['flux_bin'] = flux_bin
-        storage_it['flux_bin_err'] = flux_bin_err
-        # append to plot storage
-        storage[trace_order] = storage_it
+        # push into storage for outside loop
+        storage = trace_storage(storage, trace_order, wavegrid, sp_sed,
+                                throughput, spec, spec_err, ltable, spec2,
+                                spec_in, spec_err_in, transit_depth, wave_bin,
+                                flux_bin, flux_bin_err)
         # ---------------------------------------------------------------------
-        inst.save_spe_results(storage_it, trace_order)
+        inst.save_spe_results(storage[trace_order], trace_order)
     # -------------------------------------------------------------------------
     # plot the SED
     plots.plot_full_sed(inst, storage)
@@ -265,6 +257,33 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # -------------------------------------------------------------------------
     # return the instrument object
     return inst
+
+
+def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
+                  spec, spec_err, ltable, spec2, spec_in, spec_err_in,
+                  transit_depth, wave_bin, flux_bin, flux_bin_err):
+    # reshape the wave grid into an image
+    wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
+    # save for plotting (outside the trace_order loop) / saving
+    storage_it = dict()
+    storage_it['wavegrid'] = wavegrid
+    storage_it['sp_sed'] = sp_sed
+    storage_it['throughput'] = throughput
+    storage_it['spec'] = spec
+    storage_it['spec_err'] = spec_err
+    storage_it['ltable'] = ltable
+    storage_it['spec2'] = spec2
+    storage_it['wavegrid_2d'] = wavegrid_2d
+    storage_it['spec_in'] = spec_in
+    storage_it['spec_err_in'] = spec_err_in
+    storage_it['transit_depth'] = transit_depth
+    storage_it['wave_bin'] = wave_bin
+    storage_it['flux_bin'] = flux_bin
+    storage_it['flux_bin_err'] = flux_bin_err
+    # append to plot storage
+    storage[trace_order] = storage_it
+
+    return storage
 
 
 # =============================================================================
