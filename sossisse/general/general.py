@@ -48,7 +48,7 @@ def linear_recon_init(inst):
     wlc_ltbl_file = inst.get_variable('WLC_LTBL_FILE', func_name)
     # return if we have the soss_stablity file
     if os.path.exists(wlc_ltbl_file) and inst.params['GENERAL.USE_TEMPORARY']:
-        msg = 'File {0} exists we skip white light curve step'
+        msg = 'File {0} exists we skip linear reconstruction step'
         misc.printc(msg.format(wlc_ltbl_file), 'info')
         return True
     # if we've got here return false
@@ -65,41 +65,45 @@ def linear_recon(inst: Instrument) -> Instrument:
     if linear_recon_init(inst):
         return inst
     # -------------------------------------------------------------------------
-    # fancy centering - recalculate trace file
-    inst.fancy_centering()
-    # -------------------------------------------------------------------------
     # load the image, error and data quality
     cube, err, dq = inst.load_data_with_dq()
+    # -------------------------------------------------------------------------
+    # Apply the flat field
+    cube, err, dq = inst.apply_flat_field(cube, err, dq)
     # -------------------------------------------------------------------------
     # apply the dq to the cube
     cube, err = inst.apply_dq(cube, err, dq)
     # -------------------------------------------------------------------------
     # remove the background
     cube, err = inst.remove_background(cube, err)
+    # low pass the data
+    cube, err = inst.low_pass_filter(cube, err)
     # -------------------------------------------------------------------------
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
-    cube = inst.patch_isolated_bads(cube)
+    cube, err = inst.patch_isolated_bads(cube, err)
     # -------------------------------------------------------------------------
     # remove cosmic rays with a sigma cut
     cube = inst.remove_cosmic_rays(cube)
     # -------------------------------------------------------------------------
+    # TODO: pastasoss here
+    # -------------------------------------------------------------------------
     # get the trace map
-    tracemap = inst.get_trace_map()
+    trace_mask = inst.get_trace_mask()
     # -------------------------------------------------------------------------
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    out_c1f = inst.clean_1f(cube, err, tracemap)
+    out_c1f = inst.clean_1f(cube, err, trace_mask)
     cube, med, transit_invsout = out_c1f
 
     # -------------------------------------------------------------------------
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
-    pcas = inst.fit_pca(cube, err, med, tracemap)
+    pcas = inst.fit_pca(cube, err, med, trace_mask)
 
     # -------------------------------------------------------------------------
     # recenter the trace position
-    tracemap = inst.recenter_trace_position(tracemap, med)
+    trace_mask = inst.recenter_trace_position(trace_mask, med)
 
     # -------------------------------------------------------------------------
     # Part of the code that does rotation/shift/amplitude
@@ -107,7 +111,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     # get the gradients
     dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
     # set up the mask for trace position
-    mask_out = inst.get_mask_trace_pos(med, tracemap)
+    mask_out = inst.get_mask_trace_pos(med, trace_mask)
     mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos = mask_out
 
     # setup the linear reconstruction vector based on the input parameters

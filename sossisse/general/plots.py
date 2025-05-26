@@ -363,6 +363,85 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'fancy_centering2')
 
+
+def plot_background1(inst, frame0_before, frame0_after):
+    # set function name
+    func_name = f'{__NAME__}.plot_background1()'
+    # -------------------------------------------------------------------------
+    # get the vmin and vmax
+    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frames = plt.subplots(nrows=1, ncols=2)
+    # -------------------------------------------------------------------------
+    # plot the before/after frames
+    frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    # set title
+    frames[0].set(title='Before background')
+    frames[1].set(title='After background')
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'background1')
+
+
+def plot_background2(inst, frame0_before, frame0_after):
+    # set function name
+    func_name = f'{__NAME__}.plot_background2()'
+    # -------------------------------------------------------------------------
+    # get the vmin and vmax
+    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frames = plt.subplots(nrows=1, ncols=2)
+    # -------------------------------------------------------------------------
+    # plot the before/after frames
+    frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    # set title
+    frames[0].set(title='Before low pass')
+    frames[1].set(title='After low pass')
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'background2')
+
+
+def plot_flat_field(inst, frame0_before, frame0_after):
+    # set function name
+    func_name = f'{__NAME__}.plot_flat_field()'
+    # -------------------------------------------------------------------------
+    # get the vmin and vmax
+    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    # -------------------------------------------------------------------------
+    # setup the plot
+    fig, frames = plt.subplots(nrows=1, ncols=2)
+    # -------------------------------------------------------------------------
+    # plot the before/after frames
+    frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
+                     aspect='auto', vmin=vmin, vmax=vmax)
+    # set title
+    frames[0].set(title='Before flatfield')
+    frames[1].set(title='After flatfield')
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'flatfield')
+
+
 def plot_stability(inst: Any, table: Table):
     # set function name
     func_name = f'{__NAME__}.plot_stability()'

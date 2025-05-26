@@ -631,14 +631,16 @@ CDict.add('Y_TRACE_OFFSET', value=0, dtype=int,
           description='The number of pixels in the y direction to '
                       'offset the trace by')
 # -----------------------------------------------------------------------------
-# used for masking and white light curve
+# Set the range of dys to scan over number of -nbypix/trace_y_scale to
+#     +nbyix/trace_y_scale
 CDict.add('TRACE_Y_SCALE', value=None, dtype=int,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
                       '-nbypix/trace_y_scale to +nbypix/tace_y_scale')
 # -----------------------------------------------------------------------------
-# used for masking and white light curve
+# Set the range of dys to scan over number of -nbxpix/trace_x_scale to
+#     +nbxpix/trace_x_scale
 CDict.add('TRACE_X_SCALE', value=None, dtype=int,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
@@ -657,12 +659,6 @@ CDict.add('RECENTER_TRACE_POSITION', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS, JWST.NIRISS.FGS',
           description='Whether to recenter the trace position')
-# -----------------------------------------------------------------------------
-# Use fancy centering of the trace (sets RECENTER_TRACE_POSITION to False)
-CDict.add('USE_FANCY_CENTERING', value=True, dtype=bool,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Use fancy centering of the trace (sets '
-                      'RECENTER_TRACE_POSITION to False')
 # -----------------------------------------------------------------------------
 # Whether to fit a per pixel baseline correction
 CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=True, dtype=bool,
@@ -689,7 +685,7 @@ CDict.add('DEGREE_1F_CORR', value=0, dtype=int, minimum=0,
                       '\n1 = slope ... and so on')
 # -----------------------------------------------------------------------------
 # Trace extraction width. Set to 0 to use the full image
-CDict.add('TRACE_WIDTH_EXTRACTION', value=40, dtype=int, minimum=0,
+CDict.add('LINRECON_TRACE_WIDTH', value=40, dtype=int, minimum=0,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Trace extraction width. Set to 0 to use the '
                       'full image. Should be equal or smaller than '

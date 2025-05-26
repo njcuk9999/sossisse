@@ -81,9 +81,15 @@ class Instrument:
         self._variables['TEMP_INI_CUBE'] = None
         self._variables['TEMP_INI_ERR'] = None
         self._variables['TEMP_INI_DQ'] = None
-        self._variables['TEMP_INI_CUBE_BKGRND'] = None
-        self._variables['TEMP_INI_ERR_BKGRND'] = None
+        self._variables['TEMP_FF_CUBE'] = None
+        self._variables['TEMP_FF_ERR'] = None
+        self._variables['TEMP_FF_DQ'] = None
+        self._variables['TEMP_INI_CUBE_BKGRND1'] = None
+        self._variables['TEMP_INI_ERR_BKGRND1'] = None
+        self._variables['TEMP_INI_CUBE_BKGRND2'] = None
+        self._variables['TEMP_INI_ERR_BKGRND2'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
+        self._variables['TEMP_CLEAN_NAN_ERR'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
         self._variables['TEMP_PCA_FILE'] = None
@@ -132,9 +138,15 @@ class Instrument:
         self.vsources['TEMP_INI_CUBE'] = define_func
         self.vsources['TEMP_INI_ERR'] = define_func
         self.vsources['TEMP_INI_DQ'] = define_func
-        self.vsources['TEMP_INI_CUBE_BKGRND'] = define_func
-        self.vsources['TEMP_INI_ERR_BKGRND'] = define_func
+        self.vsources['TEMP_FF_CUBE'] = define_func
+        self.vsources['TEMP_FF_ERR'] = define_func
+        self.vsources['TEMP_FF_DQ'] = define_func
+        self.vsources['TEMP_INI_CUBE_BKGRND1'] = define_func
+        self.vsources['TEMP_INI_ERR_BKGRND1'] = define_func
+        self.vsources['TEMP_INI_CUBE_BKGRND2'] = define_func
+        self.vsources['TEMP_INI_ERR_BKGRND2'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
+        self.vsources['TEMP_CLEAN_NAN_ERR'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
         self.vsources['TEMP_PCA_FILE'] = define_func
@@ -422,6 +434,9 @@ class Instrument:
         temp_clean_nan = 'temporary_cleaned_isolated.fits'
         temp_clean_nan = os.path.join(temppath, temp_clean_nan)
         # ---------------------------------------------------------------------
+        temp_clean_nan_err = 'temporary_cleaned_isolated_err.fits'
+        temp_clean_nan_err = os.path.join(temppath, temp_clean_nan_err)
+        # ---------------------------------------------------------------------
         temp_ini_cube = 'temporary_initial_cube.fits'
         temp_ini_cube = os.path.join(temppath, temp_ini_cube)
         # ---------------------------------------------------------------------
@@ -431,11 +446,26 @@ class Instrument:
         temp_ini_dq = 'temporary_initial_dq.fits'
         temp_ini_dq = os.path.join(temppath, temp_ini_dq)
         # ---------------------------------------------------------------------
-        tmp_ini_cube_bkgrnd = 'temporary_initial_cube_bkgrnd.fits'
-        tmp_ini_cube_bkgrnd = os.path.join(temppath, tmp_ini_cube_bkgrnd)
+        temp_ff_cube = 'temporary_ff_cube.fits'
+        temp_ff_cube = os.path.join(temppath, temp_ff_cube)
         # ---------------------------------------------------------------------
-        tmp_ini_err_bkgrnd = 'temporary_initial_err_bkgrnd.fits'
-        tmp_ini_err_bkgrnd = os.path.join(temppath, tmp_ini_err_bkgrnd)
+        temp_ff_err = 'temporary_ff_err.fits'
+        temp_ff_err = os.path.join(temppath, temp_ff_err)
+        # ---------------------------------------------------------------------
+        temp_ff_dq = 'temporary_ff_dq.fits'
+        temp_ff_dq = os.path.join(temppath, temp_ff_dq)
+        # ---------------------------------------------------------------------
+        tmp_ini_cube_bkgrnd = 'temporary_initial_cube_bkgrnd1.fits'
+        tmp_ini_cube_bkgrnd1 = os.path.join(temppath, tmp_ini_cube_bkgrnd)
+        # ---------------------------------------------------------------------
+        tmp_ini_err_bkgrnd1 = 'temporary_initial_err_bkgrnd1.fits'
+        tmp_ini_err_bkgrnd1 = os.path.join(temppath, tmp_ini_err_bkgrnd1)
+        # ---------------------------------------------------------------------
+        tmp_ini_cube_bkgrnd2 = 'temporary_initial_cube_bkgrnd2.fits'
+        tmp_ini_cube_bkgrnd2 = os.path.join(temppath, tmp_ini_cube_bkgrnd2)
+        # ---------------------------------------------------------------------
+        tmp_ini_err_bkgrnd2 = 'temporary_initial_err_bkgrnd2.fits'
+        tmp_ini_err_bkgrnd2 = os.path.join(temppath, tmp_ini_err_bkgrnd2)
         # ---------------------------------------------------------------------
         errfile = os.path.join(temppath, 'errormap.fits')
         # ---------------------------------------------------------------------
@@ -474,11 +504,17 @@ class Instrument:
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
+        self.set_variable('TEMP_CLEAN_NAN_ERR', temp_clean_nan_err)
         self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
         self.set_variable('TEMP_INI_ERR', temp_ini_err)
         self.set_variable('TEMP_INI_DQ', temp_ini_dq)
-        self.set_variable('TEMP_INI_CUBE_BKGRND', tmp_ini_cube_bkgrnd)
-        self.set_variable('TEMP_INI_ERR_BKGRND', tmp_ini_err_bkgrnd)
+        self.set_variable('TEMP_FF_CUBE', temp_ff_cube)
+        self.set_variable('TEMP_FF_ERR', temp_ff_err)
+        self.set_variable('TEMP_FF_DQ', temp_ff_dq)
+        self.set_variable('TEMP_INI_CUBE_BKGRND1', tmp_ini_cube_bkgrnd1)
+        self.set_variable('TEMP_INI_ERR_BKGRND1', tmp_ini_err_bkgrnd1)
+        self.set_variable('TEMP_INI_CUBE_BKGRND2', tmp_ini_cube_bkgrnd2)
+        self.set_variable('TEMP_INI_ERR_BKGRND2', tmp_ini_err_bkgrnd2)
         # WLC files
         self.set_variable('WLC_ERR_FILE', errfile)
         self.set_variable('WLC_RES_FILE', resfile)
@@ -668,27 +704,76 @@ class Instrument:
             # make sure tmp data is deleted
             del tmp_data
         # ---------------------------------------------------------------------
-        # identify cds and get iamge shape
+        # identify cds and get image shape
         # ---------------------------------------------------------------------
         image_shape, flag_cds = self.id_image_shape(raw_shapes)
         # ---------------------------------------------------------------------
         # recalculate tags
         self.update_meta_data()
         # ---------------------------------------------------------------------
-        # get flat
-        flat, no_flat = self.get_flat(image_shape)
-        # ---------------------------------------------------------------------
         # load and bin the cube
         cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds)
+
+        return cube, err, dq
+
+
+    def apply_flat_field(self, cube, err, dq):
+        """
+        Flag field the cube and error cube
+        :return:
+        """
+        # set function name
+        func_name = f'{__NAME__}.apply_flat_field()'
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        # construct temporary file names
+        temp_ff_cube = self.get_variable('TEMP_FF_CUBE', func_name)
+        temp_ff_err = self.get_variable('TEMP_FF_ERR', func_name)
+        temp_ff_dq = self.get_variable('TEMP_FF_DQ', func_name)
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp and use_temp:
+            # check if cube, err and dq files exist
+            cond1 = os.path.exists(temp_ff_cube)
+            cond2 = os.path.exists(temp_ff_err)
+            cond3 = os.path.exists(temp_ff_dq)
+            # only if we have all three files do we read them
+            if cond1 and cond2 and cond3:
+                # read the cube
+                misc.printc('Reading ff file: {0}'.format(temp_ff_cube),
+                            'info')
+                cube = self.load_data(temp_ff_cube)
+                # rea dthe error
+                misc.printc('Reading ff file: {0}'.format(temp_ff_err),
+                            'info')
+                err = self.load_data(temp_ff_err)
+                # read the dq
+                misc.printc('Reading ff file: {0}'.format(temp_ff_dq),
+                            'info')
+                dq = self.load_data(temp_ff_dq)
+                # for future reference in the code, we keep track of data size
+                self.set_variable('DATA_X_SIZE', cube.shape[2])
+                self.set_variable('DATA_Y_SIZE', cube.shape[1])
+                self.set_variable('DATA_N_FRAMES', cube.shape[0])
+                # return
+                return cube, err, dq
+        # ---------------------------------------------------------------------
+        # get flat
+        flat, no_flat = self.get_flat(cube.shape[1:])
         # ---------------------------------------------------------------------
         # apply the flat (may be ones)
-        if not no_flat:
-            # print progress
-            misc.printc('Applying flat field to data', 'info')
-            # apply the flat field
-            for iframe in tqdm(range(cube.shape[0])):
-                cube[iframe] /= flat
-                err[iframe] /= flat
+        if no_flat:
+            return cube, err, dq
+        # ---------------------------------------------------------------------
+        # keep the un-flat-fielded first frame of the cube
+        frame0 = np.array(cube[0])
+        # print progress
+        misc.printc('Applying flat field to data', 'info')
+        # apply the flat field
+        for iframe in tqdm(range(cube.shape[0])):
+            cube[iframe] /= flat
+            err[iframe] /= flat
         # ---------------------------------------------------------------------
         # patch to avoid annoying zeros in error map
         # Question: All instruments?
@@ -700,20 +785,22 @@ class Instrument:
             # print progress
             msg = ('We write intermediate files, they will be read to speed '
                    'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
-            margs = [temp_ini_cube, temp_ini_err]
+            margs = [temp_ff_cube, temp_ff_err]
             misc.printc(msg.format(*margs), 'info')
             # force cubes to be float
             cube = cube.astype(float)
             err = err.astype(float)
             # save the data
-            fits.writeto(temp_ini_cube, cube, overwrite=True)
-            fits.writeto(temp_ini_err, err, overwrite=True)
-            fits.writeto(temp_ini_dq, dq, overwrite=True)
+            fits.writeto(temp_ff_cube, cube, overwrite=True)
+            fits.writeto(temp_ff_err, err, overwrite=True)
+            fits.writeto(temp_ff_dq, dq, overwrite=True)
         # ---------------------------------------------------------------------
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', cube.shape[2])
         self.set_variable('DATA_Y_SIZE', cube.shape[1])
         self.set_variable('DATA_N_FRAMES', cube.shape[0])
+        # ---------------------------------------------------------------------
+        plots.plot_flat_field(self, frame0, cube[0])
         # ---------------------------------------------------------------------
         # return the cube and error
         return cube, err, dq
@@ -901,6 +988,11 @@ class Instrument:
             nsig = np.abs(frame - mean) / sigma
             # set those above the threshold to nan
             cube[iframe, nsig > sig_cut] = np.nan
+
+        # TODO: save cube after this step
+
+        # TODO: plot fractions of good pixels (per pixel) as map
+
         # return the cube
         return cube
 
@@ -968,8 +1060,8 @@ class Instrument:
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND1', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND1', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -995,6 +1087,8 @@ class Instrument:
             return cube, err
         # update the meta data
         self.update_meta_data()
+        # store uncorrected frame
+        frame0 = np.array(cube[0])
         # ---------------------------------------------------------------------
         # optimal background correction
         # ---------------------------------------------------------------------
@@ -1083,11 +1177,41 @@ class Instrument:
         # apply the background correction to the cube
         for frame in tqdm(range(cube.shape[0])):
             cube[frame] -= background
+        # ---------------------------------------------------------------------
+        plots.plot_background1(self, frame0, cube[0])
+        # ---------------------------------------------------------------------
+        return cube, err
+
+
+    def low_pass_filter(self, cube, err) -> Tuple[np.ndarray, np.ndarray]:
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.remove_background()'
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        # construct temporary file names
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND2', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND2', func_name)
+        # store the uncorrected first frame
+        frame0 = np.array(cube[0])
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp and use_temp:
+            if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
+                # print that we are reading files
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
+                            'info')
+                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
+                            'info')
+                # load the data
+                cube = self.load_data(temp_ini_cube)
+                err = self.load_data(temp_ini_err)
+                # return
+                return cube, err
+        # ---------------------------------------------------------------------
         # work out the mean of the cube
         with warnings.catch_warnings(record=True) as _:
             mcube = np.nanmean(cube, axis=0)
-        # ---------------------------------------------------------------------
-        # low pass filtering
         # ---------------------------------------------------------------------
         # print progress
         msg = '\tLow pass filtering the data'
@@ -1128,10 +1252,13 @@ class Instrument:
             fits.writeto(temp_ini_cube, cube, overwrite=True)
             fits.writeto(temp_ini_err, err, overwrite=True)
         # ---------------------------------------------------------------------
+        plots.plot_background2(self, frame0, cube[0])
+        # ---------------------------------------------------------------------
         # return the background corrected cube
         return cube, err
 
-    def patch_isolated_bads(self, cube: np.ndarray) -> np.ndarray:
+    def patch_isolated_bads(self, cube: np.ndarray, err: np.ndarray
+                            ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Patch isolated bad pixels in the cube
 
@@ -1146,6 +1273,7 @@ class Instrument:
         use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
         temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
+        temp_clean_nan_err = self.get_variable('TEMP_CLEAN_NAN_ERR', func_name)
         # ---------------------------------------------------------------------
         # deal with no patching isolated bad pixels
         if not self.params['WLC.GENERAL.PATCH_ISOLATED_BADS']:
@@ -1154,7 +1282,7 @@ class Instrument:
                    'isolated bad pixels')
             misc.printc(msg, 'info')
             # return the cube (unchanged)
-            return cube
+            return cube, err
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -1166,7 +1294,8 @@ class Instrument:
                 misc.printc(msg.format(*margs), 'info')
                 # load the data
                 cube = self.load_data(temp_clean_nan)
-                return cube
+                err = self.load_data(temp_clean_nan_err)
+                return cube, err
         # ---------------------------------------------------------------------
         # print progress
         msg = ' Removing isolated NaNs'
@@ -1175,6 +1304,7 @@ class Instrument:
         for iframe in tqdm(range(cube.shape[0])):
             # get the cube frame
             cframe = np.array(cube[iframe, :, :])
+            ecframe = np.array(err[iframe, :, :])
             # get a mask of the nan values
             mframe = np.isfinite(cframe)
             # make a kernel surrounding the pixel (3x3)
@@ -1194,11 +1324,18 @@ class Instrument:
                                  cframe[ypix + 1, xpix],
                                  cframe[ypix, xpix - 1],
                                  cframe[ypix, xpix + 1]], axis=0)
+            # do the same for the errors
+            mean_err_vals = np.mean([ecframe[ypix - 1, xpix],
+                                     ecframe[ypix + 1, xpix],
+                                     ecframe[ypix, xpix - 1],
+                                     ecframe[ypix, xpix + 1]], axis=0)
             # update cframe and set make
             cframe[ypix, xpix] = mean_vals
+            ecframe[ypix, xpix] = mean_err_vals
             # mframe[ypix, xpix] = True
             # push back into the cube
             cube[iframe, :, :] = cframe
+            err[iframe, :, :] = ecframe
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         if allow_temp:
@@ -1209,226 +1346,10 @@ class Instrument:
             misc.printc(msg.format(*margs), 'info')
             # save the data
             fits.writeto(temp_clean_nan, cube, overwrite=True)
+            fits.writeto(temp_clean_nan_err, err, overwrite=True)
         # ---------------------------------------------------------------------
         # return the cube
-        return cube
-
-    def fancy_centering(self):
-        """
-        Perform fancy centering of the data - recalculate trace file
-        using the first frame of the cube.
-
-        Can be turned off with
-            params['WLC.GENERAL.USE_FANCY_CENTERING'] = False
-
-        If used Overrides:
-        - params['GENERAL.POS_FILE']: set to {pos_file}_{object}_{suffix}.fits
-        - params['WLC.GENERAL.X_TRACE_OFFSET']: set to 0
-        - params['WLC.GENERAL.Y_TRACE_OFFSET']: set to 0
-        - params['WLC.GENERAL.RECENTER_TRACE_POSITION']: set to False
-
-        :return:
-        """
-        # TODO: Question: Is this specific to SOSS or does it work with FGS too?
-        #                 What about PRISM? Currently its in the defualt functions
-        #                 But this is probably not the right place for it
-
-        gen_params = self.params.get('GENERAL')
-        wlc_gen_params = self.params.get('WLC.GENERAL')
-
-        # set function name
-        func_name = f'{__NAME__}.fancy_centering()'
-        # deal with no pos file
-        if gen_params['POS_FILE'] is None:
-            return
-        # deal with no pos file existing on disk (it can be set before this)
-        if not os.path.exists(gen_params['POS_FILE']):
-            return
-
-        # deal with switching off fancy centering
-        if not wlc_gen_params['USE_FANCY_CENTERING']:
-            # print message that we are not patching isolated bad pixels
-            msg = ('WLC.GENERAL.USE_FANCY_CENTERING=False. '
-                   'Not recalculating trace.')
-            misc.printc(msg, 'info')
-            return
-        # construct the suffix to add to the new pos file
-        name_sequence = self.params['INPUTS.OBJECTNAME']
-        if len(self.params['INPUTS.SUFFIX']) > 0:
-            name_sequence += '_{0}'.format(self.params['INPUTS.SUFFIX'])
-        # construct a new trace file name
-        new_ext = '_{0}.fits'.format(name_sequence)
-        outname = self.params['GENERAL.POS_FILE'].replace('.fits', new_ext)
-        # ---------------------------------------------------------------------
-        # if we already have a fancy centering trace file don't make it again
-        if os.path.exists(outname):
-            # print message
-            msg = 'We already have a fancy centering file: {0}'
-            margs = [outname]
-            misc.printc(msg.format(*margs), 'info')
-            # set parameters
-            gen_params['POS_FILE'] = outname
-            wlc_gen_params['X_TRACE_OFFSET'] = 0
-            wlc_gen_params['Y_TRACE_OFFSET'] = 0
-            wlc_gen_params['RECENTER_TRACE_POSITION'] = False
-            return
-        # ---------------------------------------------------------------------
-        # print progress
-        misc.printc('Creating {0}'.format(outname), 'info')
-
-        # load one of the raw files
-        image = self.load_data(gen_params['FILES'][0],
-                               extname='SCI')
-        # get the median of this image across the image
-        med = np.nanmedian(image, axis=0)
-        # set all zero values to nan
-        med[med == 0] = np.nan
-        # get all x and y pixels in the image as images themselves
-        xpix, ypix = np.meshgrid(np.arange(med.shape[1]), np.arange(med.shape[0]))
-        # ---------------------------------------------------------------------
-        # print progress
-        misc.printc('\tFinding the brighest+surrounding pixels', '')
-        # calculate a mask of the brightest pixels and surrounding "width"
-        # pixels
-        width = wlc_gen_params['TRACE_WIDTH_EXTRACTION']
-        mask = np.zeros_like(med, dtype=bool)
-        # loop around all pixels
-        for ix in tqdm(range(med.shape[1])):
-            try:
-                imax = np.nanargmax(median_filter(med[:, ix], 7))
-                mask[imax - width: imax + width, ix] = True
-            except Exception as _:
-                continue
-        # ---------------------------------------------------------------------
-        # the trace position is the sum of these alone each column
-        medmask = med * mask
-        tracepos = np.nansum(ypix*medmask, axis=0) / np.nansum(medmask, axis=0)
-        tracepos_fit = np.full_like(tracepos, np.nan)
-        # ---------------------------------------------------------------------
-        # get the original trace position table (first extension)
-        pos_table1 = io.load_table(gen_params['POS_FILE'], fmt='fits')
-        # sort by the x pixel positions
-        pos_table1 = pos_table1[np.argsort(pos_table1['X'])]
-        # spline the X and y positions
-        pos_spline1 = ius(pos_table1['X'], pos_table1['Y'], ext=3, k=1)
-        # ---------------------------------------------------------------------
-        # define a fit function (spline + offset in x and y)
-        pos_trace = lambda xpix, dx, dy: pos_spline1(xpix + dx) + dy
-        # ---------------------------------------------------------------------
-        # define a starting nsig_max (infinite)
-        nsig_max = np.inf
-        # x pixel positions
-        xpix = np.arange(med.shape[1])
-        # counter
-        counter = 1
-        # start dx dy offset for trace
-        dxdy_trace = [0, 0]
-        # loop until we are below 5 sigma
-        while nsig_max > 5:
-            # get valid trace positions
-            valid = np.isfinite(tracepos)
-            # set up a guess for the curve fit
-            guess = [0, 0]
-            # curve fit the xpix to the trace position with a
-            #     spline + offset in x and y
-            dxdy_trace, _ = curve_fit(pos_trace, xpix[valid], tracepos[valid],
-                                      p0=guess)
-            # calculate the best fit
-            tracepos_fit = pos_trace(xpix, *dxdy_trace)
-            # calculate the residual to the fit
-            residual = tracepos - tracepos_fit
-            # calculate the 16th and 84th percentiles
-            p16, p84 = np.nanpercentile(residual, [16, 84])
-            # calculate the residual to the nsig
-            nsig_res = np.abs(residual) / (0.5 * (p84 - p16))
-            # calculate the maximum nsig
-            nsig_max = np.nanmax(nsig_res)
-            # reject outliers
-            if nsig_max > 5:
-                tracepos[nsig_res > 5] = np.nan
-                # print progress
-                msg = '\tIteration {0}: nsig_max={1:.3f} nans={2}'
-                margs = [counter, nsig_max, np.sum(nsig_res > 5)]
-                misc.printc(msg.format(*margs), 'info')
-            # increment counter
-            counter += 1
-        # ---------------------------------------------------------------------
-        # plot the trace positions
-        plots.plot_fancy_centering1(self, xpix, tracepos, tracepos_fit)
-        # ---------------------------------------------------------------------
-        # read the pos tables
-        pos_table1 = io.load_table(gen_params['POS_FILE'], fmt='fits', hdu=1)
-        pos_table2 = io.load_table(gen_params['POS_FILE'], fmt='fits', hdu=2)
-        # get values out
-        x1, x2 = np.array(pos_table1['X']), np.array(pos_table2['X'])
-        y1, y2 = np.array(pos_table1['Y']), np.array(pos_table2['Y'])
-        wave1 = np.array(pos_table1['WAVELENGTH'])
-        throughput1 = np.array(pos_table1['THROUGHPUT'])
-        throughput2 = np.array(pos_table2['THROUGHPUT'])
-        # fit the wavelength soltuion
-        fit_wavelength = np.polyfit(x1 - dxdy_trace[0], wave1, 5)
-        fit_throughput1 = np.polyfit(x1 - dxdy_trace[0], throughput1, 5)
-        fit_throughput2 = np.polyfit(x2 - dxdy_trace[0], throughput2, 5)
-        # adjust the x positions
-        x1 = x1 - dxdy_trace[0]
-        x2 = x2 - dxdy_trace[0]
-        y1 = y1 + dxdy_trace[1]
-        y2 = y2 + dxdy_trace[1]
-        # get the updated wave and throughput
-        wave1 = np.polyval(fit_wavelength, x1)
-        wave2 = np.polyval(fit_wavelength, x2)
-        throughput1 = np.polyval(fit_throughput1, x1)
-        throughput2 = np.polyval(fit_throughput2, x2)
-
-        # ---------------------------------------------------------------------
-        # push into pos table 1
-        pos_table1['X'] = x1
-        pos_table1['Y'] = y1
-        pos_table1['WAVELENGTH'] = wave1
-        pos_table1['THROUGHPUT'] = throughput1
-        pos_table1 = pos_table1[np.argsort(pos_table1['X'])]
-        # push into pos table 2
-        pos_table2['X'] = x2
-        pos_table2['Y'] = y2
-        pos_table2['WAVELENGTH'] = wave2
-        pos_table2['THROUGHPUT'] = throughput2
-        pos_table2 = pos_table2[np.argsort(pos_table2['X'])]
-        # ---------------------------------------------------------------------
-        # save these tables
-        datalist = [pos_table1, pos_table2]
-        datatypes = ['table', 'table']
-        datanames = ['ORDER', 'ORDER']
-        # get meta data
-        # get the meta data
-        meta_data = self.get_variable('META', func_name)
-        # save the fits file
-        io.save_fits(outname, datalist, datatypes, datanames, meta_data)
-        # ---------------------------------------------------------------------
-        # re=get x and y positions
-        x1, x2 = pos_table1['X'], pos_table2['X']
-        y1, y2 = pos_table1['Y'], pos_table2['Y']
-        # recalculate the trace position
-        tracepos = pos_trace(xpix, *dxdy_trace)
-        # get  mask of where the trace is
-        smask = np.zeros_like(med, dtype=bool)
-        for ix in range(med.shape[1]):
-            min_y = int(tracepos[ix] - width)
-            max_y = int(tracepos[ix] + width)
-            smask[min_y:max_y, ix] = True
-        # get a spline of thw wavelength
-        spline_wave = ius(x1, wave1, k=3, ext=1)
-        # get the updated wavemap
-        wave = spline_wave(xpix)
-        # get the spectrum
-        spectrum = np.nansum(med * smask, axis=0)
-        # plot the spectrum and fancy centering
-        plots.plot_fancy_centering2(self, med, wave, spectrum, x1, y1, x2, y2)
-        # ---------------------------------------------------------------------
-        # set parameters
-        self.params['GENERAL.POS_FILE'] = outname
-        self.params['WLC.GENERAL.X_TRACE_OFFSET'] = 0
-        self.params['WLC.GENERAL.Y_TRACE_OFFSET'] = 0
-        self.params['WLC.GENERAL.RECENTER_TRACE_POSITION'] = False
+        return cube, err
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -1441,24 +1362,24 @@ class Instrument:
         raise NotImplementedError('get_trace_pos() must be implemented in '
                                   'child Instrument class')
 
-    def get_trace_map(self, log: bool = True) -> np.ndarray:
+    def get_trace_mask(self, log: bool = True) -> np.ndarray:
         # set function name
-        func_name = f'{__NAME__}.get_trace_map()'
+        func_name = f'{__NAME__}.get_trace_mask()'
         # print progress
         if log:
-            misc.printc('Getting the trace map', 'info')
+            misc.printc('Getting the trace mask', 'info')
         # get x and y size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         # deal with no trace map required
-        if self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION'] < 1:
-            # set the tracemap to ones
-            tracemap = np.ones((ysize, xsize), dtype=bool)
-            # return the tracemap
-            return tracemap
+        if self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH'] < 1:
+            # set the trace masm to ones
+            trace_mask = np.ones((ysize, xsize), dtype=bool)
+            # return the trace_mask
+            return trace_mask
         # ---------------------------------------------------------------------
         # get the trace map (instrument dependent)
-        tracemap = self.get_trace_positions()
+        trace_mask = self.get_trace_positions()
         # ---------------------------------------------------------------------
         # deal with wavelength domain cut down
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
@@ -1472,13 +1393,14 @@ class Instrument:
             # get the wavegrid
             wavegrid = self.get_wavegrid()
             # mask the trace map
-            tracemap[:, wavegrid < wavelow] = False
-            tracemap[:, wavegrid > wavehigh] = False
+            trace_mask[:, wavegrid < wavelow] = False
+            trace_mask[:, wavegrid > wavehigh] = False
             # mask any nan values in the wavegrid
-            tracemap[:, ~np.isfinite(wavegrid)] = False
+            trace_mask[:, ~np.isfinite(wavegrid)] = False
         # ---------------------------------------------------------------------
-        # return the tracemap
-        return tracemap
+        # TODO: plot fill_between of cube[0] and cube[-1]
+        # return the trace_mask
+        return trace_mask
 
     def get_trace_pos(self, map2d: bool = False,
                       order_num: int = 1, round_pos: bool = True,
@@ -1521,11 +1443,6 @@ class Instrument:
         else:
             throughput = np.array(tbl_ref['THROUGHPUT'])
         # ---------------------------------------------------------------------
-        # get the valid trace positions
-        valid = (xpos > 0) & (xpos < xsize - 1)
-        # mask the table by these valid positions
-        xpos, ypos, throughput = xpos[valid], ypos[valid], throughput[valid]
-        # ---------------------------------------------------------------------
         # sort by x positions
         sort = np.argsort(xpos)
         xpos, ypos, throughput = xpos[sort], ypos[sort], throughput[sort]
@@ -1543,7 +1460,15 @@ class Instrument:
         rxpos = np.arange(xsize, dtype=dtype)
         # get the positions and throughput
         posmax = np.array(spline_y(rxpos) - 0.5, dtype=dtype)
+        if round_pos:
+            posmax = np.array(posmax).astype(float)
+
         throughput = np.array(spline_throughput(rxpos), dtype=float)
+
+        # deal with out-of-bounds posmax
+        valid = (posmax > 0) & (posmax < ysize - 1)
+        if np.sum(~valid) > 0:
+            posmax[~valid] = np.nan
         # ---------------------------------------------------------------------
         # deal with map2d
         if map2d:
@@ -1551,6 +1476,9 @@ class Instrument:
             posmap = np.zeros([ysize, xsize], dtype=bool)
             # loop around pixels in the x direction
             for ix_pix in range(xsize):
+                # deal with nans
+                if np.isnan(posmax[ix_pix]):
+                    continue
                 # get the top and bottom of the trace
                 bottom = int(posmax[ix_pix] - trace_wid_mask // 2)
                 top = int(posmax[ix_pix] + trace_wid_mask // 2)
@@ -1654,13 +1582,13 @@ class Instrument:
 
     def clean_1f(self, cube: np.ndarray,
                  err: np.ndarray,
-                 tracemap: np.ndarray) -> List[Union[np.ndarray, None]]:
+                 trace_mask: np.ndarray) -> List[Union[np.ndarray, None]]:
         """
         Clean the 1/f noise from the cube
 
         :param cube: np.ndarray, the cube to clean
         :param err: np.ndarray, the error cube
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return: tuple, 1. the clean cube, 2. the median image,
                  3. the tmp before after clean1f, 4. the transit in vs out
@@ -1775,7 +1703,7 @@ class Instrument:
         for iframe in tqdm(range(nframes)):
             # mask the nans and apply trace map
             valid = np.isfinite(cube[iframe]) & np.isfinite(med)
-            valid &= tracemap
+            valid &= trace_mask
             # work out the amplitudes in the valid regions
             part1b = np.nansum(cube[iframe][valid] * med[valid])
             part2b = np.nansum(med[valid] ** 2)
@@ -1785,7 +1713,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Subtract of the 1/f noise
         # ---------------------------------------------------------------------
-        cube = self.subtract_1f(residuals, cube, err, tracemap)
+        cube = self.subtract_1f(residuals, cube, err, trace_mask)
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
@@ -2111,14 +2039,14 @@ class Instrument:
 
     def subtract_1f(self, residuals: np.ndarray,
                     cube: np.ndarray, err: np.ndarray,
-                    tracemap: np.ndarray):
+                    trace_mask: np.ndarray):
         """
         Do the actual subtraction of the 1/f noise, once we have the residuals
 
         :param residuals: np.ndarray, the residuals
         :param cube: np.ndarray, the cube
         :param err: np.ndarray, the error cube
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return:
         """
@@ -2162,7 +2090,7 @@ class Instrument:
                     index = np.arange(res.shape[0], dtype=float)
                     # find valid pixels
                     valid = np.isfinite(v1 + err1)
-                    valid &= ~tracemap[:, col]
+                    valid &= ~trace_mask[:, col]
                     valid &= np.abs(v1 / err1) < 5
                     # try fit the polynomial
                     # noinspection PyBroadException
@@ -2177,15 +2105,15 @@ class Instrument:
         return cube
 
     def fit_pca(self, cube2: np.ndarray, err: np.ndarray,
-                med: np.ndarray, tracemap: np.ndarray
+                med: np.ndarray, trace_mask: np.ndarray
                 ) -> Union[None, np.ndarray]:
         """
-        Fit the PCA to the tracemap
+        Fit the PCA to the trace_mask
 
         :param cube2: np.ndarray, the cube to fit the PCA to
         :param err: np.ndarray, the error cube
         :param med: np.ndarray, the median image
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return: None if unable to do the PCA otherwise np.ndarray:
                  the principle components
@@ -2238,8 +2166,8 @@ class Instrument:
         misc.printc('Fitting PCA', 'info')
         # ---------------------------------------------------------------------
         # only fit the pca to the flux in the trace (nan everything else)
-        nanmask = np.ones_like(tracemap, dtype=float)
-        nanmask[~tracemap] = np.nan
+        nanmask = np.ones_like(trace_mask, dtype=float)
+        nanmask[~trace_mask] = np.nan
         # copy the normalized cube
         cube3ini = cube2[out_transit_domain]
         # subtract off the median
@@ -2342,7 +2270,7 @@ class Instrument:
         # return the pcas
         return pcas
 
-    def recenter_trace_position(self, tracemap: np.ndarray,
+    def recenter_trace_position(self, trace_mask: np.ndarray,
                                 med: np.ndarray) -> np.ndarray:
         # set function name
         func_name = f'{__NAME__}.{self.name}.recenter_trace_position()'
@@ -2354,7 +2282,7 @@ class Instrument:
             msg = ('WLC.GENERAL.RECENTER_TRACE_POSITION=False. '
                    'Not recentering trace position')
             misc.printc(msg, 'info')
-            return tracemap
+            return trace_mask
         # print progress
         msg = 'Recentering trace position'
         misc.printc(msg, 'info')
@@ -2385,9 +2313,9 @@ class Instrument:
         best_sum = 0
         # re-gen the trace map (without logging) using new x/y trace
         #  offset
-        tracemap = self.get_trace_map(log=False)
-        # re-get the tracemap as floats
-        tmask = np.array(tracemap, dtype=float)
+        trace_mask = self.get_trace_mask(log=False)
+        # re-get the trace_mask as floats
+        tmask = np.array(trace_mask, dtype=float)
         # loop around dxs and dys
         for ix in tqdm(range(len(dxs))):
             for iy in range(len(dys)):
@@ -2435,9 +2363,9 @@ class Instrument:
         misc.printc(msg.format(*margs), 'number')
         # plot the trace flux loss
         plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, loss_ppt,
-                                   tracemap, med, best_dx, best_dy)
+                                   trace_mask, med, best_dx, best_dy)
         # return the updated trace map
-        return self.get_trace_map()
+        return self.get_trace_mask()
 
     def get_gradients(self, med: np.ndarray) -> List[np.ndarray]:
         """
@@ -2488,13 +2416,13 @@ class Instrument:
         # return these values
         return [dx, dy, rotxy, ddy, med2]
 
-    def get_mask_trace_pos(self, med: np.ndarray, tracemap: np.ndarray
+    def get_mask_trace_pos(self, med: np.ndarray, trace_mask: np.ndarray
                            ) -> List[np.ndarray]:
         """
         Get the mask trace positions
 
         :param med: np.ndarray, the median image
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return: list, 1. the mask trace positions, 2. the x order 0 positions,
                        3. the y order 0 positions, 4. the x trace positions,
@@ -2506,7 +2434,7 @@ class Instrument:
         wlc_gen_params = self.params.get('WLC.GENERAL')
         # ---------------------------------------------------------------------
         if wlc_gen_params['TRACE_WIDTH_MASKING'] != 0:
-            mask_trace_pos[~tracemap] = 0
+            mask_trace_pos[~trace_mask] = 0
             # define a box for binary dilation
             box = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
             # binary dilate the mask trace positions (expand them)
@@ -2523,7 +2451,7 @@ class Instrument:
         # deal with masking order zero
         if wlc_gen_params['MASK_ORDER_ZERO']:
             # adding the masking of order 0
-            mo0out = self.get_mask_order0(mask_trace_pos, tracemap)
+            mo0out = self.get_mask_order0(mask_trace_pos, trace_mask)
             # get return from get_mask_order0
             mask_order0, x_order0, y_order0 = mo0out
             # set the values in the mask where order zero to 0
@@ -2531,20 +2459,20 @@ class Instrument:
         # return the mask trace positions
         return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
 
-    def get_mask_order0(self, mask_trace_pos: np.ndarray, tracemap: np.ndarray
+    def get_mask_order0(self, mask_trace_pos: np.ndarray, trace_mask: np.ndarray
                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the mask for order 0 - this is a dummy function that returns
         the default values and overriden by JWST.NIRISS.SOSS
 
         :param mask_trace_pos: np.ndarray, the mask trace positions
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return: tuple, 1. the updated mask trace positions, 2. the x order 0
                         positions, 3. the y order 0 positions
         """
-        # default option does not use tracemap
-        _ = self, tracemap
+        # default option does not use trace_mask
+        _ = self, trace_mask
         # default option is not to mask order 0 (overridden by SOSS)
         empty_x = np.array([np.nan])
         empty_y = np.array([np.nan])
@@ -3046,14 +2974,14 @@ class Instrument:
         medfile = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         # load the median from disk
         med = io.load_fits(medfile)
-        # get the tracemap
-        tracemap = self.get_trace_map()
+        # get the trace_mask
+        trace_mask = self.get_trace_mask()
         # get the wave grid
         wavegrid = self.get_wavegrid(order_num=1)
         # ---------------------------------------------------------------------
         # find the domain that has spectra
         with warnings.catch_warnings(record=True) as _:
-            sp_domain = np.nanmean(tracemap * med, axis=0)
+            sp_domain = np.nanmean(trace_mask * med, axis=0)
         # work out the spectral energy distribution
         sp_energy = sp_domain / wavegrid
         # ---------------------------------------------------------------------
@@ -3203,7 +3131,7 @@ class Instrument:
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
         self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
         # get the trace width extraction
-        trace_width = self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION']
+        trace_width = self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH']
         # ---------------------------------------------------------------------
         # construct the sed
         sp_sed = np.zeros(med.shape[1])
@@ -3211,9 +3139,12 @@ class Instrument:
         for ix in range(med.shape[1]):
             # get width
             width = trace_width // 2
+            # deal with posmax out-of-bounds
+            if np.isnan(posmax[ix]):
+                continue
             # get start and end positions
-            ystart = posmax[ix] - width
-            yend = posmax[ix] + width
+            ystart = int(posmax[ix] - width)
+            yend = int(posmax[ix] + width)
             # sum to get the spectrum SED
             sp_sed[ix] = np.nansum(med_clean[ystart:yend, ix])
         # ---------------------------------------------------------------------
@@ -3233,18 +3164,18 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.create_model()'
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
-        # load the tracemap
-        tracemap = self.get_trace_map()
+        # load the trace_mask
+        trace_mask = self.get_trace_mask()
         # ---------------------------------------------------------------------
         # the model starts as the recon
         model = np.array(recon)
         # deal with masking order zero
         if self.params['WLC.GENERAL.MASK_ORDER_ZERO']:
             # load the mask trace position
-            mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, tracemap)
+            mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, trace_mask)
             # need to re-get the mask order zero
             mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
-                                                           tracemap)
+                                                           trace_mask)
             # loop around frames and mask out order zero (with NaNs)
             for iframe in tqdm(range(nbframes)):
                 # set the order zero values to nan
@@ -3281,8 +3212,9 @@ class Instrument:
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # get the trace width extraction
-        trace_width = self.params['WLC.GENERAL.TRACE_WIDTH_EXTRACTION']
+        trace_width = self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH']
         # ---------------------------------------------------------------------
         # print progress
         misc.printc('Finding the ratio of residuals to the trace', '')
@@ -3290,27 +3222,35 @@ class Instrument:
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
         spec_err = np.full([nbframes, nbxpix], np.nan)
-
         # get width
         width = trace_width // 2
-
+        # only keep valid posmax (nans were placed where trace was out of
+        #    bounds)
+        bmask = np.isfinite(posmax)
+        bmask &= posmax > width
+        bmask &= posmax < nbypix - width
+        posmax_valid = posmax[bmask]
         # get the positions in the spatial dimensions of the trace
         posmax_x2d = []
         posmax_y2d = []
-        for iwidth in range(-width,width+1):
-            posmax_x2d.append(posmax+iwidth)
-            posmax_y2d.append(np.arange(len(posmax)))
-        posmax_x2d = np.array(posmax_x2d)
-        posmax_y2d = np.array(posmax_y2d)
+        for iwidth in range(-width, width+1):
+            # calculate the upper bound
+            yvalues = posmax_valid + iwidth
+            # push into the y and x indices (for slicing)
+            posmax_y2d.append(yvalues)
+            posmax_x2d.append(np.arange(len(yvalues)))
+        # convert to 2D numpy array of integers
+        posmax_y2d = np.array(posmax_y2d).astype(int)
+        posmax_x2d = np.array(posmax_x2d).astype(int)
         # get a cut down (for every frame) around the trace
-        model_cut = np.array(model[:, posmax_x2d, posmax_y2d])
-        residual_cut = np.array(residual[:, posmax_x2d, posmax_y2d])
-        err_cut = np.array(err[:,posmax_x2d,posmax_y2d])
+        model_cut = np.array(model[:, posmax_y2d, posmax_x2d])
+        residual_cut = np.array(residual[:, posmax_y2d, posmax_x2d])
+        err_cut = np.array(err[:, posmax_y2d, posmax_x2d])
         nans = ~np.isfinite(residual_cut+err_cut)
-        residual_cut[nans]=0
+        residual_cut[nans] = 0
         err_cut[nans] = np.inf
         # get the size in the spatial dimension of the spectrum
-        ysize = posmax_x2d.shape[0]
+        ysize = posmax_y2d.shape[0]
         # loop through observations and spectral bins
         for iframe in tqdm(range(nbframes)):
             # get the model, residual and uncertainy for this frame
@@ -3352,8 +3292,8 @@ class Instrument:
                 emsg = 'ratio_residual_to_trace did not converge'
                 raise exceptions.SossisseException(emsg)
             # update the cube
-            spec[iframe, :] = mean1
-            spec_err[iframe, :] = sig1
+            spec[iframe, bmask] = mean1
+            spec_err[iframe, bmask] = sig1
         # ---------------------------------------------------------------------
         # return the spectrum and corresponding error
         return spec, spec_err

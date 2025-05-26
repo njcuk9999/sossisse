@@ -117,14 +117,14 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # only get order 1 if the a wavelength domain is set
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
             # get the trace positions from the white light curve
-            tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
+            trace_mask, _ = self.get_trace_pos(map2d=True, order_num=1)
         else:
-            tracemap1, _ = self.get_trace_pos(map2d=True, order_num=1)
-            tracemap2, _ = self.get_trace_pos(map2d=True, order_num=2)
+            trace_mask1, _ = self.get_trace_pos(map2d=True, order_num=1)
+            trace_mask2, _ = self.get_trace_pos(map2d=True, order_num=2)
             # combine the two trace maps
-            tracemap = tracemap1 | tracemap2
+            trace_mask = trace_mask1 | trace_mask2
         # return the trace positions
-        return tracemap
+        return trace_mask
 
     def get_wavegrid(self, order_num: Union[int, None] = None,
                      return_xpix: bool = False
@@ -178,11 +178,11 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             # Question: Is this a good idea?
             if order_num == 2:
                 # get the trace positions for order 1
-                tracemap1, _ = self.get_trace_pos(map2d=True, order_num=1)
+                trace_mask1, _ = self.get_trace_pos(map2d=True, order_num=1)
                 # get the trace positions for order 2
-                tracemap2, _ = self.get_trace_pos(map2d=True, order_num=2)
+                trace_mask2, _ = self.get_trace_pos(map2d=True, order_num=2)
                 # find the overlap between the two trace maps
-                overlap = np.nansum(tracemap1 * tracemap2, axis=0) != 0
+                overlap = np.nansum(trace_mask1 * trace_mask2, axis=0) != 0
                 # set these wave values to nan
                 wavevector[overlap] = np.nan
         # return the wave grid
@@ -191,19 +191,19 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         else:
             return wavevector
 
-    def get_mask_order0(self, mask_trace_pos: np.ndarray, tracemap: np.ndarray
+    def get_mask_order0(self, mask_trace_pos: np.ndarray, trace_mask: np.ndarray
                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the mask for order 0 - this is a dummy function that returns
         the default values and overriden by JWST.NIRISS.SOSS
 
         :param mask_trace_pos: np.ndarray, the mask trace positions
-        :param tracemap: np.ndarray, the trace map
+        :param trace_mask: np.ndarray, the trace map
 
         :return: tuple, 1. the updated mask trace positions, 2. the x order 0
                         positions, 3. the y order 0 positions
         """
-        # mask trace pos is not used - we get it from the tracemap
+        # mask trace pos is not used - we get it from the trace_mask
         _ = mask_trace_pos
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_mask_order0()'

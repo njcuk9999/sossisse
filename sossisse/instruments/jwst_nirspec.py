@@ -123,9 +123,9 @@ class JWST_NIRSPEC(default.Instrument):
             tracetable.write(gen_params['POS_FILE'], overwrite=True)
         # ---------------------------------------------------------------------
         # get the trace positions from the white light curve
-        tracemap, _ = self.get_trace_pos(map2d=True, order_num=1)
+        trace_mask, _ = self.get_trace_pos(map2d=True, order_num=1)
         # return the trace positions
-        return tracemap
+        return trace_mask
 
 
 class JWST_NIRSPEC_PRISM(JWST_NIRSPEC):
