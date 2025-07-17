@@ -45,7 +45,8 @@ dev = ["aperocore"]
 
 
 [tool.setuptools]
-packages = ["sossisse"]
+packages = ["sossisse", "sossisse.core", "sossisse.general",
+            "sossisse.instruments", "sossisse.recipes"]
 include-package-data = true
 
 [tool.setuptools.package-data]
