@@ -985,7 +985,7 @@ class Instrument:
             # get the frame
             frame = cube[iframe]
             # calculate the number of sigma away from the mean every pixel is
-            nsig = np.abs(frame - mean) / sigma
+            nsig = (frame - mean) / sigma
             # set those above the threshold to nan
             cube[iframe, nsig > sig_cut] = np.nan
 
@@ -1228,6 +1228,8 @@ class Instrument:
         mean_mask = mean_mask.astype(float)
         # set all not equal to one to nan
         mean_mask[mean_mask != 1] = np.nan
+
+        sum_cube_tile = np.zeros_like(cube[0])
         # loop around frames
         for iframe in tqdm(range(cube.shape[0])):
             with warnings.catch_warnings(record=True) as _:
@@ -1236,6 +1238,10 @@ class Instrument:
             # subtract the low pass filter from this frame of the cube
             cubetile = np.tile(lowp, mcube.shape[0]).reshape(mcube.shape)
             cube[iframe] -= cubetile
+            # store the sum of the corrections for plotting
+            sum_cube_tile += cubetile
+        # normalize by number of frames
+        sum_cube_tile /= cube.shape[0]
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         # we re-save these with the background removed
@@ -1252,7 +1258,7 @@ class Instrument:
             fits.writeto(temp_ini_cube, cube, overwrite=True)
             fits.writeto(temp_ini_err, err, overwrite=True)
         # ---------------------------------------------------------------------
-        plots.plot_background2(self, frame0, cube[0])
+        plots.plot_background2(self, frame0, cube[0], sum_cube_tile)
         # ---------------------------------------------------------------------
         # return the background corrected cube
         return cube, err
@@ -2319,17 +2325,22 @@ class Instrument:
         # loop around dxs and dys
         for ix in tqdm(range(len(dxs))):
             for iy in range(len(dys)):
-                # do not process zero fluxes
-                if sums[ix, iy] == 0:
-                    continue
+                # # do not process zero fluxes
+                # if sums[ix, iy] == 0:
+                #     continue
                 # update the x and y positions
                 wlc_gen_params['X_TRACE_OFFSET'] = dxs[ix]
                 wlc_gen_params['Y_TRACE_OFFSET'] = dys[iy]
+                # re-gen the trace map (without logging) using new x/y trace
+                #  offset
+                trace_mask = self.get_trace_mask(log=False)
+                # re-get the trace_mask as floats
+                tmask = np.array(trace_mask, dtype=float)
                 # get the sum of the median image in the trace
                 sums[ix, iy] = np.nansum(tmask * med)
-                # deal with worst values (set to sum)
-                if sums[ix, iy] < 0.5 * best_sum:
-                    sums[ix:ix+5, iy:iy+5] = sums[ix, iy]
+                # # deal with worst values (set to sum)
+                # if sums[ix, iy] < 0.5 * best_sum:
+                #     sums[ix:ix+5, iy:iy+5] = sums[ix, iy]
                 # deal with good values
                 if sums[ix, iy] > best_sum:
                     best_sum = sums[ix, iy]
@@ -2348,21 +2359,22 @@ class Instrument:
         wlc_gen_params.set_source('TRACE_WIDTH_MASKING', func_name)
         # ---------------------------------------------------------------------
         # get the loss in parts per thousand
-        loss_ppt = (1 - (sums / np.nansum(sums))) * 1e3
+        loss_ppt = (sums / np.nansum(sums)) * 1e3
         # get the maximum x value
-        xmax = np.argmax(sums) // sums.shape[1]
+        xmax = np.nanargmax(sums) // sums.shape[1]
+        ymax = np.nanargmax(sums) % sums.shape[1]
 
         # print out of loss
         for iy in range(len(dys)):
             margs = [dys[iy], loss_ppt[xmax, iy]]
-            msg = '\toffset dy = {0:3f}, err = {1:3f} ppt'
+            msg = '\toffset dy = {0:3f}, gain = {1:3f} ppt'
             misc.printc(msg.format(*margs), 'number')
         # print the optimum value
         msg = 'We scanned the y position of trace, optimum at dy = {0}'
         margs = [wlc_gen_params['Y_TRACE_OFFSET']]
         misc.printc(msg.format(*margs), 'number')
         # plot the trace flux loss
-        plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, loss_ppt,
+        plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, ymax, loss_ppt,
                                    trace_mask, med, best_dx, best_dy)
         # return the updated trace map
         return self.get_trace_mask()

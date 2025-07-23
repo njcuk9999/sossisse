@@ -97,13 +97,13 @@ def linear_recon(inst: Instrument) -> Instrument:
     cube, med, transit_invsout = out_c1f
 
     # -------------------------------------------------------------------------
+    # recenter the trace position
+    trace_mask = inst.recenter_trace_position(trace_mask, med)
+
+    # -------------------------------------------------------------------------
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
     pcas = inst.fit_pca(cube, err, med, trace_mask)
-
-    # -------------------------------------------------------------------------
-    # recenter the trace position
-    trace_mask = inst.recenter_trace_position(trace_mask, med)
 
     # -------------------------------------------------------------------------
     # Part of the code that does rotation/shift/amplitude

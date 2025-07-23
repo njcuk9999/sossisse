@@ -15,10 +15,9 @@ from typing import Any, Dict, List
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import numpy as np
+from astropy.table import Table
 
 from aperocore import math as mp
-
-from astropy.table import Table
 from sossisse.core import base
 from sossisse.core import misc
 
@@ -279,34 +278,38 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
 
 def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
                          dxs: np.ndarray, dys: np.ndarray,
-                         xmax: int, loss_ppt: np.ndarray, tracemap: np.ndarray,
+                         xmax: int, ymax: int, loss_ppt: np.ndarray, 
+                         tracemap: np.ndarray,
                          med: np.ndarray, best_dx: float, best_dy: float):
     # set function name
     func_name = f'{__NAME__}.plot_trace_flux_loss()'
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=3, ncols=1, figsize=[8, 8])
-    # plot the offset of the trace
-    frames[0].plot(dys, loss_ppt[xmax, :])
+    fig, frames = plt.subplots(nrows=3, ncols=1, figsize=[12, 12])
+        # plot the offset of the trace
+    frames[0].plot(dxs, loss_ppt[:, ymax])
     # set frame labels
-    frames[0].set(xlabel='offset of trace', ylabel='flux loss in ppt')
+    frames[0].set(xlabel='x offset of trace', ylabel='flux gained in ppt')
     # ---------------------------------------------------------------------
-    # get the tracemap
-    tmask = np.array(tracemap, dtype=float)
-    tmask[tmask == 0] = np.nan
-    # plot the trace
-    frames[1].imshow(med * tmask, aspect='auto')
+    # plot the offset of the trace
+    frames[1].plot(dys, loss_ppt[xmax, :])
     # set frame labels
-    frames[1].set(xlabel='x', ylabel='y', title='trace map')
+    frames[1].set(xlabel='y offset of trace', ylabel='flux gained in ppt')
     # ---------------------------------------------------------------------
     # get the limits of the sum array from dxs and dys
     extent = [np.min(dxs), np.max(dxs), np.min(dys), np.max(dys)]
     # plot the best_dx vs best_dy
-    frames[2].imshow(sums.T, aspect='auto', extent=extent)
+    im = frames[2].imshow(sums.T, aspect='auto', extent=extent, origin='lower')
     # add the best point in red
-    frames[2].plot(best_dx, -best_dy, 'ro')
+    best_label = 'best position (x={0}, y={1})'.format(best_dx, best_dy)
+    frames[2].plot(best_dx, best_dy, 'ro', label=best_label)
     # set frame labels
     frames[2].set(xlabel='dx', ylabel='dy', title='flux in aperture')
+    # add a color bar
+    plt.colorbar(im, ax=frames[2], orientation='vertical',
+                 label='sum of white light flux')
+    # add legend
+    frames[2].legend()
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
@@ -372,7 +375,7 @@ def plot_background1(inst, frame0_before, frame0_after):
     vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=1, ncols=2)
+    fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     # plot the before/after frames
     frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
@@ -390,24 +393,34 @@ def plot_background1(inst, frame0_before, frame0_after):
     save_show_plot(inst.params, 'background1')
 
 
-def plot_background2(inst, frame0_before, frame0_after):
+def plot_background2(inst, frame0_before, frame0_after, sum_cube_tile):
     # set function name
     func_name = f'{__NAME__}.plot_background2()'
     # -------------------------------------------------------------------------
     # get the vmin and vmax
-    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    vmin, vmax = np.nanpercentile(frame0_before, [1, 10])
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=1, ncols=2)
+    fig, frames = plt.subplots(nrows=3, ncols=1, figsize=(12, 12))
     # -------------------------------------------------------------------------
     # plot the before/after frames
-    frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+    im0 = frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+                           aspect='auto', vmin=vmin, vmax=vmax)
+                           # add a colorbar to frames 2
+    plt.colorbar(im0, ax=frames[0], orientation='vertical')
+    im1 = frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
                      aspect='auto', vmin=vmin, vmax=vmax)
-    frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
+    plt.colorbar(im1, ax=frames[1], orientation='vertical')
     # set title
     frames[0].set(title='Before low pass')
     frames[1].set(title='After low pass')
+    # -------------------------------------------------------------------------
+    # plot the sum of the low pass filter
+    im2 = frames[2].imshow(sum_cube_tile, origin='lower', cmap='inferno',
+                     aspect='auto')
+    frames[2].set(title='Average low pass filter corrections')
+    # add a colorbar to frames 2
+    plt.colorbar(im2, ax=frames[2], orientation='vertical')
     # -------------------------------------------------------------------------
     # force a tight layout
     plt.tight_layout()
@@ -424,7 +437,7 @@ def plot_flat_field(inst, frame0_before, frame0_after):
     vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
     # -------------------------------------------------------------------------
     # setup the plot
-    fig, frames = plt.subplots(nrows=1, ncols=2)
+    fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     # plot the before/after frames
     frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
