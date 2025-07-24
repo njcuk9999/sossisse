@@ -10,12 +10,15 @@ Created on 2024-08-13 at 11:23
 @author: cook
 """
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import numpy as np
 from astropy.table import Table
+from astropy.visualization import ImageNormalize
+from astropy.visualization import interval as interval_mod
+from astropy.visualization import stretch as stretch_mod
 
 from aperocore import math as mp
 from sossisse.core import base
@@ -28,6 +31,120 @@ __NAME__ = 'sossisse.general.plots'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+
+
+# =============================================================================
+# Define general function used by plots
+# =============================================================================
+def plot_fmt(val, spec=".2e"):
+    return format(val, spec) if val is not None else 'None'
+
+
+def plot_normalization(data: np.ndarray, 
+                       interval: str = 'base', stretch: str = 'base',
+                       vlims: List[float] = [0, 100],
+                       vtype: str = 'percentile'
+                       ) -> Tuple[ImageNormalize, str]:
+    """
+    Create a ds9 normalization object based on the interval and stretch type.
+    
+
+    :param data: np.ndarray, the data to normalize
+    :param interval: str, the type of interval to use, currently supported are:
+        - 'base': BaseInterval
+        - 'minmax': MinMaxInterval
+        - 'zscale': ZScaleInterval
+    :param stretch: str, the type of stretch to use, currently supported are:
+        - 'base': BaseStretch
+        - 'linear': LinearStretch
+        - 'sqrt': SqrtStretch
+        - 'power': PowerStretch
+        - 'log': LogStretch
+        - 'hist': HistEqStretch
+    :param vmin: float, the minimum value for the normalization
+    :param vmax: float, the maximum value for the normalization
+    :param vtype: str, the type of value to use for normalization, 
+        currently supported are:
+        - 'percentile': use percentiles for normalization
+        - 'absolute': use min/max values for normalization
+
+    :return: tuple, 1. ImageNormalize object, 2. str, the normalization text
+    """
+    # -------------------------------------------------------------------------
+    if interval == 'base':
+        interval_inst = interval_mod.BaseInterval()
+    elif interval == 'minmax':
+        interval_inst = interval_mod.MinMaxInterval()
+    elif interval == 'zscale':
+        interval_inst = interval_mod.ZScaleInterval()
+    # else not supported
+    else:
+        raise ValueError(f'Unsupported interval type: {interval}')
+    # -------------------------------------------------------------------------
+    if stretch == 'base':
+        stretch_inst = stretch_mod.BaseStretch()
+    elif stretch == 'linear':
+        stretch_inst = stretch_mod.LinearStretch()
+    elif stretch == 'sqrt':
+        stretch_inst = stretch_mod.SqrtStretch()
+    elif stretch == 'power':
+        stretch_inst = stretch_mod.PowerStretch()
+    elif stretch == 'log':
+        stretch_inst = stretch_mod.LogStretch()
+    elif stretch == 'hist':
+        stretch_inst = stretch_mod.HistEqStretch()
+    # else not supported
+    else:
+        raise ValueError(f'Unsupported stretch type: {stretch}')
+    # -------------------------------------------------------------------------
+    # deal with vmin, vmax and vtype
+    if vtype == 'percentile':
+        # deal with vmin
+        if vlims[0] <= 0:
+            vmin = None
+        else:
+            vmin = vlims[0]
+        # deal with vmax
+        if vlims[1] >= 100:
+            vmax = None
+        else:
+            vmax = vlims[1]
+        # ---------------------------------------------------------------------
+        # deal with calculating a percentile interval
+        if vmin is not None and vmax is not None:
+            vmin, vmax = np.nanpercentile(data, vlims)
+        elif vmin is not None:
+            vmin = np.nanpercentile(data, vmin)
+        elif vmax is not None:
+            vmax = np.nanpercentile(data, vmax)
+    # otherwise we assume absolute vmin/vmax
+    else:
+        vmin, vmax = vlims
+    # get the image normalization
+    norm =  ImageNormalize(stretch=stretch_inst,   # type: ignore
+                           interval=interval_inst,
+                           vmin=vmin, vmax=vmax)
+
+    # get the normalization text 
+    ntext = (f'NORM[vmin={plot_fmt(vmin, ".2e")}, ' 
+             f'vmax={plot_fmt(vmax, ".2e")}, '
+             f'interval={interval}, stretch={stretch}, '
+             f'min={np.nanmin(data):.2e}, max={np.nanmax(data):.2e}]')
+    # return the normalization and text
+    return norm, ntext
+
+
+def add_footer_text(fig, text, fontsize=10, pad=0.02):
+    """
+    Adds a line of text at the very bottom of a matplotlib figure.
+
+    Parameters:
+        fig      : The matplotlib figure object.
+        text     : The string to display as footer.
+        fontsize : Size of the text.
+        pad      : Padding from the bottom (in figure coordinates, default ~2%).
+    """
+    fig.text(0.5, pad, text, ha='center', va='bottom', fontsize=fontsize)
 
 
 # =============================================================================
@@ -122,7 +239,7 @@ def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
 
 
 def gradient_plot(inst: Any, dx: np.ndarray, dy: np.ndarray,
-                  rotxy: np.ndarray):
+                  rotxy: np.ndarray, ddy: np.ndarray):
     """
     Plot the gradients
 
@@ -136,49 +253,76 @@ def gradient_plot(inst: Any, dx: np.ndarray, dy: np.ndarray,
     # set function name
     func_name = f'{__NAME__}.gradient_plot()'
     # set up figure
-    fig, frames = plt.subplots(nrows=3, ncols=1, sharex='all', sharey='all')
+    fig, frames = plt.subplots(nrows=4, ncols=1, sharex='all', sharey='all',
+                               figsize=[12, 12])
     # -------------------------------------------------------------------------
     # work out the rms of dx
     rms = np.nanpercentile(dx, [5, 95])
     rms = rms[1] - rms[0]
     # -------------------------------------------------------------------------
     # plot dx
-    frames[0].imshow(dx, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    frames[0].imshow(dx, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
+                     origin='lower')
+    frames[0].set(title='derivative of median trace w.r.t. x  (dM/dx)')
     rms = np.nanpercentile(dy, [5, 95])
     # work out the rms of dy
     rms = rms[1] - rms[0]
     # -------------------------------------------------------------------------
     # plot dy
-    frames[1].imshow(dy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    frames[1].imshow(dy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
+                     origin='lower')
+    frames[1].set(title='derivative of median trace w.r.t. y  (dM/dy)')
     # work out the rms of rotxy
     rms = np.nanpercentile(rotxy, [5, 95])
     rms = rms[1] - rms[0]
     # -------------------------------------------------------------------------
     # plot rotxy
-    frames[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms)
+    frames[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
+                     origin='lower')
+    frames[2].set(title=r'derivative of median trace w.r.t. rotation '
+                        r'(dM/d$\theta$)')
+    # -------------------------------------------------------------------------
+    # plot ddy
+    frames[3].imshow(ddy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
+                     origin='lower')
+    frames[3].set(title=r'second derivative of median trace w.r.t. y '
+                        r'($\partial^{2}M/\partial y^{2}$)')
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'derivatives')
 
 
-def mask_order0_plot(inst: Any, diff: np.ndarray, sigmask: np.ndarray):
+def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray, 
+                     diff2: np.ndarray, diff3: np.ndarray, diff4: np.ndarray, 
+                     all_labels: np.ndarray, sigmask: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.mask_order0_plot()'
     # set up figure
-    fig, frames = plt.subplots(nrows=2, ncols=1)
+    fig, frames = plt.subplots(nrows=7, ncols=1, figsize=(12, 20))
+    # loop around diffs
+    diffs = [diff0, diff1, diff2, diff3, diff4]
+    titles = ['Original', 'Straight', 'low pass', 'unstraightened',
+              'Original - unstraightened']
     # -------------------------------------------------------------------------
     # plot the diff
-    frames[0].imshow(diff, aspect='auto', origin='lower',
-                     vmin=np.nanpercentile(diff, 2),
-                     vmax=np.nanpercentile(diff, 80),
+    for it, _diff in enumerate(diffs):
+        frames[it].imshow(_diff, aspect='auto', origin='lower',
+                          vmin=np.nanpercentile(_diff, 2),
+                          vmax=np.nanpercentile(_diff, 80),
+                          interpolation='none')
+        frames[it].set(title=titles[it])
+    # -------------------------------------------------------------------------
+    # plot all labels
+    frames[5].imshow(all_labels > 0, aspect='auto', origin='lower',
                      interpolation='none')
+        # set titles
+    frames[5].set(title='All clusters found')
     # -------------------------------------------------------------------------
     # plot the sigmask
-    frames[1].imshow(sigmask, aspect='auto', origin='lower',
+    frames[6].imshow(sigmask, aspect='auto', origin='lower',
                      interpolation='none')
     # set titles
-    frames[0].set(title='median residual in-out')
-    frames[1].set(title='mask')
+    frames[6].set(title='Order 0 mask')
     # -------------------------------------------------------------------------
     # force a tight layout
     plt.tight_layout()
@@ -268,7 +412,7 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
     # convert the trace limits in to y limits on the graph
     ylim = [p12[0] - 0.3 * (p12[1] - p12[0]), p12[1] + 0.3 * (p12[1] - p12[0])]
     # set the title, labels and limits
-    frames[1].set(title='Apperture correction', ylabel='corr [ppt]', ylim=ylim)
+    frames[1].set(title='Aperture correction', ylabel='corr [ppt]', ylim=ylim)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
@@ -367,93 +511,187 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     save_show_plot(inst.params, 'fancy_centering2')
 
 
-def plot_background1(inst, frame0_before, frame0_after):
+def plot_background(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_background1()'
     # -------------------------------------------------------------------------
-    # get the vmin and vmax
-    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.BACKGROUND_VLIM']
+    vtype = inst.params['WLC.PLOT.BACKGROUND_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.BACKGROUND_INTERVAL']
+    stretch = inst.params['WLC.PLOT.BACKGROUND_STRETCH']
+    norm, ntext = plot_normalization(frame0_before, interval=interval, 
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     # plot the before/after frames
-    frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
-    frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
+    im0 = frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
+                           aspect='auto', norm=norm)
+    im1 = frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
+                           aspect='auto', norm=norm)
+    # plot colorbars
+    plt.colorbar(im0, ax=frames[0], orientation='vertical')
+    plt.colorbar(im1, ax=frames[1], orientation='vertical')
     # set title
     frames[0].set(title='Before background')
     frames[1].set(title='After background')
     # -------------------------------------------------------------------------
-    # force a tight layout
-    plt.tight_layout()
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
+    # force a tight layout leaving space at bottom for footer
+    plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'background1')
+    save_show_plot(inst.params, 'background_corr')
 
 
-def plot_background2(inst, frame0_before, frame0_after, sum_cube_tile):
+def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     # set function name
-    func_name = f'{__NAME__}.plot_background2()'
+    func_name = f'{__NAME__}.plot_lowpass()'
     # -------------------------------------------------------------------------
-    # get the vmin and vmax
-    vmin, vmax = np.nanpercentile(frame0_before, [1, 10])
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.LOWPASS_VLIM']
+    vtype = inst.params['WLC.PLOT.LOWPASS_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.LOWPASS_INTERVAL']
+    stretch = inst.params['WLC.PLOT.LOWPASS_STRETCH']
+    norm, ntext = plot_normalization(frame0_before, interval=interval, 
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=3, ncols=1, figsize=(12, 12))
     # -------------------------------------------------------------------------
     # plot the before/after frames
     im0 = frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
-                           aspect='auto', vmin=vmin, vmax=vmax)
-                           # add a colorbar to frames 2
-    plt.colorbar(im0, ax=frames[0], orientation='vertical')
+                           aspect='auto', norm=norm)
     im1 = frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
-    plt.colorbar(im1, ax=frames[1], orientation='vertical')
+                     aspect='auto', norm=norm)
     # set title
     frames[0].set(title='Before low pass')
     frames[1].set(title='After low pass')
+    # plot color bars
+    plt.colorbar(im0, ax=frames[0], orientation='vertical')
+    plt.colorbar(im1, ax=frames[1], orientation='vertical')
     # -------------------------------------------------------------------------
     # plot the sum of the low pass filter
     im2 = frames[2].imshow(sum_cube_tile, origin='lower', cmap='inferno',
-                     aspect='auto')
+                           aspect='auto')
     frames[2].set(title='Average low pass filter corrections')
     # add a colorbar to frames 2
     plt.colorbar(im2, ax=frames[2], orientation='vertical')
     # -------------------------------------------------------------------------
-    # force a tight layout
-    plt.tight_layout()
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
+    # force a tight layout leaving space at bottom for footer
+    plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'background2')
+    save_show_plot(inst.params, 'lowpass_corr')
 
 
 def plot_flat_field(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_flat_field()'
     # -------------------------------------------------------------------------
-    # get the vmin and vmax
-    vmin, vmax = np.nanpercentile(frame0_before, [1, 99])
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.FLAT_VLIM']
+    vtype = inst.params['WLC.PLOT.FLAT_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.FLAT_INTERVAL']
+    stretch = inst.params['WLC.PLOT.FLAT_STRETCH']
+    norm, ntext = plot_normalization(frame0_before, interval=interval, 
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     # plot the before/after frames
     frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
+                     aspect='auto', norm=norm)
     frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
-                     aspect='auto', vmin=vmin, vmax=vmax)
+                     aspect='auto', norm=norm)
     # set title
     frames[0].set(title='Before flatfield')
     frames[1].set(title='After flatfield')
     # -------------------------------------------------------------------------
-    # force a tight layout
-    plt.tight_layout()
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
+    # force a tight layout leaving space at bottom for footer
+    plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'flatfield')
 
+
+def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe: np.ndarray,
+                 title: str, outname: str, clabel: str):
+    """
+    Plot a heatmap of the bad pixels
+
+    :param inst: Instrument instance
+    :param heat_map: np.ndarray, the heat map of the bad pixels
+    :param iframe: np.ndarray, a comparison frame
+    :param title: str, the title of the plot
+    :param outname: str, the output name for the plot
+
+    :return: None, plots graph
+    """
+    # set up figure
+    fig, frames = plt.subplots(ncols=1, nrows=2, figsize=(12, 12))
+    # -------------------------------------------------------------------------
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.FRAME_VLIM']
+    vtype = inst.params['WLC.PLOT.FRAME_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.FRAME_INTERVAL']
+    stretch = inst.params['WLC.PLOT.FRAME_STRETCH']
+    norm, ntext = plot_normalization(iframe, interval=interval, stretch=stretch,
+                                     vlims=vlims, vtype=vtype)
+    # -------------------------------------------------------------------------
+    # plot the heat map
+    im0 = frames[0].imshow(heat_map, origin='lower', cmap='inferno',
+                          aspect='auto', interpolation='none')
+    # add a color bar
+    plt.colorbar(im0, ax=frames[0], orientation='vertical', 
+                 label=clabel)
+    
+    # set the title
+    frames[0].set(title=title)
+    # plot a comparison frame
+    im1 = frames[1].imshow(iframe, origin='lower', cmap='inferno',
+                          aspect='auto', interpolation='none',
+                          norm=norm)
+    # add a color bar
+    plt.colorbar(im1, ax=frames[1], orientation='vertical', label='Flux')
+    # -------------------------------------------------------------------------
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
+    # force a tight layout leaving space at bottom for footer
+    plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, outname)
+
+
+def plot_pixels(inst: Any, pixel_dict: Dict[int, np.ndarray],
+                frame_num: int = 0):
+    # set up figure
+    fig, frame = plt.subplots(ncols=1, nrows=1, figsize=(20, 20))
+    # plot this frame
+    im = plt.imshow(pixel_dict[frame_num], origin='lower', cmap='inferno',
+                    aspect='auto', interpolation='none')
+    # add a color bar
+    plt.colorbar(im, ax=frame, orientation='vertical', label='Flux')
+    # add title
+    title = 'Pixel {0}. {1}x{1} stamps of bad pixels'
+    targs = [frame_num, inst.params['WLC.GENERAL.PATCH_IBADS_SSIZE']]
+    frame.set(title=title.format(*targs))
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'isolated_pixel_corr_stamps')
 
 def plot_stability(inst: Any, table: Table):
     # set function name

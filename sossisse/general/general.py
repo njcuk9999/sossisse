@@ -111,7 +111,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     # get the gradients
     dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
     # set up the mask for trace position
-    mask_out = inst.get_mask_trace_pos(med, trace_mask)
+    mask_out = inst.get_linear_recon_mask(med, trace_mask)
     mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos = mask_out
 
     # setup the linear reconstruction vector based on the input parameters

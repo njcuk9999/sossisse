@@ -502,7 +502,6 @@ CDict.add('BACKGROUND_SHIFTS', value=None, dtype=list,
           description='define the area around which the background '
                       'will be optimized'
                       '\n   should be a list (start, end, step)')
-
 # =============================================================================
 # Definition of inputs to the linear model
 # =============================================================================
@@ -598,6 +597,12 @@ CDict.add_group(cgroup, source=__NAME__, user=True, active=True,
 CDict.add('PATCH_ISOLATED_BADS', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='whether to patch isolated bad pixels')
+# -----------------------------------------------------------------------------
+# size of the patch isolated bad pixel stamps (should be odd)
+CDict.add('PATCH_IBADS_SSIZE', value=5, dtype=int,
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='size of the patch isolated bad pixel stamps '
+          '(should be odd)')
 # -----------------------------------------------------------------------------
 # whether to remove cosmic rays
 CDict.add('REMOVE_COSMIC_RAYS', value=True, dtype=bool,
@@ -696,6 +701,100 @@ CDict.add('TRACE_WIDTH_MASKING', value=40, dtype=int, minimum=0,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='define the width for masking the white light '
                       'curve trace')
+# =============================================================================
+# Definition of inputs to the linear model plots
+# =============================================================================
+cgroup = 'WLC.PLOT'
+# -----------------------------------------------------------------------------
+# define the vmin and vmax values for the background plot 
+#    (depends on BACKGROUND_VLIM_TYPE)
+CDict.add('BACKGROUND_VLIM', value=[1, 10], dtype=list, dtypei=float,
+          length=2, source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the vmin and vmax values for the '
+                      'background plot (depends on BACKGROUND_VLIM_TYPE)')
+# define the type of the vmin and vmax values for the background plot
+CDict.add('BACKGROUND_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'background plot')
+# define the ds9 style stretch for the background plot
+CDict.add('BACKGROUND_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the background plot')
+# define the ds9 style interval for the background plot
+CDict.add('BACKGROUND_INTERVAL', value='minmax', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the background plot')
+
+# -----------------------------------------------------------------------------
+# define the vmin and vmax values for the lowpass plot
+#    (depends on LOWPASS_VLIM_TYPE)
+CDict.add('LOWPASS_VLIM', value=[1, 10], dtype=list, dtypei=float,
+          length=2, source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the vmin and vmax values for the '
+                      'lowpass plot (depends on LOWPASS_VLIM_TYPE)')
+# define the type of the vmin and vmax values for the lowpass plot
+CDict.add('LOWPASS_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'lowpass plot')
+# define the ds9 style stretch for the low pass plot
+CDict.add('LOWPASS_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the low pass plot')
+# define the ds9 style interval for the low pass plot
+CDict.add('LOWPASS_INTERVAL', value='minmax', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the low pass plot')    
+# -----------------------------------------------------------------------------
+# define the vmin and vmax values for the flat plot
+CDict.add('FLAT_VLIM', value=[1, 99], dtype=list, dtypei=float,
+          length=2, source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the vmin and vmax values for the flat plot')
+# define the type of the vmin and vmax values for the flat plot
+CDict.add('FLAT_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'flat plot')
+# define the ds9 style stretch for the flat plot
+CDict.add('FLAT_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the flat plot')
+# define the ds9 style interval for the flat plot
+CDict.add('FLAT_INTERVAL', value='zscale', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the flat plot')
+# -----------------------------------------------------------------------------
+# Define the vmin and vmax for displaying a normal frame
+CDict.add('FRAME_VLIM', value=[0, 100], dtype=list,
+          dtypei=float, length=2, source=__NAME__, user=False,
+          active=True, group=cgroup,
+          description='define the vmin and vmax for displaying a normal frame')
+# Define the type of the vmin and vmax values for the frame plot
+CDict.add('FRAME_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'frame plot')
+# Define the ds9 style stretch for the frame plot
+CDict.add('FRAME_STRETCH', value='linear', dtype=str,   
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the frame plot')
+# Define the ds9 style interval for the frame plot
+CDict.add('FRAME_INTERVAL', value='zscale', dtype=str,  
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the frame plot')
 
 # =============================================================================
 # Definition for spectral extraction

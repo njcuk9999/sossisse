@@ -212,53 +212,58 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         # get the size of the data
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # get the diff file
-        diff = self.load_data(in_vs_out_file)
+        diff0 = self.load_data(in_vs_out_file)
         # get the trace position for order zero
+        # TODO: Add order 2 here (in a loop) sigmask &= sigmas_ord
         posmax, throughput = self.get_trace_pos(order_num=1, round_pos=False)
         # remove the mean from the posmax
         posmax -= np.nanmean(posmax)
         # copy the diff array
-        diff2 = np.array(diff)
+        diff1 = np.array(diff0)
+        # ---------------------------------------------------------------------
+        # straightening (rectification) of the order 1 trace
         # ---------------------------------------------------------------------
         # xpixel values
-        ypix = np.arange(diff.shape[0])
-        # loop around the array and spline the diff - posmax onto diff2
-        for ix in range(diff.shape[1]):
+        ypix = np.arange(diff0.shape[0])
+        # loop around the array and spline the diff - posmax onto diff1
+        for ix in range(diff0.shape[1]):
             # get the valid values
-            valid = np.isfinite(diff[:, ix])
+            valid = np.isfinite(diff0[:, ix])
             # if there are less than 50% good pixels skip
             if np.mean(valid) < 0.5:
                 continue
             # get the spline
-            spline = ius(ypix[valid] - posmax[ix], diff[:, ix][valid],
+            spline = ius(ypix[valid] - posmax[ix], diff0[:, ix][valid],
                          k=3, ext=1)
-            # update the diff2
-            diff2[:, ix] = spline(ypix)
+            # update the diff1
+            diff1[:, ix] = spline(ypix)
         # ---------------------------------------------------------------------
-        # apply a low pass filter to the diff2
-        for iy in range(diff.shape[0]):
-            diff2[iy] = mp.lowpassfilter(diff2[iy])
+        diff2 = np.array(diff1)
+        # apply a low pass filter to the diff1
+        for iy in range(diff0.shape[0]):
+            diff2[iy] = mp.lowpassfilter(diff1[iy])
         # ---------------------------------------------------------------------
-        # spline the values again
-        for ix in range(diff.shape[1]):
+        diff3 = np.array(diff2)
+        # go back to original shape of the trace (now without the low pass))
+        for ix in range(diff0.shape[1]):
             # get the spline
             spline = ius(ypix + posmax[ix], diff2[:, ix], k=3, ext=1)
-            # update the diff2
-            diff2[:, ix] = spline(ypix)
+            # update the diff1
+            diff3[:, ix] = spline(ypix)
         # ---------------------------------------------------------------------
-        # remove the diff2 from diff
-        diff -= diff2
+        # remove the diff3 from diff
+        diff4 = diff0 - diff3
         # ---------------------------------------------------------------------
         # take of the median of each row
         with warnings.catch_warnings(record=True) as _:
             for ix in range(nbxpix):
-                diff[:, ix] -= np.nanmedian(diff[:, ix])
+                diff4[:, ix] -= np.nanmedian(diff4[:, ix])
         # ---------------------------------------------------------------------
         # work out the sigma away from median
-        nsig = np.array(diff)
-        # loop around each row and remove the low pass
-        for iy in tqdm(range(diff.shape[0])):
-            nsig[iy] /= mp.lowpassfilter(np.abs(diff[iy]))
+        nsig = np.array(diff4)
+        # normalize by the absolute deviation away from the low pass "continuum"
+        for iy in tqdm(range(diff4.shape[0])):
+            nsig[iy] /= mp.lowpassfilter(np.abs(diff4[iy]))
         # ---------------------------------------------------------------------
         # we look for a consistent set of >1 sigma pixels
         sig_mask = nsig > 1
@@ -294,7 +299,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         ypos, xpos = np.where(bdilate)
         # ---------------------------------------------------------------------
         # plot this relation
-        plots.mask_order0_plot(self, diff, sig_mask)
+        plots.mask_order0_plot(self, diff0, diff1, diff2, diff3, diff4, 
+                               all_labels, sig_mask)
         # ---------------------------------------------------------------------
         # return the mask trace positions, x positions and y positions
         return sig_mask, xpos, ypos

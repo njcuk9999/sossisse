@@ -980,18 +980,27 @@ class Instrument:
         mean = (p84 + p16) / 2
         # get the sig cut
         sig_cut = self.params['WLC.GENERAL.COSMIC_RAY_SIGMA']
+        # storage for heat map
+        heat_map = np.zeros(cube.shape[1:], dtype=float)
         # now remove the cosmics using a sigma flag
         for iframe in tqdm(range(cube.shape[0])):
             # get the frame
             frame = cube[iframe]
             # calculate the number of sigma away from the mean every pixel is
             nsig = (frame - mean) / sigma
+            # cosmic mask
+            cmask = nsig > sig_cut
+            # add to heat map
+            heat_map[cmask] += 1
             # set those above the threshold to nan
-            cube[iframe, nsig > sig_cut] = np.nan
+            cube[iframe, cmask] = np.nan
 
         # TODO: save cube after this step
 
         # TODO: plot fractions of good pixels (per pixel) as map
+        plots.plot_heatmap(self, heat_map / cube.shape[0], cube[0], 
+                           'cosmic rays rate', 'cosmic_rays_corr', 
+                           'Cosmic rays per frame')
 
         # return the cube
         return cube
@@ -1178,7 +1187,7 @@ class Instrument:
         for frame in tqdm(range(cube.shape[0])):
             cube[frame] -= background
         # ---------------------------------------------------------------------
-        plots.plot_background1(self, frame0, cube[0])
+        plots.plot_background(self, frame0, cube[0])
         # ---------------------------------------------------------------------
         return cube, err
 
@@ -1258,7 +1267,7 @@ class Instrument:
             fits.writeto(temp_ini_cube, cube, overwrite=True)
             fits.writeto(temp_ini_err, err, overwrite=True)
         # ---------------------------------------------------------------------
-        plots.plot_background2(self, frame0, cube[0], sum_cube_tile)
+        plots.plot_lowpass(self, frame0, cube[0], sum_cube_tile)
         # ---------------------------------------------------------------------
         # return the background corrected cube
         return cube, err
@@ -1280,9 +1289,11 @@ class Instrument:
         # construct temporary file names
         temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
         temp_clean_nan_err = self.get_variable('TEMP_CLEAN_NAN_ERR', func_name)
+        # get WLC.GENERAL parameters
+        wlc_params = self.params.get('WLC.GENERAL')
         # ---------------------------------------------------------------------
         # deal with no patching isolated bad pixels
-        if not self.params['WLC.GENERAL.PATCH_ISOLATED_BADS']:
+        if not wlc_params['PATCH_ISOLATED_BADS']:
             # print message that we are not patching isolated bad pixels
             msg = ('WLC.GENERAL.PATCH_ISOLATED_BADS=False. Not patching '
                    'isolated bad pixels')
@@ -1306,8 +1317,22 @@ class Instrument:
         # print progress
         msg = ' Removing isolated NaNs'
         misc.printc(msg, 'info')
+        # storage for the heat map
+        heat_map = np.zeros_like(cube[0], dtype=float)
+        # storage of bad pixels
+        bad_pixels_before = dict()
+        bad_pixels_after = dict()
+        # get the size of the bad pixel stamps
+        if wlc_params['PATCH_IBADS_SSIZE'] % 2 == 0:
+            emsg = 'WLC.GENERAL.PATCH_IBADS_SSIZE must be odd'
+            raise exceptions.SossisseConstantException(emsg)
+        else:
+            bpixel_ssize = (wlc_params['PATCH_IBADS_SSIZE'] - 1) // 2
         # loop around frames in cube
-        for iframe in tqdm(range(cube.shape[0])):
+        for it, iframe in tqdm(enumerate(range(cube.shape[0]))):
+            # sort out storage for this frame
+            bad_pixels_before[it] = []
+            bad_pixels_after[it] = []
             # get the cube frame
             cframe = np.array(cube[iframe, :, :])
             ecframe = np.array(err[iframe, :, :])
@@ -1322,6 +1347,8 @@ class Instrument:
             n_bad = convolve2d(np.array(mframe, dtype=float), kernel,
                                mode='same')
             isolated_bad = (n_bad == 4) & ~mframe
+            # add the isolated bad pixels to the heat map
+            heat_map += isolated_bad.astype(int)
             # get the pixel positions with isolated bad pixels
             ypix, xpix = np.where(isolated_bad)
             # for each pixel replace the value with the mean of the 4 pixels
@@ -1335,13 +1362,37 @@ class Instrument:
                                      ecframe[ypix + 1, xpix],
                                      ecframe[ypix, xpix - 1],
                                      ecframe[ypix, xpix + 1]], axis=0)
+            # -----------------------------------------------------------------
+            # get the bad pixel stamps (before correction)
+            _bad_stamps = self.create_bad_pixel_stamps(ypix, xpix, cframe, 
+                                                       bpixel_ssize)
+            bad_pixels_before[it] = _bad_stamps
+            # -----------------------------------------------------------------
             # update cframe and set make
             cframe[ypix, xpix] = mean_vals
             ecframe[ypix, xpix] = mean_err_vals
+            # -----------------------------------------------------------------
+            # get the bad pixel stamps (after correction)
+            _bad_stamps = self.create_bad_pixel_stamps(ypix, xpix, cframe, 
+                                                       bpixel_ssize)
+            bad_pixels_after[it] = _bad_stamps
+            # -----------------------------------------------------------------
             # mframe[ypix, xpix] = True
             # push back into the cube
             cube[iframe, :, :] = cframe
             err[iframe, :, :] = ecframe
+        # ---------------------------------------------------------------------
+        plots.plot_heatmap(self, heat_map, cube[0], 'isolated bad pixels',
+                           'isolated_badpixels', 'Number across all frames')
+        # ---------------------------------------------------------------------
+        # create bad pixel images (one per frame)
+        bpixel_cutouts_small = self.create_stamp_images(bad_pixels_before, 
+                                                        bad_pixels_after,
+                                                        num=100)
+        pixel_cutouts_all = self.create_stamp_images(bad_pixels_before, 
+                                                     bad_pixels_after)
+        # plot this as a cut out
+        plots.plot_pixels(self, bpixel_cutouts_small)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then save them
         if allow_temp:
@@ -1354,8 +1405,137 @@ class Instrument:
             fits.writeto(temp_clean_nan, cube, overwrite=True)
             fits.writeto(temp_clean_nan_err, err, overwrite=True)
         # ---------------------------------------------------------------------
+        # TODO: Save bad pixels before and after to file
+
+        # ---------------------------------------------------------------------
         # return the cube
         return cube, err
+
+
+    def create_bad_pixel_stamps(self, ypix: np.ndarray, xpix: np.ndarray, 
+                                array: np.ndarray, size: int):
+        """
+        Create a list of stamps around the bad pixels
+        :param ypix: np.ndarray, the y positions of the bad pixels
+        :param xpix: np.ndarray, the x positions of the bad pixels
+        :param array: np.ndarray, the array to create stamps from
+        :param size: int, the size of the stamp (half size, so 3 means 7x7)
+
+        :return: list of np.ndarray, the stamps around the bad pixels
+        """
+        # storage for output list of stamps
+        stamp_list = []
+
+        # pad the input array with nans so we get edge pixels correctly
+        array = np.pad(array, ((size, size), (size, size)), mode='constant',
+                       constant_values=np.nan)
+
+        # loop around all positions
+        for jt in range(len(ypix)):
+            # get the bad pixel stamp size 
+            # (need to +size at the end as we padded)
+            ystart = (ypix[jt] - size) + size
+            yend = (ypix[jt] + size + 1) + size
+            xstart = (xpix[jt] - size) + size
+            xend = (xpix[jt] + size + 1) + size
+            # get a cut out stamp
+            stamp = array[ystart:yend, xstart:xend]
+            # ignore edge stamps (that are too small)
+            if stamp.shape[0] != (size * 2 + 1):
+                continue
+            if stamp.shape[1] != (size * 2 + 1):
+                continue
+            # store the bad pixels before
+            with warnings.catch_warnings(record=True) as _:
+                # ignore warnings about nans
+                # normalize the stamp to between 0 and 1
+                smin, smax = np.nanmin(stamp), np.nanmax(stamp)
+                if smax - smin == 0:
+                    # if the stamp is constant, we set it to 0
+                    nstamp = np.zeros_like(stamp)
+                else:
+                    # normalize the stamp
+                    nstamp = (stamp - smin) / (smax - smin)
+            # append the normalized stamp to the list
+            stamp_list.append(nstamp)
+        # return the stamp list
+        return stamp_list
+
+    def create_stamp_images(self, before_dict: Dict[int, List[np.ndarray]], 
+                            after_dict: Dict[int, List[np.ndarray]],
+                            num: Optional[int] = None) -> Dict[int, np.ndarray]:
+        # set function name
+        func_name = f'{__NAME__}.Instrument.create_stamp_images()'
+        # calculate the size of the stamps
+        ssize = self.params['WLC.GENERAL.PATCH_IBADS_SSIZE']
+        # storage of output images
+        images = dict()
+        # loop around each frame
+        for iframe in tqdm(range(len(before_dict))):
+            # get the before and after lists
+            before_list = before_dict[iframe]
+            after_list = after_dict[iframe]
+            # -----------------------------------------------------------------
+            # get length - and deal with differing lengths (shouldn't happen)
+            if len(before_list) != len(after_list):
+                emsg = 'Stamp images have inconsistent sizes. Function = {0}'
+                eargs = [func_name]
+                raise exceptions.SossisseException(emsg.format(*eargs))
+            else:
+                length = len(before_list)
+            # -----------------------------------------------------------------
+            # deal with cutting down number of pixels
+            if num is not None and num < length:
+                # select a random number "num" of pixels in the list
+                indices = np.random.choice(len(before_list), num, replace=False)
+                before_list = [before_list[i] for i in indices]
+                after_list = [after_list[i] for i in indices]
+                # update length parameter
+                length = len(before_list)
+            # -----------------------------------------------------------------
+            tile_height = ssize
+            # border of NaNs around the final image
+            border = 3
+             # (before) + border (nan) +(after)
+            tile_width = ssize + 1 + ssize
+            # -----------------------------------------------------------------
+            # Determine a grid size: make it as square as possible, 
+            #    with height ~ 2*width
+            # So we want (cols * tile_width) ~ (rows * tile_height), 
+            #    and rows*cols >= length
+            ideal_cols = int(np.sqrt(length / 2))
+            ideal_rows = int(np.ceil(length / ideal_cols))
+            # Make sure we have enough rows and columns
+            cols, rows = ideal_cols, ideal_rows
+            while rows * cols < length:
+                cols += 1
+            # -----------------------------------------------------------------
+            # Prepare the final image size
+            height = rows * tile_height + (rows + 1) * border
+            width = cols * tile_width + (cols + 1) * border
+            image = np.full((height, width), np.nan)
+            # -----------------------------------------------------------------
+            # Fill the image
+            for idx in range(length):
+                r = idx // cols
+                c = idx % cols
+                # Calculate the position in the image
+                # y0 is the top left corner of the tile
+                # x0 is the left side of the tile
+                y0 = r * tile_height + (r + 1) * border
+                x0 = c * tile_width + (c + 1) * border
+                # Extract the before and after arrays
+                before = before_list[idx]
+                after = after_list[idx]
+
+                # Insert them into the image
+                image[y0:y0+5, x0:x0+5] = before
+                image[y0:y0+5, x0+6:x0+11] = after 
+            # -----------------------------------------------------------------
+            # store images
+            images[iframe] = image
+
+        return images   
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -2143,7 +2323,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
-            msg = ('WLC.LMODEL.FIT_PCA={0}  WLC.LMODEL.FIT_N_PCA={1}'
+            msg = ('WLC.LMODEL.FIT_PCA={0}  WLC.LMODEL.FIT_N_PCA={1} '
                    'Not fitting with PCA').format(flag_fit_pca, n_comp)
             misc.printc(msg, 'info')
             return None
@@ -2423,13 +2603,13 @@ class Instrument:
         # make sure rotation and ddy are floats
         rotxy, ddy = np.array(rotxy, dtype=float), np.array(ddy, dtype=float)
         # ---------------------------------------------------------------------
-        plots.gradient_plot(self, dx, dy, rotxy)
+        plots.gradient_plot(self, dx, dy, rotxy, ddy)
         # ---------------------------------------------------------------------
         # return these values
         return [dx, dy, rotxy, ddy, med2]
 
-    def get_mask_trace_pos(self, med: np.ndarray, trace_mask: np.ndarray
-                           ) -> List[np.ndarray]:
+    def get_linear_recon_mask(self, med: np.ndarray, trace_mask: np.ndarray
+                              ) -> List[np.ndarray]:
         """
         Get the mask trace positions
 
@@ -3184,7 +3364,7 @@ class Instrument:
         # deal with masking order zero
         if self.params['WLC.GENERAL.MASK_ORDER_ZERO']:
             # load the mask trace position
-            mask_trace_pos, _, _, _, _ = self.get_mask_trace_pos(med, trace_mask)
+            mask_trace_pos, _, _, _, _ = self.get_linear_recon_mask(med, trace_mask)
             # need to re-get the mask order zero
             mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
                                                            trace_mask)
