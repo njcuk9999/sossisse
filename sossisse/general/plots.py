@@ -58,9 +58,7 @@ def plot_normalization(data: np.ndarray,
         - 'base': BaseStretch
         - 'linear': LinearStretch
         - 'sqrt': SqrtStretch
-        - 'power': PowerStretch
         - 'log': LogStretch
-        - 'hist': HistEqStretch
     :param vmin: float, the minimum value for the normalization
     :param vmax: float, the maximum value for the normalization
     :param vtype: str, the type of value to use for normalization, 
@@ -87,12 +85,8 @@ def plot_normalization(data: np.ndarray,
         stretch_inst = stretch_mod.LinearStretch()
     elif stretch == 'sqrt':
         stretch_inst = stretch_mod.SqrtStretch()
-    elif stretch == 'power':
-        stretch_inst = stretch_mod.PowerStretch()
     elif stretch == 'log':
         stretch_inst = stretch_mod.LogStretch()
-    elif stretch == 'hist':
-        stretch_inst = stretch_mod.HistEqStretch()
     # else not supported
     else:
         raise ValueError(f'Unsupported stretch type: {stretch}')

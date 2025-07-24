@@ -1768,7 +1768,7 @@ class Instrument:
 
     def clean_1f(self, cube: np.ndarray,
                  err: np.ndarray,
-                 trace_mask: np.ndarray) -> List[Union[np.ndarray, None]]:
+                 trace_mask: np.ndarray) -> List[Union[np.ndarray]]:
         """
         Clean the 1/f noise from the cube
 
@@ -3087,9 +3087,12 @@ class Instrument:
         # return the updated cube
         return cube
 
+    def rms_baselines(self) -> List[str]:
+            return ['naive_sigma', 'linear_sigma', 'lowpass_sigma',
+                    'quadratic_sigma']
+
     def get_rms_baseline(self, vector: Union[np.ndarray, None] = None,
-                         method: str = 'linear_sigma'
-                         ) -> Union[float, List[str]]:
+                         method: str = 'linear_sigma') -> float]:
         """
         Get the RMS of the baseline (for a given method)
 
@@ -3110,9 +3113,10 @@ class Instrument:
         """
         _ = self
         # deal with just getting the baseline methods
-        if vector is None:
-            return ['naive_sigma', 'linear_sigma', 'lowpass_sigma',
-                    'quadratic_sigma']
+        if method not in self.rms_baselines():
+            emsg = (f'Unknown method: {method}, available methods are: '
+                    f'{",".join(self.rms_baselines())}')
+            raise exceptions.SossisseException(emsg)
         # ---------------------------------------------------------------------
         # native method: we don't know that there's a transit
         if method == 'naive_sigma':

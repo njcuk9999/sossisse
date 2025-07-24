@@ -144,7 +144,7 @@ def linear_recon(inst: Instrument) -> Instrument:
         cube = inst.per_pixel_baseline(cube, valid_cube)
     # -------------------------------------------------------------------------
     # print the rms baseline for all methods
-    for method in inst.get_rms_baseline():
+    for method in inst.rms_baselines():
         # calculate the rms for this method
         rms_method = inst.get_rms_baseline(ltable['amplitude'], method=method)
         # print this
