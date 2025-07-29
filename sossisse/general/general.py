@@ -54,76 +54,111 @@ def linear_recon_init(inst):
     # if we've got here return false
     return False
 
+
 def linear_recon(inst: Instrument) -> Instrument:
     """
-    White light curve functionality
+    Linear reconstruction functionality
 
     :param inst: Instrument, the instrument object
     :return:
     """
+    # =========================================================================
     # linear recon initialization (hidden for notebook use)
+    # =========================================================================
     if linear_recon_init(inst):
         return inst
-    # -------------------------------------------------------------------------
-    # load the image, error and data quality
+    
+    # =========================================================================
+    # Load the image, error and data quality images
+    # =========================================================================
     cube, err, dq = inst.load_data_with_dq()
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
     # Apply the flat field
+    # =========================================================================
     cube, err, dq = inst.apply_flat_field(cube, err, dq)
-    # -------------------------------------------------------------------------
-    # apply the dq to the cube
+
+    # =========================================================================
+    # Keep only certain Data Quality flags
+    # =========================================================================
     cube, err = inst.apply_dq(cube, err, dq)
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
     # remove the background
+    # =========================================================================
     cube, err = inst.remove_background(cube, err)
+
+    # =========================================================================
     # low pass the data
+    # =========================================================================
     cube, err = inst.low_pass_filter(cube, err)
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
+    # Patch isolated bad pixels
+    # =========================================================================
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
     cube, err = inst.patch_isolated_bads(cube, err)
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
     # remove cosmic rays with a sigma cut
+    # =========================================================================
     cube = inst.remove_cosmic_rays(cube)
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
+    # PastaSOSS
+    # =========================================================================
     # TODO: pastasoss here
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
     # get the trace map
+    # =========================================================================
     trace_mask = inst.get_trace_mask()
-    # -------------------------------------------------------------------------
+
+    # =========================================================================
+    # Differential 1/f correction
+    # =========================================================================
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
     out_c1f = inst.clean_1f(cube, err, trace_mask)
     cube, med, transit_invsout = out_c1f
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # recenter the trace position
+    # =========================================================================
     trace_mask = inst.recenter_trace_position(trace_mask, med)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # PCA Analysis
+    # =========================================================================
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
     pcas = inst.fit_pca(cube, err, med, trace_mask)
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Linear reconstruction
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Following Equation A1 from Lim et al. 2023 
     # (https://iopscience.iop.org/article/10.3847/2041-8213/acf7c4/pdf)
     #
     # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy 
     #        + amp[3] x dM/dtheta + amp[4] x d2M/dy2
-    # -------------------------------------------------------------------------
-    # get the gradients
+    # =========================================================================
+    # Step 1: get the gradients
+    # =========================================================================
     dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
+    # -------------------------------------------------------------------------
     # set up the mask for trace position
     mask_out = inst.get_linear_recon_mask(med, trace_mask)
     mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos = mask_out
-
-    # setup the linear reconstruction vector based on the input parameters
+    # =========================================================================
+    # Step 2: setup the mask for linear reconstruction
+    # =========================================================================
     lvector = inst.setup_linear_reconstruction(med, dx, dy, rotxy, ddy,
                                                pcas)
-    # -----------------------------------------------------inst--------------------
+    # =========================================================================
+    # Step 3: Construct and run the linear reconstruction
+    # =========================================================================
     # find the best linear combination of scale/dx/dy/rotation from lvector
     # amps is a vector with the amplitude of all 4 fitted terms
     # amps[0] -> amplitude of trace
@@ -136,23 +171,21 @@ def linear_recon(inst: Instrument) -> Instrument:
     #      + amp[4] x d2M/dy2
     # -------------------------------------------------------------------------
     l_out = inst.get_linear_coeffs(cube, err, med, mask_trace_pos,
-                                     lvector, x_trace_pos, y_trace_pos,
-                                     x_order0, y_order0)
+                                   lvector, x_trace_pos, y_trace_pos,
+                                   x_order0, y_order0)
     # get outputs of apply_amp_recon
     #  Note the recon model has been subtracted from the cube in order to 
     #  later to differential spectral extraction
-    ltable, lrecon, valid_cube, cube = l_out
-    # -------------------------------------------------------------------------
+    ltable, lrecon, valid_cube, rescube = l_out
+
+    # =========================================================================
+    # Linear recon analysis
+    # =========================================================================
     # At this point we can look at the transit
     inst.define_transit_ints(ltable)
     # -------------------------------------------------------------------------
     # normalize the trace but a normalization factor
     ltable = inst.normalize_sum_trace(ltable)
-    # -------------------------------------------------------------------------
-    # per pixel baseline
-    if inst.params['WLC.GENERAL.PER_PIXEL_BASELINE_CORRECTION']:
-        misc.printc('Performing per-pixel baseline subtraction', 'info')
-        cube = inst.per_pixel_baseline(cube, valid_cube)
     # -------------------------------------------------------------------------
     # print the rms baseline for all methods
     for method in inst.rms_baselines():
@@ -162,12 +195,27 @@ def linear_recon(inst: Instrument) -> Instrument:
         msg = '{0}, rms = {1:.1f}ppm'.format(method, rms_method * 1e6)
         misc.printc(msg, 'number')
     # -------------------------------------------------------------------------
-    # get the effective wavelength
-    photo_weighted_mean, energy_weighted_mean = inst.get_effective_wavelength()
+    # calculate and print the effective wavelength
+    inst.get_effective_wavelength()
+
+    # =========================================================================
+    # Preemptively correct the cube for spectral extraction
+    # =========================================================================
+    # This corrects the whole time series based on the out-of-transit slope 
+    # - use very carefuly.
+
+    # This is done here so we only save the cube once to disk 
+    # (and we don't have reopen it)
+
+    # if inst.params['WLC.GENERAL.PER_PIXEL_BASELINE_CORRECTION']:
+    #     misc.printc('Performing per-pixel baseline subtraction', 'info')
+    #     rescube = inst.per_pixel_baseline(rescube, valid_cube)
+
     # =========================================================================
     # write files
     # =========================================================================
-    inst.save_wlc_results(cube, err, lrecon, ltable)
+    inst.save_wlc_results(rescube, err, lrecon, ltable)
+
     # =========================================================================
     # Plots and Summary HTML
     # =========================================================================
@@ -193,6 +241,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     """
     # print the splash
     misc.sossart()
+    # =========================================================================
+    # Spectral extraction setup
+    # =========================================================================
     # get parameters from instrumental parameters
     objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
@@ -205,7 +256,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     storage = dict()
     # get the trace orders
     trace_orders = inst.get_trace_orders()
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Processing trace order loop
+    # =========================================================================
     # loop around trace orders
     for trace_order in trace_orders:
         # print progress
@@ -227,9 +280,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         spec, spec_err = inst.ratio_residual_to_trace(model, err, residual,
                                                       posmax)
         # ---------------------------------------------------------------------
-        # remove the out-of-transit trend on the spectrum
-        if inst.params['SPEC_EXT.REMOVE_TREND']:
-            spec = inst.remove_trend_spec(spec)
+        # # remove the out-of-transit trend on the spectrum
+        # if inst.params['SPEC_EXT.REMOVE_TREND']:
+        #     spec = inst.remove_trend_spec(spec)
         # -----------------------------------------------------------------
         # reshape the amplitudes into an image
         amp_image = np.repeat(np.array(ltable['amplitude']), spec.shape[1])
@@ -237,27 +290,25 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         # add this gray component onto the spectrum
         spec2 = spec + amp_image
         # ---------------------------------------------------------------------
-        # remove the out-of-transit trend on the photometric time series
-        if inst.params['SPEC_EXT.REMOVE_TREND']:
-            ltable = inst.remove_trend_phot(spec, ltable)
+        # # remove the out-of-transit trend on the photometric time series
+        # if inst.params['SPEC_EXT.REMOVE_TREND']:
+        #     ltable = inst.remove_trend_phot(spec, ltable)
         # ---------------------------------------------------------------------
-        # compute or set transit depth
-        transit_depth = inst.get_transit_depth(ltable)
-        # ---------------------------------------------------------------------
-        # get the in-transit spectrum
-        isout = inst.intransit_spectrum(spec, spec_err)
-        spec_in, spec_err_in, spec_err_out = isout
-        # ---------------------------------------------------------------------
-        # bin the data by RESOLUTION_BIN
-        wave_bin, flux_bin, flux_bin_err = inst.bin_spectrum(wavegrid,
-                                                             spec_in,
-                                                             spec_err_in)
+        # # compute or set transit depth
+        # transit_depth = inst.get_transit_depth(ltable)
+        # # -------------------------------------------------------------------
+        # # get the in-transit spectrum
+        # isout = inst.intransit_spectrum(spec, spec_err)
+        # spec_in, spec_err_in, spec_err_out = isout
+        # # -------------------------------------------------------------------
+        # # bin the data by RESOLUTION_BIN
+        # wave_bin, flux_bin, flux_bin_err = inst.bin_spectrum(wavegrid,
+        #                                                      spec_in,
+        #                                                      spec_err_in)
         # ---------------------------------------------------------------------
         # push into storage for outside loop
         storage = trace_storage(storage, trace_order, wavegrid, sp_sed,
-                                throughput, spec, spec_err, ltable, spec2,
-                                spec_in, spec_err_in, transit_depth, wave_bin,
-                                flux_bin, flux_bin_err)
+                                throughput, spec, spec_err, ltable, spec2)
         # ---------------------------------------------------------------------
         inst.save_spe_results(storage[trace_order], trace_order)
     # -------------------------------------------------------------------------
@@ -274,7 +325,8 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     return inst
 
 
-def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
+# TODO: remove 
+def trace_storage_old(storage: dict, trace_order, wavegrid, sp_sed, throughput,
                   spec, spec_err, ltable, spec2, spec_in, spec_err_in,
                   transit_depth, wave_bin, flux_bin, flux_bin_err):
     # reshape the wave grid into an image
@@ -299,6 +351,28 @@ def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
     storage[trace_order] = storage_it
 
     return storage
+
+
+
+def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
+                  spec, spec_err, ltable, spec2):
+    # reshape the wave grid into an image
+    wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
+    # save for plotting (outside the trace_order loop) / saving
+    storage_it = dict()
+    storage_it['wavegrid'] = wavegrid
+    storage_it['sp_sed'] = sp_sed
+    storage_it['throughput'] = throughput
+    storage_it['spec'] = spec
+    storage_it['spec_err'] = spec_err
+    storage_it['ltable'] = ltable
+    storage_it['spec2'] = spec2
+    storage_it['wavegrid_2d'] = wavegrid_2d
+    # append to plot storage
+    storage[trace_order] = storage_it
+
+    return storage
+
 
 
 # =============================================================================

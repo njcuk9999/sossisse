@@ -2815,6 +2815,9 @@ class Instrument:
         zpoint = self.params['WLC.LMODEL.FIT_ZERO_POINT_OFFSET']
         # vectors to keep track of the rotation/amplitudes/dx/dy
         all_recon = np.zeros_like(cube)
+        # starting point of the residual cube is the cube 
+        #    (will be subtracted off per integration)
+        rescube = np.array(cube)
         # ---------------------------------------------------------------------
         # storage to append to (one value for each frame of the cube)
         outputs = dict()
@@ -2902,12 +2905,12 @@ class Instrument:
                 outputs[amp_err_name][iframe] = err_model[amp_it]
             # -----------------------------------------------------------------
             # update the cube
-            cube[iframe] -= recon
+            rescube[iframe] -= recon
             # update the recons (relative to the no model amplitude)
             all_recon[iframe] = recon / amp_model[0]
             # -----------------------------------------------------------------
             # force cube to floats
-            tmp_slice = np.array(cube[iframe], dtype=float)
+            tmp_slice = np.array(rescube[iframe], dtype=float)
             # calculate the rms of the recon cube
             outputs['rms_cube_recon'][iframe] = mp.estimate_sigma(tmp_slice)
             # keep the valid mask for later
@@ -2927,7 +2930,7 @@ class Instrument:
         # convert outputs to an astropy table
         output_table = Table(outputs)
         # return the outputs
-        return output_table, all_recon, valid_arr, cube
+        return output_table, all_recon, valid_arr, rescube
 
     def normalize_sum_trace(self, loutputs: Table) -> Table:
         """
@@ -3215,7 +3218,7 @@ class Instrument:
         # return the effective wavelength factors
         return mean_photon_weighted, mean_energy_weighted
 
-    def save_wlc_results(self, cube: np.ndarray, err: np.ndarray, 
+    def save_wlc_results(self, rescube: np.ndarray, err: np.ndarray, 
                          lrecon: np.ndarray, ltable: Table):
         # set function name
         func_name = f'{__NAME__}.{self.name}.save_wlc_results()'
@@ -3232,7 +3235,7 @@ class Instrument:
         # -------------------------------------------------------------------------
         # write the residual map
         resfile = self.get_variable('WLC_RES_FILE', func_name)
-        io.save_fits(resfile, datalist=[cube], datatypes=['image'],
+        io.save_fits(resfile, datalist=[rescube], datatypes=['image'],
                      datanames=['residual'], meta=meta_data)
         # -------------------------------------------------------------------------
         # write the recon
@@ -3391,7 +3394,7 @@ class Instrument:
         trace and take the weighted mean.
 
         The thing is that the trace has a very structured shape, so this
-        needs to include a propagation of errors. There error of pixels along
+        needs to include a propagation of errors. The error of pixels along
         the trace profile are the input errors divided by the model trace.
         Pixels with a very low trace value have correspondingly larger errors.
 
@@ -3439,6 +3442,9 @@ class Instrument:
         posmax_y2d = np.array(posmax_y2d).astype(int)
         posmax_x2d = np.array(posmax_x2d).astype(int)
         # get a cut down (for every frame) around the trace
+        #   these are straightened to the nearest integer due to the slicing
+        #   by posmax_y2d and posmax_x2d (between -width and +width around the
+        #   central trace position
         model_cut = np.array(model[:, posmax_y2d, posmax_x2d])
         residual_cut = np.array(residual[:, posmax_y2d, posmax_x2d])
         err_cut = np.array(err[:, posmax_y2d, posmax_x2d])
@@ -3742,12 +3748,12 @@ class Instrument:
         spec_err = storage['spec_err']
         spec2 = storage['spec2']
         wavegrid_2d = storage['wavegrid_2d']
-        spec_in = storage['spec_in']
-        spec_err_in = storage['spec_err_in']
-        transit_depth = storage['transit_depth']
-        wave_bin = storage['wave_bin']
-        flux_bin = storage['flux_bin']
-        flux_bin_err = storage['flux_bin_err']
+        # spec_in = storage['spec_in']
+        # spec_err_in = storage['spec_err_in']
+        # transit_depth = storage['transit_depth']
+        # wave_bin = storage['wave_bin']
+        # flux_bin = storage['flux_bin']
+        # flux_bin_err = storage['flux_bin_err']
         # ---------------------------------------------------------------------
         # Save the SED table
         # ---------------------------------------------------------------------
@@ -3816,34 +3822,34 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Save the transit spectrum for this trace order to file
         # ---------------------------------------------------------------------
-        # get file name
-        transit_file = self.get_variable('TSPEC_ORD', func_name)
-        transit_file = transit_file.format(trace_order=trace_order)
+        # # get file name
+        # transit_file = self.get_variable('TSPEC_ORD', func_name)
+        # transit_file = transit_file.format(trace_order=trace_order)
 
-        # make transit table
-        t_table = Table()
-        t_table['wavelength'] = wavegrid
-        t_table['flux'] = (spec_in + transit_depth) * 1e6
-        t_table['flux_err'] = spec_err_in * 1e6
-        # save table
-        io.save_table(transit_file, t_table, fmt='csv')
+        # # make transit table
+        # t_table = Table()
+        # t_table['wavelength'] = wavegrid
+        # t_table['flux'] = (spec_in + transit_depth) * 1e6
+        # t_table['flux_err'] = spec_err_in * 1e6
+        # # save table
+        # io.save_table(transit_file, t_table, fmt='csv')
 
-        # ---------------------------------------------------------------------
-        # Save the transit spectrum for this trace order (binned) to file
-        # ---------------------------------------------------------------------
-        # get resolution_bin
-        res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
-        # get file name
-        transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
-        transit_bin_file = transit_bin_file.format(trace_order=trace_order,
-                                                   res=res_bin)
-        # make transit table
-        tb_table = Table()
-        tb_table['wavelength'] = wave_bin
-        tb_table['flux'] = (flux_bin + transit_depth) * 1e6
-        tb_table['flux_err'] = flux_bin_err * 1e6
-        # save table
-        io.save_table(transit_bin_file, tb_table, fmt='csv')
+        # # ---------------------------------------------------------------------
+        # # Save the transit spectrum for this trace order (binned) to file
+        # # ---------------------------------------------------------------------
+        # # get resolution_bin
+        # res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
+        # # get file name
+        # transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
+        # transit_bin_file = transit_bin_file.format(trace_order=trace_order,
+        #                                            res=res_bin)
+        # # make transit table
+        # tb_table = Table()
+        # tb_table['wavelength'] = wave_bin
+        # tb_table['flux'] = (flux_bin + transit_depth) * 1e6
+        # tb_table['flux_err'] = flux_bin_err * 1e6
+        # # save table
+        # io.save_table(transit_bin_file, tb_table, fmt='csv')
 
     def to_eureka(self, storage: Dict[int, Dict[str, Any]]):
         # set function name

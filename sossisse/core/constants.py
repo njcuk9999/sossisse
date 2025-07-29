@@ -211,12 +211,12 @@ CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
 #    than once
 CDict.add('ALLOW_TEMPORARY', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='Allow for temporary files to speed the process if '
+          description='Allow saving of temporary files to speed the process if '
                       'you run the code more than once')
 # -----------------------------------------------------------------------------
 # Use temporary files (False we overwrite the files for a fresh start even
 #   if they exist on disk)
-CDict.add('USE_TEMPORARY', value=True, dtype=bool,
+CDict.add('USE_TEMPORARY', value=False, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Use temporary files (False we overwrite the files '
                       'for a fresh start even if they exist on disk)')
