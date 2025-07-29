@@ -2772,12 +2772,12 @@ class Instrument:
         # return the vector
         return vector
 
-    def apply_amp_recon(self, cube: np.ndarray, err: np.ndarray,
-                        med: np.ndarray, mask_trace_pos: np.ndarray,
-                        lvector: np.ndarray,
-                        x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
-                        x_order0: np.ndarray, y_order0: np.ndarray
-                        ) -> Tuple[Table, np.ndarray, np.ndarray]:
+    def get_linear_coeffs(self, cube: np.ndarray, err: np.ndarray,
+                          med: np.ndarray, mask_trace_pos: np.ndarray,
+                          lvector: np.ndarray,
+                          x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
+                          x_order0: np.ndarray, y_order0: np.ndarray
+                          ) -> Tuple[Table, np.ndarray, np.ndarray, np.ndarray]:
         """
         Apply the amplitude reconstruction to the cube
 
@@ -2927,7 +2927,7 @@ class Instrument:
         # convert outputs to an astropy table
         output_table = Table(outputs)
         # return the outputs
-        return output_table, all_recon, valid_arr
+        return output_table, all_recon, valid_arr, cube
 
     def normalize_sum_trace(self, loutputs: Table) -> Table:
         """
@@ -3092,7 +3092,7 @@ class Instrument:
                     'quadratic_sigma']
 
     def get_rms_baseline(self, vector: Union[np.ndarray, None] = None,
-                         method: str = 'linear_sigma') -> float]:
+                         method: str = 'linear_sigma') -> float:
         """
         Get the RMS of the baseline (for a given method)
 

@@ -106,7 +106,13 @@ def linear_recon(inst: Instrument) -> Instrument:
     pcas = inst.fit_pca(cube, err, med, trace_mask)
 
     # -------------------------------------------------------------------------
-    # Part of the code that does rotation/shift/amplitude
+    # Linear reconstruction
+    # -------------------------------------------------------------------------
+    # Following Equation A1 from Lim et al. 2023 
+    # (https://iopscience.iop.org/article/10.3847/2041-8213/acf7c4/pdf)
+    #
+    # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy 
+    #        + amp[3] x dM/dtheta + amp[4] x d2M/dy2
     # -------------------------------------------------------------------------
     # get the gradients
     dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
@@ -125,12 +131,17 @@ def linear_recon(inst: Instrument) -> Instrument:
     # amps[2] -> dy normalized on reference trace
     # amps[3] -> rotation (in radians) normalized on reference trace
     # amps[4] -> 2nd derivative in y [if option activated]
+
+    # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy + amp[3] x dM/dtheta 
+    #      + amp[4] x d2M/dy2
     # -------------------------------------------------------------------------
-    amp_out = inst.apply_amp_recon(cube, err, med, mask_trace_pos,
-                                   lvector, x_trace_pos, y_trace_pos,
-                                   x_order0, y_order0)
+    l_out = inst.get_linear_coeffs(cube, err, med, mask_trace_pos,
+                                     lvector, x_trace_pos, y_trace_pos,
+                                     x_order0, y_order0)
     # get outputs of apply_amp_recon
-    ltable, lrecon, valid_cube = amp_out
+    #  Note the recon model has been subtracted from the cube in order to 
+    #  later to differential spectral extraction
+    ltable, lrecon, valid_cube, cube = l_out
     # -------------------------------------------------------------------------
     # At this point we can look at the transit
     inst.define_transit_ints(ltable)

@@ -334,17 +334,21 @@ def trace_correction_sample(inst: Any, iframe: int,
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
     # plot the cube
-    frames[0].imshow(cube[iframe], aspect='auto', origin='lower',
-                     vmin=np.nanpercentile(cube[iframe], 1),
-                     vmax=np.nanpercentile(cube[iframe], 95))
-    frames[0].set(title='Sample Image')
+    im0 = frames[0].imshow(cube[iframe], aspect='auto', origin='lower',
+                           vmin=np.nanpercentile(cube[iframe], 1),
+                           vmax=np.nanpercentile(cube[iframe], 95))
+    frames[0].set(title=f'Integration {iframe}')
+    # plot colorbar
+    plt.colorbar(im0, ax=frames[0], orientation='vertical')
     # -------------------------------------------------------------------------
     # remove the recon temporarily for the plot
     tmp = cube[iframe] - recon
     # plot the cube minus the recon
-    frames[1].imshow(tmp, aspect='auto', origin='lower',
-                     vmin=np.nanpercentile(tmp, 5),
-                     vmax=np.nanpercentile(tmp, 95))
+    im1 = frames[1].imshow(tmp, aspect='auto', origin='lower',
+                           vmin=np.nanpercentile(tmp, 5),
+                           vmax=np.nanpercentile(tmp, 95))
+    # plot colorbar
+    plt.colorbar(im1, ax=frames[1], orientation='vertical')
     # -------------------------------------------------------------------------
     # plot the trace positions
     frames[0].plot(x_trace_pos, y_trace_pos, '.', color='orange', alpha=0.2)
@@ -358,7 +362,7 @@ def trace_correction_sample(inst: Any, iframe: int,
     # -------------------------------------------------------------------------
     # setup the legend and title
     frames[1].legend()
-    frames[1].set(title='Residual')
+    frames[1].set(title=f'Integration {iframe} - linear reconstruction')
     # -------------------------------------------------------------------------
     # remove the x and y axis labels
     frames[0].get_xaxis().set_visible(False)
@@ -398,7 +402,7 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
                        fmt='g.', alpha=0.3, label='corrected')
     # -------------------------------------------------------------------------
     # setup the title and legend
-    frames[0].set(title='amplitude')
+    frames[0].set(title='Amplitude coefficient before and after correction.')
     frames[0].legend()
     # -------------------------------------------------------------------------
     # plot the trace correction
