@@ -975,27 +975,27 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
         wavegrid = plot_storage[trace_order]['wavegrid']
         sed_spec = plot_storage[trace_order]['sp_sed']
         throughtput = plot_storage[trace_order]['throughput']
-        spec_in = plot_storage[trace_order]['spec_in']
-        spec_err_in = plot_storage[trace_order]['spec_err_in']
-        transit_depth = plot_storage[trace_order]['transit_depth']
-        wave_bin = plot_storage[trace_order]['wave_bin']
-        flux_bin = plot_storage[trace_order]['flux_bin']
-        flux_bin_err = plot_storage[trace_order]['flux_bin_err']
+        spec_in = plot_storage[trace_order]['spec']
+        spec_err_in = plot_storage[trace_order]['spec_err']
+        #transit_depth = plot_storage[trace_order]['transit_depth']
+        #wave_bin = plot_storage[trace_order]['wave_bin']
+        #flux_bin = plot_storage[trace_order]['flux_bin']
+        #flux_bin_err = plot_storage[trace_order]['flux_bin_err']
         # plot the SED
         frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
                          'order {0}'.format(trace_order))
         # plot the in-transit spectrum
-        frame.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
-                       yerr=spec_err_in * 1e6, alpha=0.25,
-                       label='in-transit, order {}'.format(trace_order),
-                       **pkwargs1)
+        #frame.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
+        #               yerr=spec_err_in * 1e6, alpha=0.25,
+        #               label='in-transit, order {}'.format(trace_order),
+        #               **pkwargs1)
         # plot the binned in-transit spectrum
         binlabelargs = [res_bin, trace_order]
         binlabel = 'Resolution {}, order {}'.format(*binlabelargs)
-        frame.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
-                       yerr=flux_bin_err * 1e6, label=binlabel,
-                       **pkwargs2)
+        #frame.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
+        #               yerr=flux_bin_err * 1e6, label=binlabel,
+        #               **pkwargs2)
     # -------------------------------------------------------------------------
     # construct title
     title = f'{objname} -- {suffix}'

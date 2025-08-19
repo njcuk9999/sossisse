@@ -181,6 +181,8 @@ def linear_recon(inst: Instrument) -> Instrument:
     # =========================================================================
     # Linear recon analysis
     # =========================================================================
+    # Add integration times to the table
+    ltable = inst.add_integration_times(ltable)
     # At this point we can look at the transit
     inst.define_transit_ints(ltable)
     # -------------------------------------------------------------------------

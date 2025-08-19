@@ -639,6 +639,22 @@ class Instrument:
         # return the data, err, dq
         return tmp_data, tmp_err, tmp_dq
 
+    # TODO: implement with other functions when first reading the raw files?
+    def get_int_times(self) -> np.ndarray:
+        """
+        Get the integration times (BJD - 240000)
+        :return: np.ndarray, the integration times
+        """
+        int_times = np.array([])
+        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
+            # get the raw files
+            tmp_data = self.load_data(filename, extname='INT_TIMES')
+            # push to int_times
+            int_times = np.append(int_times, tmp_data['int_mid_BJD_TDB'])
+            # make sure tmp data is deleted
+            del tmp_data
+        return int_times
+
     def load_data_with_dq(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Load and correct the data
@@ -2144,6 +2160,18 @@ class Instrument:
         self.set_variable('OOT_DOMAIN', valid_oot)
         self.set_variable('INT_DOMAIN', valid_int)
         self.set_variable('IN_TRANSIT_INTEGRATE', valid_int_integrate)
+
+    def add_integration_times(self, ltable: Table):
+        """
+        Add integration times to the light curve table
+        :param ltable: Table, the light curve table
+        :return: Table, the updated light curve table
+        """
+        # get the integration times
+        int_times = self.get_int_times()
+        # add the integration times to the table
+        ltable['bjd'] = int_times
+        return ltable
 
     def define_transit_ints(self, ltable: Table):
         """
@@ -3748,6 +3776,7 @@ class Instrument:
         spec_err = storage['spec_err']
         spec2 = storage['spec2']
         wavegrid_2d = storage['wavegrid_2d']
+        int_times = storage['ltable']['bjd']
         # spec_in = storage['spec_in']
         # spec_err_in = storage['spec_err_in']
         # transit_depth = storage['transit_depth']
@@ -3800,11 +3829,11 @@ class Instrument:
         spec_file = self.get_variable('SPECTRA_ORD', func_name)
         spec_file = spec_file.format(trace_order=trace_order)
         # get the data list
-        datalist = [wavegrid_2d, spec2, spec_err]
+        datalist = [wavegrid_2d, spec2, spec_err, int_times]
         # get the data type list
-        datatypes = ['image', 'image', 'image']
+        datatypes = ['image', 'image', 'image', 'image']
         # get the data names
-        datanames = ['WAVELENGTH', 'RELFLUX', 'RELFLUX_ERROR']
+        datanames = ['WAVELENGTH', 'RELFLUX', 'RELFLUX_ERROR', 'BJD']
         # save the fits file
         io.save_fits(spec_file, datalist=datalist, datatypes=datatypes,
                      datanames=datanames, meta=meta_data)
@@ -3884,15 +3913,7 @@ class Instrument:
             msg = 'Reading raw file(s) to get time array'
             misc.printc(msg, 'info')
             # storage for time info
-            time_arr = []
-            # loop around raw files
-            for filename in self.params['GENERAL.FILES']:
-                # get time array data
-                tmp_table = io.load_table(filename, hdu='INT_TIMES')
-                # get the int_mid_bjd_tdb column
-                time_arr.append(np.array(tmp_table['int_mid_BJD_TDB']))
-            # convert time_arr into a numpy array
-            time_arr = np.concatenate(time_arr)
+            time_arr = self.get_int_times()
             # -----------------------------------------------------------------
             # get the filename
             filename = self.get_variable('EUREKA_FILE', func_name)
