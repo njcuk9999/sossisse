@@ -62,6 +62,18 @@ class JWST_NIRSPEC(default.Instrument):
         # for NIRSPEC PRISM we shouldn't have recenter trace position
         self.params['WLC.GENERAL.RECENTER_TRACE_POSITION'] = False
 
+    def optimize_trace_mask(self, log: bool = True):
+        """
+        Optimize the trace position and save a new pos mask file
+
+        Currently does nothing for NIRSpec
+
+        :return: None
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.optimize_trace_mask()'
+        return
+
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """
         Get the trace positions in a combined map

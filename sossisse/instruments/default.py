@@ -1551,7 +1551,17 @@ class Instrument:
             # store images
             images[iframe] = image
 
-        return images   
+        return images
+
+    def optimize_trace_mask(self, log: bool = True):
+        """
+        Optimize the trace position and save a new pos mask file
+
+        :return: None
+        """
+        _ = self, log
+        raise NotImplementedError('optimize_trace_mask() must be implemented in '
+                                  'child Instrument class')
 
     def get_trace_positions(self, log: bool = True):
         """
@@ -2505,7 +2515,7 @@ class Instrument:
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # ---------------------------------------------------------------------
         # print what we are doing
-        msg = '\tScan to optimize position of trace'
+        msg = '\tScan to optimize position of trace mask to maximize flux'
         misc.printc(msg, 'info')
         # save the current width (we will reset it later
         width_current = float(wlc_gen_params['TRACE_WIDTH_MASKING'])

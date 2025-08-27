@@ -909,7 +909,7 @@ def plot_transit(inst: Any, table: Table):
     title = f'{objname} -- {suffix}\n'
     sub_strs = []
     for m_it, mid_transit_depth in enumerate(mid_transit_depths):
-        sub_strs.append(f'Transit-{m_it+1}: {mid_transit_depth * 1e6:.0f} ppm')
+        sub_strs.append(f'Transit-{m_it+1}: {(1-mid_transit_depth)*1e6:.0f} ppm')
     title += '\n'.join(sub_strs)
 
     # set the axis

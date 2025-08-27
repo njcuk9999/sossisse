@@ -9,6 +9,7 @@ Created on 2024-08-13 at 11:29
 
 @author: cook
 """
+import os
 import warnings
 from typing import List, Tuple, Union
 
@@ -22,9 +23,13 @@ from tqdm import tqdm
 from aperocore import math as mp
 
 from sossisse.core import base
+from sossisse.core import io
+from sossisse.core import misc
 from sossisse.core import exceptions
 from sossisse.instruments import default
 from sossisse.general import plots
+
+import pastasoss
 
 # =============================================================================
 # Define variables
@@ -106,6 +111,91 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             flat[flat >= 1.5 * np.nanmedian(flat)] = np.nan
             # return the flat field
             return flat, False
+        
+    def optimize_trace_mask(self, log: bool = True):
+        """
+        Optimize the trace position and save a new pos mask file
+
+        Use PASTASOSS to optimize the trace pos file for a given observation
+        sequence.
+
+        Get trace_order1, trace_order2, the trace positions dictionary
+        (x, y, wavelength) for both orders using the PWCPOS angle
+
+        :return: None
+        """
+        # set function name
+        func_name = f'{__NAME__}.{self.name}.optimize_trace_mask()'
+        # -------------------------------------------------------------------------
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        # print what we are doing
+        msg = 'Using PASTASOSS to get pixel-to-wavelength calibration'
+        misc.printc(msg, 'info')
+        # ---------------------------------------------------------------------
+        # check if file already exists
+        objname = self.params['INPUTS.OBJECTNAME']
+        filename = self.params['GENERAL.POS_FILE'].replace('.fits', 
+                                                           f'_{objname}.fits')
+        if use_temp:
+            if os.path.exists(filename):
+                misc.printc('\t{0} already exists'.format(filename), 'info')
+                self.params['GENERAL.POS_FILE'] = filename
+                return
+        # load one of the raw files
+        # the PWCPOS angle is the same for the whole sequence
+        hdr = io.load_header(self.params['GENERAL.FILES'][0], ext=0)  
+        # -------------------------------------------------------------------------
+        # load the PWCPOS values
+        pwcpos = hdr['PWCPOS']
+        # use pastasoss for trace positions for both orders
+        trace_order1 = pastasoss.get_soss_traces(pwcpos=pwcpos, 
+                                                 order='1', 
+                                                 interp=True) 
+        trace_order2 = pastasoss.get_soss_traces(pwcpos=pwcpos,
+                                                 order='2', 
+                                                 interp=True)
+        # order 1
+        x1, y1, wave1 = trace_order1.x, trace_order1.y, trace_order1.wavelength
+        s = np.argsort(wave1)
+        x1, y1, wave1 = x1[s], y1[s], wave1[s]
+        # order 2
+        x2, y2, wave2 = trace_order2.x, trace_order2.y, trace_order2.wavelength
+        s = np.argsort(wave2)
+        x2, y2, wave2 = x2[s], y2[s], wave2[s]
+        # -------------------------------------------------------------------------
+        # load reference POS file
+        hdul = fits.open(self.params['GENERAL.POS_FILE'])
+        # reuse the same hdul info
+        new_hdul = hdul.copy()
+        # -------------------------------------------------------------------------
+        # update pos and interpolate throughput
+        # order 1
+        spl_tp = ius(new_hdul[1].data['WAVELENGTH'], 
+                     new_hdul[1].data['THROUGHPUT'], ext=1, k=1)
+        new_hdul[1].data = new_hdul[1].data[:len(wave1)]
+        new_hdul[1].data['WAVELENGTH'] = wave1
+        new_hdul[1].data['X'] = x1
+        new_hdul[1].data['Y'] = y1
+        new_hdul[1].data['THROUGHPUT'] = spl_tp(wave1)
+        # order 2
+        spl_tp = ius(new_hdul[2].data['WAVELENGTH'], 
+                     new_hdul[2].data['THROUGHPUT'], ext=1, k=1)
+        new_hdul[2].data = new_hdul[2].data[:len(wave2)]
+        new_hdul[2].data['WAVELENGTH'] = wave2
+        new_hdul[2].data['X'] = x2
+        new_hdul[2].data['Y'] = y2
+        new_hdul[2].data['THROUGHPUT'] = spl_tp(wave2)
+        # -------------------------------------------------------------------------
+        # save to new file
+        if allow_temp:
+            misc.printc('\tWriting: {0}'.format(filename), 'info')
+            new_hdul.writeto(filename, overwrite=True)
+        # update the POS file
+        self.params['GENERAL.POS_FILE'] = filename
+        return 
+
 
     def get_trace_positions(self, log: bool = True) -> np.ndarray:
         """

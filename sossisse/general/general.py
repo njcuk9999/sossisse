@@ -106,9 +106,9 @@ def linear_recon(inst: Instrument) -> Instrument:
     cube = inst.remove_cosmic_rays(cube)
 
     # =========================================================================
-    # PastaSOSS
+    # optimize trace position
     # =========================================================================
-    # TODO: pastasoss here
+    inst.optimize_trace_mask()
 
     # =========================================================================
     # get the trace map
