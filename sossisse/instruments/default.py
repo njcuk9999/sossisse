@@ -642,15 +642,27 @@ class Instrument:
     # TODO: implement with other functions when first reading the raw files?
     def get_int_times(self) -> np.ndarray:
         """
-        Get the integration times (BJD - 240000)
+        Get the integration times (BJD: Barycentric Julian Day)
         :return: np.ndarray, the integration times
         """
         int_times = np.array([])
         for ifile, filename in enumerate(self.params['GENERAL.FILES']):
             # get the raw files
             tmp_data = self.load_data(filename, extname='INT_TIMES')
-            # push to int_times
-            int_times = np.append(int_times, tmp_data['int_mid_BJD_TDB'])
+            # TODO: Known jwst pipeline bug where MJD = BJD
+            mjd_times = tmp_data['int_mid_MJD_UTC']
+            bjd_times = tmp_data['int_mid_BJD_TDB']
+            # conditions to check whether bjd is really bjd (within 1 hour)
+            if np.abs((mjd_times[0] - bjd_times[0])) < (1/24):
+                emsg = (f'BJD is the same as MJD times.\n'+
+                        f'Adding 2400000.5 to the BJD times (seg{ifile+1}: '+
+                        f'{bjd_times})')
+                misc.printc(emsg, 'warning')
+                # push to int_times
+                int_times = np.append(int_times, bjd_times + 2400000.5)
+            else:
+                # push to int_times
+                int_times = np.append(int_times, bjd_times)
             # make sure tmp data is deleted
             del tmp_data
         return int_times
