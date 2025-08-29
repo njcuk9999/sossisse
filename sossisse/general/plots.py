@@ -923,6 +923,36 @@ def plot_transit(inst: Any, table: Table):
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'transit')
 
+def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
+    # set function name
+    func_name = f'{__NAME__}.plot_spectral_timeseries()'
+    # get object name and suffix
+    objname = inst.params['INPUTS.OBJECTNAME']
+    suffix = inst.params['INPUTS.SUFFIX']
+    # set up the plot
+    fig, frame = plt.subplots(figsize=(10, 5))
+    # plot the spectral time series
+    vmin = np.nanpercentile(spec2, 2.5)
+    vmax= np.nanpercentile(spec2, 97.5)
+    frame.imshow(spec2, origin='lower', cmap='inferno', vmin=vmin, vmax=vmax,
+                    aspect='auto', interpolation='none')
+    frame.axhline(inst.params['WLC.INPUTS.TRANSIT_INTS'][0][0],
+                    linestyle='--', color='k', zorder=4)
+    frame.axhline(inst.params['WLC.INPUTS.TRANSIT_INTS'][0][-1],
+                    linestyle='--', color='k', zorder=4)
+    frame.set_xlabel('x pixel')
+    frame.set_ylabel('Integration number')
+    # plot colorbar
+    plt.colorbar(frame.images[0], ax=frame, orientation='vertical',
+                 label='Rel. flux')
+    # construct title
+    title = f'{objname} -- {suffix} spectral time series order {trace_order}'
+    frame.set(title=title)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, f'spectral_timeseries_ord{trace_order}')
 
 def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
              trace_order: int):

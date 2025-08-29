@@ -236,7 +236,7 @@ def linear_recon(inst: Instrument) -> Instrument:
 
 def spectral_extraction(inst: Instrument) -> Instrument:
     """
-    White light curve functionality
+    Spectral extraction functionality
 
     :param inst: Instrument, the instrument object
     :return:
@@ -291,6 +291,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
         amp_image = amp_image.reshape(spec.shape)
         # add this gray component onto the spectrum
         spec2 = spec + amp_image
+        # ---------------------------------------------------------------------
+        # plot the spec2 data
+        plots.plot_spectral_timeseries(inst, spec2, trace_order)
         # ---------------------------------------------------------------------
         # # remove the out-of-transit trend on the photometric time series
         # if inst.params['SPEC_EXT.REMOVE_TREND']:
