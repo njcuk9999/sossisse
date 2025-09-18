@@ -57,7 +57,7 @@ class SossisseFileException(SossisseException):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseConstantException: {0}'.format(self.message)
+        return 'SossisseFileException: {0}'.format(self.message)
 
 
 class SossisseIOException(SossisseException):

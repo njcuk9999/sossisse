@@ -92,7 +92,7 @@ CDict.add('SID', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Set the SOSSISSE ID (SID) for using the same '
                       'directory as before if left as None the code '
-                      'will work out whether this yaml is found before '
+                      '\nwill work out whether this yaml is found before '
                       'or whether we need to create a new SID')
 # -----------------------------------------------------------------------------
 # Log level (DEBUG, INFO, WARNING, ERROR, NONE)
@@ -162,10 +162,14 @@ CDict.add_group(cgroup, description='Definition of general inputs',
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
 # Raw files
+fdesc = ('List of files to be processed in form: '
+         '\nFILES:\n - file1\n - file2\n - file3'
+         '\n\nBy default these should be placed in '
+         '<SOSSIOPATH>/{OBJECTNAME>/rawdata/'
+         '\n or whatever is set in <PATHS.RAW> (if defined)')
 CDict.add('FILES', value=None, dtype=list, dtypei=str, not_none=False,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='List of files to be processed in form: '
-                      '\nFILES:\n - file1\n - file2\n - file3')
+          description=fdesc)
 # -----------------------------------------------------------------------------
 # background file --> leave as None if the is no background available for
 #                     the mode - if empty DO_BACKGROUND is set to False
@@ -173,8 +177,8 @@ CDict.add('FILES', value=None, dtype=list, dtypei=str, not_none=False,
 CDict.add('BKGFILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Background file, leave as None if there is no '
-                      'background available for the mode, if empty '
-                      'DO_BACKGROUND is set to False regardless of '
+                      'background available for the mode, '
+                      '\n if empty DO_BACKGROUND is set to False regardless of '
                       'its value')
 # -----------------------------------------------------------------------------
 # do background correction - must have BKGFILE defined to do this
@@ -212,14 +216,14 @@ CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
 CDict.add('ALLOW_TEMPORARY', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Allow saving of temporary files to speed the process if '
-                      'you run the code more than once')
+                      '\nyou run the code more than once')
 # -----------------------------------------------------------------------------
 # Use temporary files (False we overwrite the files for a fresh start even
 #   if they exist on disk)
 CDict.add('USE_TEMPORARY', value=False, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Use temporary files (False we overwrite the files '
-                      'for a fresh start even if they exist on disk)')
+                      '\nfor a fresh start even if they exist on disk)')
 # -----------------------------------------------------------------------------
 # Save results at the end
 CDict.add('SAVE_RESULTS', value=True, dtype=bool,

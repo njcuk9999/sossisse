@@ -208,6 +208,42 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
     return np.array(data)
 
 
+def load_header(filename: str, ext: int = None, extname: str = None,
+              hdufix: bool = False):
+    """
+    Load the header from a file
+
+    :param filename: str, the filename to load
+    :param ext: int, the extension number to load
+    :param extname: str, the extension name to load
+
+    :return: hdr, the loaded header
+    """
+    # try to get header from filename
+    try:
+        if hdufix:
+            with fits.open(filename) as hdul:
+                # try to fix the hdul
+                hdul.verify('fix')
+                if ext is not None:
+                    return np.array(hdul[ext].header)
+                elif extname is not None:
+                    return np.array(hdul[extname].header)
+                else:
+                    hdr = fits.getheader(filename, ext=ext, extname=extname)
+        else:
+            hdr = fits.getheader(filename, ext=ext, extname=extname)
+    except Exception as _:
+        try:
+            load_fits(filename, ext, extname, hdufix=True)
+        except Exception as e:
+            emsg = 'Error loading header from file: {0}\n\t{1}: {2}'
+            eargs = [filename, type(e), str(e)]
+            raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # return header
+    return hdr
+
+
 def load_table(filename: str, fmt: Union[int, str] = None,
                hdu: Union[int, str] = None):
     """
