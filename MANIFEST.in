@@ -1,0 +1,4 @@
+include sossisse/resources/*
+include */README.md
+include */*/README.md
+include sossisse/info.yaml
