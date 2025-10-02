@@ -10,7 +10,7 @@ Created on 2024-08-13 at 11:23
 @author: cook
 """
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
@@ -424,6 +424,52 @@ def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray,
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'masking_order0')
 
+
+def plot_trace_mask(inst: Any, trace_map: np.ndarray,
+                    images: Optional[List[np.ndarray]] = None,
+                    labels: Optional[List[str]] = None):
+    # set function name
+    func_name = f'{__NAME__}.plot_trace_mask()'
+    # deal with no image or labels and set up figure
+    if images is None or labels is None:
+        _images, _labels = [None], [None]
+        fig, frame = plt.subplots(nrows=1, ncols=1, figsize=(12, 20))
+        frames = [frame]
+    else:
+        _images, _labels = images, labels
+        fig, frames = plt.subplots(nrows=len(images), ncols=1, figsize=(12, 20))
+    # -------------------------------------------------------------------------
+    ntexts = dict()
+    # loop around images
+    for it, _image in enumerate(_images):
+        # plot the background image
+        if _image is not None:
+            # get the image normalization
+            norm, ntext = plot_normalization(_image, interval='minmax',
+                                             stretch='linear', vlims=[5, 95],
+                                             vtype='percentile')
+            # add ntext to ntexts
+            ntexts[_labels[it]] = ntext
+            # plot the image
+            frames[it].imshow(_image, aspect='auto', origin='lower',
+                              norm=norm, interpolation='none')
+            frames[it].set(title=_labels[it])
+
+        # plot the trace map on top
+        frames[it].contourf(trace_map, levels=[0.5, 1.5], colors='none',
+                            hatches=['////'], alpha=0)
+        frames[it].contour(trace_map, levels=[0.5], colors='orange',
+                           linewidths=2)
+    # -------------------------------------------------------------------------
+    # deal with ntext
+    ntext = ''
+    for key in ntexts:
+        ntext += f'\n{key}: {ntexts[key]} '
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'masking_order0')
 
 def trace_correction_sample(inst: Any, iframe: int,
                             cube: np.ndarray, recon: np.ndarray,

@@ -84,10 +84,11 @@ class Instrument:
         self._variables['TEMP_FF_CUBE'] = None
         self._variables['TEMP_FF_ERR'] = None
         self._variables['TEMP_FF_DQ'] = None
-        self._variables['TEMP_INI_CUBE_BKGRND1'] = None
-        self._variables['TEMP_INI_ERR_BKGRND1'] = None
-        self._variables['TEMP_INI_CUBE_BKGRND2'] = None
-        self._variables['TEMP_INI_ERR_BKGRND2'] = None
+        self._variables['TEMP_CUBE_POST_COSMICS'] = None
+        self._variables['TEMP_INI_CUBE_BKGRND'] = None
+        self._variables['TEMP_INI_ERR_BKGRND'] = None
+        self._variables['TEMP_INI_CUBE_LOWPASS'] = None
+        self._variables['TEMP_INI_ERR_LOWPASS'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
         self._variables['TEMP_CLEAN_NAN_ERR'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
@@ -142,10 +143,11 @@ class Instrument:
         self.vsources['TEMP_FF_CUBE'] = define_func
         self.vsources['TEMP_FF_ERR'] = define_func
         self.vsources['TEMP_FF_DQ'] = define_func
-        self.vsources['TEMP_INI_CUBE_BKGRND1'] = define_func
-        self.vsources['TEMP_INI_ERR_BKGRND1'] = define_func
-        self.vsources['TEMP_INI_CUBE_BKGRND2'] = define_func
-        self.vsources['TEMP_INI_ERR_BKGRND2'] = define_func
+        self.vsources['TEMP_CUBE_POST_COSMICS'] = define_func
+        self.vsources['TEMP_INI_CUBE_BKGRND'] = define_func
+        self.vsources['TEMP_INI_ERR_BKGRND'] = define_func
+        self.vsources['TEMP_INI_CUBE_LOWPASS'] = define_func
+        self.vsources['TEMP_INI_ERR_LOWPASS'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
         self.vsources['TEMP_CLEAN_NAN_ERR'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
@@ -388,13 +390,6 @@ class Instrument:
         meta_data['RMVTREND'] = (spec_ext_params['REMOVE_TREND'],
                                  'Trend was removed from out-of-transit')
         # ---------------------------------------------------------------------
-        # deal with out of transit polynomial level correction
-        # ---------------------------------------------------------------------
-        if spec_ext_params['REMOVE_TREND']:
-            transit_base_polyord = wlc_gen_params['TRANSIT_BASELINE_POLYORD']
-        else:
-            transit_base_polyord = 'None'
-        # ---------------------------------------------------------------------
         # get photo weighted mean and energy weighted mean
         # ---------------------------------------------------------------------
         phot_wmn = self._variables['PHOTO_WEIGHTED_MEAN']
@@ -461,17 +456,20 @@ class Instrument:
         temp_ff_dq = 'temporary_ff_dq.fits'
         temp_ff_dq = os.path.join(temppath, temp_ff_dq)
         # ---------------------------------------------------------------------
+        temp_cube_post_cosmics = 'temporary_cube_post_cosmics.fits'
+        temp_cube_post_cosmics = os.path.join(temppath, temp_cube_post_cosmics)
+        # ---------------------------------------------------------------------
         tmp_ini_cube_bkgrnd = 'temporary_initial_cube_bkgrnd1.fits'
-        tmp_ini_cube_bkgrnd1 = os.path.join(temppath, tmp_ini_cube_bkgrnd)
+        tmp_ini_cube_bkgrnd = os.path.join(temppath, tmp_ini_cube_bkgrnd)
         # ---------------------------------------------------------------------
-        tmp_ini_err_bkgrnd1 = 'temporary_initial_err_bkgrnd1.fits'
-        tmp_ini_err_bkgrnd1 = os.path.join(temppath, tmp_ini_err_bkgrnd1)
+        tmp_ini_err_bkgrnd = 'temporary_initial_err_bkgrnd1.fits'
+        tmp_ini_err_bkgrnd = os.path.join(temppath, tmp_ini_err_bkgrnd)
         # ---------------------------------------------------------------------
-        tmp_ini_cube_bkgrnd2 = 'temporary_initial_cube_bkgrnd2.fits'
-        tmp_ini_cube_bkgrnd2 = os.path.join(temppath, tmp_ini_cube_bkgrnd2)
+        tmp_ini_cube_lowpass = 'temporary_initial_cube_lowpass.fits'
+        tmp_ini_cube_lowpass = os.path.join(temppath, tmp_ini_cube_lowpass)
         # ---------------------------------------------------------------------
-        tmp_ini_err_bkgrnd2 = 'temporary_initial_err_bkgrnd2.fits'
-        tmp_ini_err_bkgrnd2 = os.path.join(temppath, tmp_ini_err_bkgrnd2)
+        tmp_ini_err_lowpass = 'temporary_initial_err_lowpass.fits'
+        tmp_ini_err_lowpass = os.path.join(temppath, tmp_ini_err_lowpass)
         # ---------------------------------------------------------------------
         errfile = os.path.join(temppath, 'errormap.fits')
         # ---------------------------------------------------------------------
@@ -518,10 +516,12 @@ class Instrument:
         self.set_variable('TEMP_FF_CUBE', temp_ff_cube)
         self.set_variable('TEMP_FF_ERR', temp_ff_err)
         self.set_variable('TEMP_FF_DQ', temp_ff_dq)
-        self.set_variable('TEMP_INI_CUBE_BKGRND1', tmp_ini_cube_bkgrnd1)
-        self.set_variable('TEMP_INI_ERR_BKGRND1', tmp_ini_err_bkgrnd1)
-        self.set_variable('TEMP_INI_CUBE_BKGRND2', tmp_ini_cube_bkgrnd2)
-        self.set_variable('TEMP_INI_ERR_BKGRND2', tmp_ini_err_bkgrnd2)
+        self.set_variable('TEMP_CUBE_POST_COSMICS', temp_cube_post_cosmics)
+        self.set_variable('TEMP_INI_CUBE_BKGRND', tmp_ini_cube_bkgrnd)
+        self.set_variable('TEMP_INI_ERR_BKGRND', tmp_ini_err_bkgrnd)
+        self.set_variable('TEMP_INI_CUBE_LOWPASS', tmp_ini_cube_lowpass)
+        self.set_variable('TEMP_INI_ERR_LOWPASS', tmp_ini_err_lowpass)
+        # ---------------------------------------------------------------------
         # WLC files
         self.set_variable('WLC_ERR_FILE', errfile)
         self.set_variable('WLC_RES_FILE', resfile)
@@ -989,6 +989,8 @@ class Instrument:
 
         :return: np.ndarray, the cube with cosmic rays removed
         """
+        # get function name
+        func_name = f'{__NAME__}.remove_cosmic_rays()'
         # see if user wants to remove cosmics
         if not self.params['WLC.GENERAL.REMOVE_COSMIC_RAYS']:      
             # print message that we are not removing cosmic rays
@@ -997,6 +999,24 @@ class Instrument:
             misc.printc(msg, 'info')
             # return original cube
             return cube
+
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        # construct temporary file names
+        temp_postcosic = self.get_variable('TEMP_CUBE_POST_COSMICS', func_name)
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp and use_temp:
+            if os.path.exists(temp_postcosic):
+                # print that we are reading files
+                misc.printc('Reading temporary file: {0}'.format(temp_postcosic),
+                            'info')
+                # load the data
+                cube = self.load_data(temp_postcosic)
+                # return
+                return cube
+        # ---------------------------------------------------------------------
         # print progress
         msg = 'We remove cosmisc rays'
         misc.printc(msg, 'info')
@@ -1029,14 +1049,24 @@ class Instrument:
             heat_map[cmask] += 1
             # set those above the threshold to nan
             cube[iframe, cmask] = np.nan
-
-        # TODO: save cube after this step
-
-        # TODO: plot fractions of good pixels (per pixel) as map
+        # ---------------------------------------------------------------------
+        # plot fractions of good pixels (per pixel) as map
         plots.plot_heatmap(self, heat_map / cube.shape[0], cube[0], 
                            'cosmic rays rate', 'cosmic_rays_corr', 
                            'Cosmic rays per frame')
-
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp:
+            # print progress
+            msg = ('We write intermediate files, they will be read to speed '
+                   'things next time\n\ttemp cube: {0}')
+            margs = [temp_postcosic]
+            misc.printc(msg.format(*margs), 'info')
+            # force cubes to be float
+            cube = cube.astype(float)
+            # save the data
+            fits.writeto(temp_postcosic, cube, overwrite=True)
+        # ---------------------------------------------------------------------
         # return the cube
         return cube
 
@@ -1104,8 +1134,8 @@ class Instrument:
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND1', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND1', func_name)
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -1222,7 +1252,22 @@ class Instrument:
         for frame in tqdm(range(cube.shape[0])):
             cube[frame] -= background
         # ---------------------------------------------------------------------
+        # plot the background correction
         plots.plot_background(self, frame0, cube[0])
+        # ---------------------------------------------------------------------
+        # if we are allowed temporary files and are using them then load them
+        if allow_temp:
+            # print progress
+            msg = ('We write intermediate files, they will be read to speed '
+                   'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
+            margs = [temp_ini_cube, temp_ini_err]
+            misc.printc(msg.format(*margs), 'info')
+            # force cubes to be float
+            cube = cube.astype(float)
+            err = err.astype(float)
+            # save the data
+            fits.writeto(temp_ini_cube, cube, overwrite=True)
+            fits.writeto(temp_ini_err, err, overwrite=True)
         # ---------------------------------------------------------------------
         return cube, err
 
@@ -1234,8 +1279,8 @@ class Instrument:
         allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
         use_temp = self.params['GENERAL.USE_TEMPORARY']
         # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND2', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND2', func_name)
+        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_LOWPASS', func_name)
+        temp_ini_err = self.get_variable('TEMP_INI_ERR_LOWPASS', func_name)
         # store the uncorrected first frame
         frame0 = np.array(cube[0])
         # ---------------------------------------------------------------------
@@ -1593,7 +1638,20 @@ class Instrument:
         raise NotImplementedError('get_trace_pos() must be implemented in '
                                   'child Instrument class')
 
-    def get_trace_mask(self, log: bool = True) -> np.ndarray:
+    def get_trace_mask(self, log: bool = True, no_plot: bool = True,
+                       images: Optional[List[np.ndarray]] = None,
+                       labels: Optional[List[str]] = None) -> np.ndarray:
+        """
+        Get the trace mask (True where the trace is, False otherwise)
+        This is a combined map of all orders.
+
+        :param log: bool, if True print progress
+        :param no_plot: bool, if True do not plot the trace mask
+        :param images: list of np.ndarray, images to overplot the trace mask on
+                       if not given does not plot background image(s)
+        :param labels: list of strs, labels for the images
+        :return:
+        """
         # set function name
         func_name = f'{__NAME__}.get_trace_mask()'
         # print progress
@@ -1629,7 +1687,10 @@ class Instrument:
             # mask any nan values in the wavegrid
             trace_mask[:, ~np.isfinite(wavegrid)] = False
         # ---------------------------------------------------------------------
-        # TODO: plot fill_between of cube[0] and cube[-1]
+        # plot the trace mask
+        if not no_plot:
+            plots.plot_trace_mask(self, trace_mask, images, labels)
+        # ---------------------------------------------------------------------
         # return the trace_mask
         return trace_mask
 
