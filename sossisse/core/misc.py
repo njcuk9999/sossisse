@@ -16,6 +16,8 @@ import string
 from datetime import datetime
 import textwrap
 import time
+import getpass
+import pwd
 from typing import Any, List, Tuple
 
 import numpy as np
@@ -65,6 +67,16 @@ def color(message, colorname):
     return colors[colorname.upper()] + message + colors['ENDC']
 
 
+def safe_getuser():
+    try:
+        return getpass.getuser()
+    except Exception:
+        try:
+            return pwd.getpwuid(os.getuid()).pw_name
+        except Exception:
+            return os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+
+
 def sossart():
     """
     Print the SOSS ART logo
@@ -77,8 +89,10 @@ def sossart():
         return
     # set the flag
     SOSSART_USED = True
+    # get username
+    username = safe_getuser()
     # special logo for Etienne only
-    if os.getlogin() in ['eartigau', 'spirou']:
+    if username in ['eartigau', 'spirou']:
         # Etienne needs his sausage picture
         v = """                                                                                    
                                                         ,.  @@@@ ,@@.               

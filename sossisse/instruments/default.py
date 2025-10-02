@@ -2653,7 +2653,8 @@ class Instrument:
         # return the updated trace map
         return self.get_trace_mask()
 
-    def get_gradients(self, med: np.ndarray) -> List[np.ndarray]:
+    def get_gradients(self, med: np.ndarray,
+                      no_plot: bool = False) -> List[np.ndarray]:
         """
         Get the gradients of the median image
 
@@ -2697,13 +2698,14 @@ class Instrument:
         # make sure rotation and ddy are floats
         rotxy, ddy = np.array(rotxy, dtype=float), np.array(ddy, dtype=float)
         # ---------------------------------------------------------------------
-        plots.gradient_plot(self, med2, dx, dy, rotxy, ddy)
+        if not no_plot:
+            plots.gradient_plot(self, med2, dx, dy, rotxy, ddy)
         # ---------------------------------------------------------------------
         # return these values
         return [dx, dy, rotxy, ddy, med2]
 
-    def get_linear_recon_mask(self, med: np.ndarray, trace_mask: np.ndarray
-                              ) -> List[np.ndarray]:
+    def get_linear_recon_mask(self, med: np.ndarray, trace_mask: np.ndarray,
+                              no_plot: bool = False) -> List[np.ndarray]:
         """
         Get the mask trace positions
 
@@ -2737,7 +2739,8 @@ class Instrument:
         # deal with masking order zero
         if wlc_gen_params['MASK_ORDER_ZERO']:
             # adding the masking of order 0
-            mo0out = self.get_mask_order0(mask_trace_pos, trace_mask)
+            mo0out = self.get_mask_order0(mask_trace_pos, trace_mask,
+                                          no_plot=no_plot)
             # get return from get_mask_order0
             mask_order0, x_order0, y_order0 = mo0out
             # set the values in the mask where order zero to 0
@@ -2745,7 +2748,8 @@ class Instrument:
         # return the mask trace positions
         return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
 
-    def get_mask_order0(self, mask_trace_pos: np.ndarray, trace_mask: np.ndarray
+    def get_mask_order0(self, mask_trace_pos: np.ndarray,
+                        trace_mask: np.ndarray, no_plot: bool = False
                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the mask for order 0 - this is a dummy function that returns
@@ -2758,7 +2762,7 @@ class Instrument:
                         positions, 3. the y order 0 positions
         """
         # default option does not use trace_mask
-        _ = self, trace_mask
+        _ = self, trace_mask, no_plot
         # default option is not to mask order 0 (overridden by SOSS)
         empty_x = np.array([np.nan])
         empty_y = np.array([np.nan])
@@ -3387,7 +3391,7 @@ class Instrument:
         med_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         med = io.load_fits(med_file)
         # get clean median trace for spectrum
-        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med)
+        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med, no_plot=True)
         # load the residuals
         res_file = self.get_variable('WLC_RES_FILE', func_name)
         residual = io.load_fits(res_file)
@@ -3465,10 +3469,13 @@ class Instrument:
         # deal with masking order zero
         if self.params['WLC.GENERAL.MASK_ORDER_ZERO']:
             # load the mask trace position
-            mask_trace_pos, _, _, _, _ = self.get_linear_recon_mask(med, trace_mask)
+            glrm_out = self.get_linear_recon_mask(med, trace_mask,
+                                                  no_plot=True)
+            mask_trace_pos = glrm_out[0]
             # need to re-get the mask order zero
             mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
-                                                           trace_mask)
+                                                           trace_mask,
+                                                           no_plot=True)
             # loop around frames and mask out order zero (with NaNs)
             for iframe in tqdm(range(nbframes)):
                 # set the order zero values to nan

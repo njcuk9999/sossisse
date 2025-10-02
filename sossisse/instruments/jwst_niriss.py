@@ -281,7 +281,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         else:
             return wavevector
 
-    def get_mask_order0(self, mask_trace_pos: np.ndarray, trace_mask: np.ndarray
+    def get_mask_order0(self, mask_trace_pos: np.ndarray,
+                        trace_mask: np.ndarray, no_plot: bool = False
                         ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Get the mask for order 0 - this is a dummy function that returns
@@ -389,8 +390,9 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         ypos, xpos = np.where(bdilate)
         # ---------------------------------------------------------------------
         # plot this relation
-        plots.mask_order0_plot(self, diff0, diff1, diff2, diff3, diff4, 
-                               all_labels, sig_mask)
+        if not no_plot:
+            plots.mask_order0_plot(self, diff0, diff1, diff2, diff3, diff4,
+                                   all_labels, sig_mask)
         # ---------------------------------------------------------------------
         # return the mask trace positions, x positions and y positions
         return sig_mask, xpos, ypos
