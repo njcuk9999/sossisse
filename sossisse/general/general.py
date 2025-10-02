@@ -116,12 +116,16 @@ def linear_recon(inst: Instrument) -> Instrument:
     trace_mask = inst.get_trace_mask()
 
     # =========================================================================
+    # Create the median stack
+    # =========================================================================
+    cube, med, amps, transit_invsout = inst.create_median_stack(cube)
+
+    # =========================================================================
     # Differential 1/f correction
     # =========================================================================
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    out_c1f = inst.clean_1f(cube, err, trace_mask)
-    cube, med, transit_invsout = out_c1f
+    cube = inst.clean_residual_1f(cube, err, med, amps, trace_mask)
 
     # =========================================================================
     # recenter the trace position

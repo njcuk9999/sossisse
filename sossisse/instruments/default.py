@@ -91,6 +91,7 @@ class Instrument:
         self._variables['TEMP_CLEAN_NAN'] = None
         self._variables['TEMP_CLEAN_NAN_ERR'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
+        self._variables['TEMP_AMP_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
         self._variables['TEMP_PCA_FILE'] = None
         self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
@@ -148,6 +149,7 @@ class Instrument:
         self.vsources['TEMP_CLEAN_NAN'] = define_func
         self.vsources['TEMP_CLEAN_NAN_ERR'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
+        self.vsources['TEMP_AMP_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
         self.vsources['TEMP_PCA_FILE'] = define_func
         self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = define_func
@@ -422,6 +424,10 @@ class Instrument:
         median_image_file = 'median.fits'
         median_image_file = os.path.join(temppath, median_image_file)
         # ---------------------------------------------------------------------
+        # amplitude file
+        tmp_amp_file = 'temporary_amp.fits'
+        tmp_amp_file = os.path.join(temppath, tmp_amp_file)
+        # ---------------------------------------------------------------------
         clean_cube_file = 'cleaned_cube.fits'
         clean_cube_file = os.path.join(temppath, clean_cube_file)
         # ---------------------------------------------------------------------
@@ -500,6 +506,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
+        self.set_variable('TEMP_AMP_FILE', tmp_amp_file)
         self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
         self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
@@ -1565,6 +1572,16 @@ class Instrument:
 
         return images   
 
+    def optimize_trace_mask(self, log: bool = True):
+        """
+        Optimize the trace position and save a new pos mask file
+
+        :return: None
+        """
+        _ = self, log
+        raise NotImplementedError('optimize_trace_mask() must be implemented in '
+                                  'child Instrument class')
+
     def get_trace_positions(self, log: bool = True):
         """
         Get the trace positions in a combined map
@@ -1794,9 +1811,7 @@ class Instrument:
         else:
             return wavevector
 
-    def clean_1f(self, cube: np.ndarray,
-                 err: np.ndarray,
-                 trace_mask: np.ndarray) -> List[Union[np.ndarray]]:
+    def create_median_stack(self, cube: np.ndarray) -> List[Union[np.ndarray]]:
         """
         Clean the 1/f noise from the cube
 
@@ -1822,6 +1837,7 @@ class Instrument:
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         tmp_transit_invsout = self.get_variable('TEMP_TRANSIT_IN_VS_OUT',
                                                 func_name)
+        tmp_amps = self.get_variable('TEMP_AMP_FILE', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
@@ -1847,8 +1863,11 @@ class Instrument:
                 misc.printc('\tReading: {0}'.format(tmp_transit_invsout),
                             'info')
                 transit_invsout = self.load_data(tmp_transit_invsout)
+                # load the tmp file
+                misc.printc('\tReading: {0}'.format(tmp_amps), 'info')
+                amps = self.load_data(tmp_amps)
                 # return these files
-                return_list = [clean_cube, median_image, transit_invsout]
+                return_list = [clean_cube, median_image, amps, transit_invsout]
                 return return_list
         # ---------------------------------------------------------------------
         # create a copy of the cube, we will normalize the amplitude of each
@@ -1901,13 +1920,45 @@ class Instrument:
         # get the diff in vs out
         transit_invsout = med_in - med_out
         # ---------------------------------------------------------------------
+        # write files to disk
+        # ---------------------------------------------------------------------
+        if allow_temp:
+            # write the median image
+            misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
+            fits.writeto(median_image_file, med, overwrite=True)
+            # write the clean cube
+            misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
+            fits.writeto(clean_cube_file, cube, overwrite=True)
+            # write the before after clean 1f
+            misc.printc('\tWriting: {0}'.format(tmp_transit_invsout),
+                        'info')
+            fits.writeto(tmp_transit_invsout, transit_invsout,
+                         overwrite=True)
+        # ---------------------------------------------------------------------
+        return [cube, med, amps, transit_invsout]
+
+    def clean_residual_1f(self, cube: np.ndarray, err: np.ndarray,
+                          med: np.ndarray, amps: np.ndarray,
+                          trace_mask: np.ndarray) -> np.ndarray:
+        # define the function name
+        func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # ---------------------------------------------------------------------
+        # save these for later
+        median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
+        # ---------------------------------------------------------------------
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
+        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        # get the number of frames
+        nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        # ---------------------------------------------------------------------
         # Dealing with user turning this off
         if not self.params['WLC.INPUTS.APPLY_1F_CORR']:
             # print message that we are not removing cosmic rays
             msg = ('WLC.INPUTS.APPLY_1F_CORR=False. '
                    'Not applying 1/f correction')
             misc.printc(msg, 'info')
-            return [cube, med, transit_invsout]
+            return cube
         # ---------------------------------------------------------------------
         # print progress
         misc.printc('\nCalculating residuals', 'info')
@@ -1927,7 +1978,11 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Subtract of the 1/f noise
         # ---------------------------------------------------------------------
-        cube = self.subtract_1f(residuals, cube, err, trace_mask)
+        cube1, pvalues = self.subtract_1f(residuals, cube, err, trace_mask)
+        # plot the pvalues
+        plots.plot_subtract_1f_pvalues(self, pvalues)
+        # plot the first frame before and after 1/f correction
+        plots.plot_subtract_1f_comp(self, cube, cube1)
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
@@ -1935,18 +1990,9 @@ class Instrument:
             # write the median image
             misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
             fits.writeto(median_image_file, med, overwrite=True)
-            # write the clean cube
-            misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
-            fits.writeto(clean_cube_file, cube, overwrite=True)
-            # write the before after clean 1f
-            misc.printc('\tWriting: {0}'.format(tmp_transit_invsout),
-                        'info')
-            fits.writeto(tmp_transit_invsout, transit_invsout,
-                         overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
-        return_list = [cube, med, transit_invsout]
-        return return_list
+        return cube1
 
     def process_baseline_ints(self,
                              raw_baseline_ints: Union[None, List[List[int]]]
@@ -2265,7 +2311,7 @@ class Instrument:
 
     def subtract_1f(self, residuals: np.ndarray,
                     cube: np.ndarray, err: np.ndarray,
-                    trace_mask: np.ndarray):
+                    trace_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Do the actual subtraction of the 1/f noise, once we have the residuals
 
@@ -2285,6 +2331,8 @@ class Instrument:
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
+        # storage for fits
+        pvalues = np.zeros((nframes, nbxpix))
         # deal with no poly fit of the 1/f noise
         if degree_1f_corr == 0:
             # get the median noise contribution
@@ -2292,6 +2340,8 @@ class Instrument:
                 noise_1f = np.nanmedian(residuals, axis=1)
             # subtract this off the cube frame-by-frame
             for iframe in tqdm(range(nframes)):
+                # store the noise model as the pvalues
+                pvalues[iframe] = noise_1f[iframe]
                 # we subtract the 1/f noise off each column
                 for col in range(nbxpix):
                     cube[iframe, :, col] -= noise_1f[iframe, col]
@@ -2323,12 +2373,16 @@ class Instrument:
                     try:
                         pfit = np.polyfit(index[valid], v1[valid],
                                           degree_1f_corr, w=1 / err1[valid])
+
+                        pvalue = np.polyval(pfit, index)
                         # subtract the fit from the cube
-                        cube[iframe, :, col] -= np.polyval(pfit, index)
+                        cube[iframe, :, col] -= pvalue
+                        # store the fits
+                        pvalues[iframe, col] = pfit[0]
                     except Exception as _:
                         # if the fit fails we just set the column to NaN
                         cube[iframe, :, col] = np.nan
-        return cube
+        return cube, pvalues
 
     def fit_pca(self, cube2: np.ndarray, err: np.ndarray,
                 med: np.ndarray, trace_mask: np.ndarray
@@ -2517,7 +2571,7 @@ class Instrument:
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # ---------------------------------------------------------------------
         # print what we are doing
-        msg = '\tScan to optimize position of trace'
+        msg = '\tScan to optimize position of trace mask to maximize flux'
         misc.printc(msg, 'info')
         # save the current width (we will reset it later
         width_current = float(wlc_gen_params['TRACE_WIDTH_MASKING'])
@@ -2643,7 +2697,7 @@ class Instrument:
         # make sure rotation and ddy are floats
         rotxy, ddy = np.array(rotxy, dtype=float), np.array(ddy, dtype=float)
         # ---------------------------------------------------------------------
-        plots.gradient_plot(self, dx, dy, rotxy, ddy)
+        plots.gradient_plot(self, med2, dx, dy, rotxy, ddy)
         # ---------------------------------------------------------------------
         # return these values
         return [dx, dy, rotxy, ddy, med2]

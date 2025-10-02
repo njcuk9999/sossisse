@@ -213,7 +213,7 @@ CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
 # -----------------------------------------------------------------------------
 # allow for temporary files to speed the process if you run the code more
 #    than once
-CDict.add('ALLOW_TEMPORARY', value=True, dtype=bool,
+CDict.add('ALLOW_TEMPORARY', value=False, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Allow saving of temporary files to speed the process if '
                       '\nyou run the code more than once')
@@ -799,6 +799,54 @@ CDict.add('FRAME_INTERVAL', value='zscale', dtype=str,
           options=['base', 'zscale', 'minmax'],
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style interval for the frame plot')
+# -----------------------------------------------------------------------------
+# Define the vmin and vmax for the gradient plot
+CDict.add('GRADIENT_VLIM', value=[5, 95],
+            dtype=list, dtypei=float, length=2,
+            source=__NAME__, user=False, active=True, group=cgroup,
+            description='define the vmin and vmax for the gradient plot')
+# Define the type of the vmin and vmax values for the gradient plot
+CDict.add('GRADIENT_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'gradient plot')
+# Define the ds9 style stretch for the gradient plot
+CDict.add('GRADIENT_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the gradient plot')
+# Define the ds9 style interval for the gradient plot
+CDict.add('GRADIENT_INTERVAL', value='zscale', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the gradient plot')
+# -----------------------------------------------------------------------------
+# Define the vmin and vmax for the subtract 1/f comparison plot
+CDict.add('SUB1F_COMP_VLIM', value=[5, 95],
+          dtype=list, dtypei=float, length=2,
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the vmin and vmax for the subtract 1/f '
+                      'comparison plot')
+# Define the type of the vmin and vmax values for the subtract 1/f
+# comparison plot
+CDict.add('SUB1F_COMP_VLIM_TYPE', value='percentile', dtype=str,
+          options=['percentile', 'absolute'],
+            source=__NAME__, user=False, active=True, group=cgroup,
+            description='define the type of the vmin and vmax values for the '
+                        'subtract 1/f comparison plot')
+# Define the ds9 style stretch for the subtract 1/f comparison plot
+CDict.add('SUB1F_COMP_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the subtract 1/f '
+                      'comparison plot')
+# Define the ds9 style interval for the subtract 1/f comparison plot
+CDict.add('SUB1F_COMP_INTERVAL', value='zscale', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the subtract 1/f '
+                      'comparison plot')
 
 # =============================================================================
 # Definition for spectral extraction

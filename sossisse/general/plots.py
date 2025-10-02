@@ -232,7 +232,7 @@ def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
     save_show_plot(inst.params, 'file_temporary_pcas')
 
 
-def gradient_plot(inst: Any, dx: np.ndarray, dy: np.ndarray,
+def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
                   rotxy: np.ndarray, ddy: np.ndarray):
     """
     Plot the gradients
@@ -246,44 +246,144 @@ def gradient_plot(inst: Any, dx: np.ndarray, dy: np.ndarray,
     """
     # set function name
     func_name = f'{__NAME__}.gradient_plot()'
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
+    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.GRADIENT_INTERVAL']
+    stretch = inst.params['WLC.PLOT.GRADIENT_STRETCH']
     # set up figure
-    fig, frames = plt.subplots(nrows=4, ncols=1, sharex='all', sharey='all',
+    fig, frames = plt.subplots(nrows=5, ncols=1, sharex='all', sharey='all',
                                figsize=[12, 12])
     # -------------------------------------------------------------------------
-    # work out the rms of dx
-    rms = np.nanpercentile(dx, [5, 95])
-    rms = rms[1] - rms[0]
+    ntexts = dict()
+    # plot data
+    norm, ntext = plot_normalization(data, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts['data'] = ntext
+    frames[0].imshow(data, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[0].set(title='data (median trace image)')
     # -------------------------------------------------------------------------
     # plot dx
-    frames[0].imshow(dx, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
-                     origin='lower')
-    frames[0].set(title='derivative of median trace w.r.t. x  (dM/dx)')
-    rms = np.nanpercentile(dy, [5, 95])
-    # work out the rms of dy
-    rms = rms[1] - rms[0]
+    norm, ntext = plot_normalization(dx, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts['dx'] = ntext
+    frames[1].imshow(dx, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[1].set(title='derivative of median trace w.r.t. x  (dM/dx)')
     # -------------------------------------------------------------------------
     # plot dy
-    frames[1].imshow(dy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
-                     origin='lower')
-    frames[1].set(title='derivative of median trace w.r.t. y  (dM/dy)')
-    # work out the rms of rotxy
-    rms = np.nanpercentile(rotxy, [5, 95])
-    rms = rms[1] - rms[0]
+    norm, ntext = plot_normalization(dy, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts['dy'] = ntext
+    frames[2].imshow(dy, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[2].set(title='derivative of median trace w.r.t. y  (dM/dy)')
     # -------------------------------------------------------------------------
     # plot rotxy
-    frames[2].imshow(rotxy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
-                     origin='lower')
-    frames[2].set(title=r'derivative of median trace w.r.t. rotation '
+    norm, ntext = plot_normalization(rotxy, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts['rotxy'] = ntext
+    frames[3].imshow(rotxy, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[3].set(title=r'derivative of median trace w.r.t. rotation '
                         r'(dM/d$\theta$)')
     # -------------------------------------------------------------------------
     # plot ddy
-    frames[3].imshow(ddy, aspect='auto', vmin=-2 * rms, vmax=2 * rms,
-                     origin='lower')
-    frames[3].set(title=r'second derivative of median trace w.r.t. y '
+    norm, ntext = plot_normalization(ddy, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts['ddy'] = ntext
+    frames[4].imshow(ddy, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[4].set(title=r'second derivative of median trace w.r.t. y '
                         r'($\partial^{2}M/\partial y^{2}$)')
+    # -------------------------------------------------------------------------
+    # deal with ntext
+    ntext = ''
+    for key in ntexts:
+        ntext += f'\n{key}: {ntexts[key]} '
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
     save_show_plot(inst.params, 'derivatives')
+
+
+def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.plot_subtract_1f_pvalues()'
+    # get the degree for the 1/f polynomial fit
+    degree_1f_corr = inst.params['WLC.GENERAL.DEGREE_1F_CORR']
+
+    if degree_1f_corr == 0:
+        mode = '1/f corr = nanmedian(residuals) degree_1f_corr = 0'
+    else:
+        mode = '1/f corr = fit(residuals) degree_1f_corr = {0}'
+        mode = mode.format(degree_1f_corr)
+
+    # get the image normalization
+    vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
+    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.GRADIENT_INTERVAL']
+    stretch = inst.params['WLC.PLOT.GRADIENT_STRETCH']
+    # get normaliz
+    norm, ntext = plot_normalization(pvalues, interval=interval,
+                                     stretch=stretch, vlims=vlims,
+                                     vtype=vtype)
+    # setup the figure
+    fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[8, 6])
+    # plot the pvalues
+    frames[0].imshow(pvalues, aspect='auto', origin='lower',
+                     norm=norm)
+    # set the title and labels
+    frames[0].set(title='P-values for 1/f noise subtraction',
+               xlabel='Integration number',
+               ylabel='p-value')
+    # plot the average across all columns
+    frames[1].plot(np.arange(pvalues.shape[0]),
+                   np.nanmean(pvalues, axis=1), 'r-')
+    frames[1].set(title='Average p-value across integrations',
+                  xlabel='Integration number',
+                  ylabel='Average p-value')
+    # set the overall title
+    plt.suptitle(mode)
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'subtract_1f_pvalues')
+
+
+def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
+    # set function name
+    func_name = f'{__NAME__}.plot_subtract_1f_comp()'
+    # setup the figure
+    fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
+    # get the image normalization parameters
+    vlims = inst.params['WLC.PLOT.SUB1F_COMP_VLIM']
+    vtype = inst.params['WLC.PLOT.SUB1F_COMP_VLIM_TYPE']
+    interval = inst.params['WLC.PLOT.SUB1F_COMP_INTERVAL']
+    stretch = inst.params['WLC.PLOT.SUB1F_COMP_STRETCH']
+    # choose the frame to plot
+    iframe = 0
+    # use same normalization for both plots
+    norm, ntext = plot_normalization(cube0, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    # plot the cube0
+    frames[0].imshow(cube0[iframe], origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[0].set(title='Integration 0 before 1/f subtraction')
+    # -------------------------------------------------------------------------
+    # plot the cube1
+    frames[1].imshow(cube1[iframe], origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm)
+    frames[1].set(title='Integration 0 after 1/f subtraction')
+    # -------------------------------------------------------------------------
+    # force a tight layout
+    plt.tight_layout()
+    # -------------------------------------------------------------------------
+    # standard save/show plot for SOSSISSE
+    save_show_plot(inst.params, 'subtract_1f_comp')
 
 
 def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray, 

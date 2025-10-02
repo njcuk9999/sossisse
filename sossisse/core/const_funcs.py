@@ -200,6 +200,20 @@ def get_parameters(no_yaml: bool = False,
         # update param file path
         params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
     # -------------------------------------------------------------------------
+    # copy pos file to FITS path
+    if params['GENERAL.POS_FILE'] is not None:
+        posfile = params['GENERAL.POS_FILE']
+        posfile_basename = os.path.basename(posfile)
+        posfile_out = str(os.path.join(params['PATHS.FITS_PATH'],
+                                       posfile_basename))
+        # only copy pos file if it, exists (otherwise we just update the
+        # filename - this is fine as we can create this file sometimes)
+        if os.path.exists(posfile):
+            io.copy_file(posfile, posfile_out)
+        # update pos file path
+        params['GENERAL.POS_FILE'] = os.path.abspath(posfile_out)
+        params['GENERAL'].set_source('POS_FILE', func_name)
+    # -------------------------------------------------------------------------
     # create a copy of the yaml file in the object path
     _ = create_yaml(params, log=False)
     # -------------------------------------------------------------------------
