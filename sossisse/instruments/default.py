@@ -662,8 +662,8 @@ class Instrument:
             # conditions to check whether bjd is really bjd (within 1 hour)
             if np.abs((mjd_times[0] - bjd_times[0])) < (1/24):
                 emsg = (f'BJD is the same as MJD times.\n'+
-                        f'Adding 2400000.5 to the BJD times (seg{ifile+1}: '+
-                        f'{bjd_times})')
+                        f'Adding 2400000.5 to the BJD times '
+                        f'(seg{ifile+1}[0]: {bjd_times[0]}, {bjd_times[-1]})')
                 misc.printc(emsg, 'warning')
                 # push to int_times
                 int_times = np.append(int_times, bjd_times + 2400000.5)
