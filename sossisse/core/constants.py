@@ -712,7 +712,7 @@ cgroup = 'WLC.PLOT'
 # -----------------------------------------------------------------------------
 # define the vmin and vmax values for the background plot 
 #    (depends on BACKGROUND_VLIM_TYPE)
-CDict.add('BACKGROUND_VLIM', value=[1, 10], dtype=list, dtypei=float,
+CDict.add('BACKGROUND_VLIM', value=[1, 70], dtype=list, dtypei=float,
           length=2, source=__NAME__, user=False, active=True, group=cgroup,
           description='define the vmin and vmax values for the '
                       'background plot (depends on BACKGROUND_VLIM_TYPE)')
@@ -728,7 +728,7 @@ CDict.add('BACKGROUND_STRETCH', value='linear', dtype=str,
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style stretch for the background plot')
 # define the ds9 style interval for the background plot
-CDict.add('BACKGROUND_INTERVAL', value='minmax', dtype=str,
+CDict.add('BACKGROUND_INTERVAL', value='zscale', dtype=str,
           options=['base', 'zscale', 'minmax'],
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style interval for the background plot')
@@ -768,7 +768,7 @@ CDict.add('FLAT_VLIM_TYPE', value='percentile', dtype=str,
           description='define the type of the vmin and vmax values for the '
                       'flat plot')
 # define the ds9 style stretch for the flat plot
-CDict.add('FLAT_STRETCH', value='linear', dtype=str,
+CDict.add('FLAT_STRETCH', value='log', dtype=str,
           options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style stretch for the flat plot')

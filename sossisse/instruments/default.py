@@ -2391,9 +2391,10 @@ class Instrument:
         degree_1f_corr = self.params['WLC.GENERAL.DEGREE_1F_CORR']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # storage for fits
-        pvalues = np.zeros((nframes, nbxpix))
+        pvalues = np.zeros((nbypix, nbxpix))
         # deal with no poly fit of the 1/f noise
         if degree_1f_corr == 0:
             # get the median noise contribution
@@ -2401,10 +2402,10 @@ class Instrument:
                 noise_1f = np.nanmedian(residuals, axis=1)
             # subtract this off the cube frame-by-frame
             for iframe in tqdm(range(nframes)):
-                # store the noise model as the pvalues
-                pvalues[iframe] = noise_1f[iframe]
                 # we subtract the 1/f noise off each column
                 for col in range(nbxpix):
+                    # store the noise model as the pvalues
+                    pvalues += noise_1f[iframe, col]
                     cube[iframe, :, col] -= noise_1f[iframe, col]
         # otherwise we fit the 1/f noise
         else:

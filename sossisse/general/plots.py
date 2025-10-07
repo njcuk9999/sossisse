@@ -316,9 +316,9 @@ def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
     degree_1f_corr = inst.params['WLC.GENERAL.DEGREE_1F_CORR']
 
     if degree_1f_corr == 0:
-        mode = '1/f corr = nanmedian(residuals) degree_1f_corr = 0'
+        mode = 'correction (for 1/f) = nanmedian(residuals) degree_1f_corr = 0'
     else:
-        mode = '1/f corr = fit(residuals) degree_1f_corr = {0}'
+        mode = 'correction (for 1/f)  = fit(residuals) degree_1f_corr = {0}'
         mode = mode.format(degree_1f_corr)
 
     # get the image normalization
@@ -336,15 +336,15 @@ def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
     frames[0].imshow(pvalues, aspect='auto', origin='lower',
                      norm=norm)
     # set the title and labels
-    frames[0].set(title='P-values for 1/f noise subtraction',
-               xlabel='Integration number',
-               ylabel='p-value')
+    frames[0].set(title='Correction for 1/f noise subtraction',
+               xlabel='Column number',
+               ylabel='Integration number')
     # plot the average across all columns
     frames[1].plot(np.arange(pvalues.shape[0]),
                    np.nanmean(pvalues, axis=1), 'r-')
-    frames[1].set(title='Average p-value across integrations',
+    frames[1].set(title='Average correction across integrations',
                   xlabel='Integration number',
-                  ylabel='Average p-value')
+                  ylabel='Average correction')
     # set the overall title
     plt.suptitle(mode)
     # force a tight layout
@@ -446,7 +446,7 @@ def plot_trace_mask(inst: Any, trace_map: np.ndarray,
         if _image is not None:
             # get the image normalization
             norm, ntext = plot_normalization(_image, interval='minmax',
-                                             stretch='linear', vlims=[5, 95],
+                                             stretch='log', vlims=[5, 95],
                                              vtype='percentile')
             # add ntext to ntexts
             ntexts[_labels[it]] = ntext
@@ -659,22 +659,30 @@ def plot_background(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_background1()'
     # -------------------------------------------------------------------------
+    inst.params['WLC.PLOT.BACKGROUND_VLIM'] = [1, 70]
+    inst.params['WLC.PLOT.BACKGROUND_INTERVAL'] = 'zscale'
+
     # get the image normalization
     vlims = inst.params['WLC.PLOT.BACKGROUND_VLIM']
     vtype = inst.params['WLC.PLOT.BACKGROUND_VLIM_TYPE']
     interval = inst.params['WLC.PLOT.BACKGROUND_INTERVAL']
     stretch = inst.params['WLC.PLOT.BACKGROUND_STRETCH']
-    norm, ntext = plot_normalization(frame0_before, interval=interval, 
-                                     stretch=stretch, vlims=vlims, vtype=vtype)
+    norm1, ntext1 = plot_normalization(frame0_before, interval=interval,
+                                       stretch=stretch, vlims=vlims, vtype=vtype)
+    norm2, ntext2 = plot_normalization(frame0_after, interval=interval,
+                                       stretch=stretch, vlims=vlims, vtype=vtype)
+    ntexts = dict()
+    ntexts['before'] = ntext1
+    ntexts['after'] = ntext2
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=2, ncols=1)
     # -------------------------------------------------------------------------
     # plot the before/after frames
     im0 = frames[0].imshow(frame0_before, origin='lower', cmap='inferno',
-                           aspect='auto', norm=norm)
+                           aspect='auto', norm=norm1)
     im1 = frames[1].imshow(frame0_after, origin='lower', cmap='inferno',
-                           aspect='auto', norm=norm)
+                           aspect='auto', norm=norm2)
     # plot colorbars
     plt.colorbar(im0, ax=frames[0], orientation='vertical')
     plt.colorbar(im1, ax=frames[1], orientation='vertical')
@@ -683,7 +691,10 @@ def plot_background(inst, frame0_before, frame0_after):
     frames[1].set(title='After background')
     # -------------------------------------------------------------------------
     # add footer text with normalization info
-    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    ntext_str = ''
+    for key in ntexts:
+        ntext_str += f'\n{key}: {ntexts[key]} '
+    add_footer_text(fig, ntext_str, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # force a tight layout leaving space at bottom for footer
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
@@ -701,6 +712,10 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     vtype = inst.params['WLC.PLOT.LOWPASS_VLIM_TYPE']
     interval = inst.params['WLC.PLOT.LOWPASS_INTERVAL']
     stretch = inst.params['WLC.PLOT.LOWPASS_STRETCH']
+
+    vlims = [1, 70]
+    interval = 'zscale'
+
     norm, ntext = plot_normalization(frame0_before, interval=interval, 
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -800,7 +815,9 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe: np.ndarray,
     # add a color bar
     plt.colorbar(im0, ax=frames[0], orientation='vertical', 
                  label=clabel)
-    
+
+    # TODO: Add before
+
     # set the title
     frames[0].set(title=title)
     # plot a comparison frame
