@@ -13,7 +13,7 @@ import copy
 import os
 import time
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import numexpr as ne
@@ -91,11 +91,11 @@ class Instrument:
         self._variables['TEMP_INI_ERR_LOWPASS'] = None
         self._variables['TEMP_CLEAN_NAN'] = None
         self._variables['TEMP_CLEAN_NAN_ERR'] = None
+        self._variables['BADPIXEL_CUTOUT_DIR'] = None
         self._variables['MEDIAN_IMAGE_FILE'] = None
         self._variables['TEMP_AMP_FILE'] = None
         self._variables['CLEAN_CUBE_FILE'] = None
         self._variables['TEMP_PCA_FILE'] = None
-        self._variables['TEMP_TRANSIT_IN_VS_OUT'] = None
         # WLC files
         self._variables['WLC_ERR_FILE'] = None
         self._variables['WLC_RES_FILE'] = None
@@ -112,8 +112,7 @@ class Instrument:
         self._variables['EUREKA_FILE'] = None
         # true/false flags
         self._variables['FLAG_CDS'] = None
-        self._variables['HAS_OUT_TRANSIT'] = None
-        self._variables['HAS_IN_TRANSIT'] = None
+        self._variables['HAS_BASELINE'] = None
         # meta data
         self._variables['META'] = None
         self._variables['OUTPUT_NAMES'] = None
@@ -121,10 +120,7 @@ class Instrument:
         self._variables['OUTPUT_FACTOR'] = None
         # simple vectors
         self._variables['BASELINE_INTS'] = None
-        self._variables['TRANSIT_INTS'] = None
-        self._variables['OOT_DOMAIN'] = None
-        self._variables['INT_DOMAIN'] = None
-        self._variables['IN_TRANSIT_INTEGRATE'] = None
+        self._variables['BASELINE_DOMAIN'] = None
         self._variables['PHOTO_WEIGHTED_MEAN'] = None
         self._variables['ENERGY_WEIGHTED_MEAN'] = None
         # ---------------------------------------------------------------------
@@ -150,11 +146,11 @@ class Instrument:
         self.vsources['TEMP_INI_ERR_LOWPASS'] = define_func
         self.vsources['TEMP_CLEAN_NAN'] = define_func
         self.vsources['TEMP_CLEAN_NAN_ERR'] = define_func
+        self.vsources['BADPIXEL_CUTOUT_DIR'] = define_func
         self.vsources['MEDIAN_IMAGE_FILE'] = define_func
         self.vsources['TEMP_AMP_FILE'] = define_func
         self.vsources['CLEAN_CUBE_FILE'] = define_func
         self.vsources['TEMP_PCA_FILE'] = define_func
-        self.vsources['TEMP_TRANSIT_IN_VS_OUT'] = define_func
         # WLC files
         self.vsources['WLC_ERR_FILE'] = define_func
         self.vsources['WLC_RES_FILE'] = define_func
@@ -171,19 +167,15 @@ class Instrument:
         self.vsources['EUREKA_FILE'] = define_func
         # true/false flags
         self.vsources['FLAG_CDS'] = f'{self.name}.id_image_shape()'
-        self.vsources['HAS_OUT_TRANSIT'] = f'{self.name}.get_baseline_transit_params()'
-        self.vsources['HAS_IN_TRANSIT'] = f'{self.name}.get_baseline_transit_params()'
+        self.vsources['HAS_BASELINE'] = f'{self.name}.get_baseline_params()'
         # meta data
         self.vsources['META'] = f'{self.name}.update_meta_data()'
         self.vsources['OUTPUT_NAMES'] = f'{self.name}.setup_linear_reconstruction()'
         self.vsources['OUTPUT_UNITS'] = f'{self.name}.setup_linear_reconstruction()'
         self.vsources['OUTPUT_FACTOR'] = f'{self.name}.setup_linear_reconstruction()'
         # simple vectors
-        self.vsources['BASELINE_INTS'] = f'{self.name}.get_baseline_transit_params()'
-        self.vsources['TRANSIT_INTS'] = f'{self.name}.get_baseline_transit_params()'
-        self.vsources['OOT_DOMAIN'] = f'{self.name}.get_baseline_transit_params()'
-        self.vsources['INT_DOMAIN'] = f'{self.name}.get_valid_int()'
-        self.vsources['IN_TRANSIT_INTEGRATE'] = f'{self.name}.get_valid_int()'
+        self.vsources['BASELINE_INTS'] = f'{self.name}.get_baseline_params()'
+        self.vsources['BASELINE_DOMAIN'] = f'{self.name}.get_baseline_params()'
         self.vsources['PHOTO_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
         self.vsources['ENERGY_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
 
@@ -283,8 +275,8 @@ class Instrument:
         # deal with median out of transit
         # ---------------------------------------------------------------------
         # add to meta data
-        meta_data['OOTMED'] = (wlc_gen_params['MEDIAN_OOT'],
-                               'Median out of transit')
+        meta_data['BASELINE_MED'] = (wlc_gen_params['MEDIAN_BASELINE'],
+                                     'Median out of transit')
         # get the linear model params
         lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
@@ -351,36 +343,7 @@ class Instrument:
         else:
             emsg = 'BASELINE_INTS must be a list of lists'
             raise exceptions.SossisseConstantException(emsg)
-        # ---------------------------------------------------------------------
-        # add the transit integrations
-        # ---------------------------------------------------------------------
-        # get the transit integrations
-        transit_ints = self._variables['TRANSIT_INTS']
-        # add to meta data
-        if transit_ints is None:
-            # set the number of baselines
-            meta_data[f'TR_INTS'] = (0, 'Number of transit integration groups')
-        elif isinstance(transit_ints, list):
-            # set the number of baselines
-            meta_data[f'TR_INTS'] = (len(transit_ints), 
-                                     'Number of transit integration groups')
-            # loop around baselines and add them to meta data
-            for it in range(len(transit_ints)):
-                for jt in range(2):
-                    # assume we don't have more than 1000 baselines
-                    itstr = f'{str(it):03s}'
-                    # add to meta data
-                    if jt == 0:
-                        meta_data[f'TR{itstr}_0'] = (baseline_ints[it][jt],
-                                                     f'Transit integration '
-                                                     f'[{it}] start')
-                    else:
-                        meta_data[f'TR{itstr}_{jt}'] = (baseline_ints[it][jt],
-                                                      f'Transit integration '
-                                                      f'[{it}] end')
-        else:
-            emsg = 'TRANSIT_INTS must be a list of lists'
-            raise exceptions.SossisseConstantException(emsg)
+
         # ---------------------------------------------------------------------
         # deal with removing trend from out-of-transit data
         # ---------------------------------------------------------------------
@@ -429,14 +392,15 @@ class Instrument:
         tmp_pcas = 'temporary_pcas.fits'
         tmp_pcas = os.path.join(temppath, tmp_pcas)
         # ---------------------------------------------------------------------
-        temp_transit_invsout = 'temporary_transit_in_vs_out.fits'
-        tmp_transit_invsout = os.path.join(temppath, temp_transit_invsout)
-        # ---------------------------------------------------------------------
         temp_clean_nan = 'temporary_cleaned_isolated.fits'
         temp_clean_nan = os.path.join(temppath, temp_clean_nan)
         # ---------------------------------------------------------------------
         temp_clean_nan_err = 'temporary_cleaned_isolated_err.fits'
         temp_clean_nan_err = os.path.join(temppath, temp_clean_nan_err)
+        # ---------------------------------------------------------------------
+        badpix_cutout_dir = os.path.join(temppath, 'badpix_cutouts')
+        if not os.path.exists(badpix_cutout_dir):
+            os.makedirs(badpix_cutout_dir)
         # ---------------------------------------------------------------------
         temp_ini_cube = 'temporary_initial_cube.fits'
         temp_ini_cube = os.path.join(temppath, temp_ini_cube)
@@ -507,9 +471,9 @@ class Instrument:
         self.set_variable('TEMP_AMP_FILE', tmp_amp_file)
         self.set_variable('CLEAN_CUBE_FILE', clean_cube_file)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
-        self.set_variable('TEMP_TRANSIT_IN_VS_OUT', tmp_transit_invsout)
         self.set_variable('TEMP_CLEAN_NAN', temp_clean_nan)
         self.set_variable('TEMP_CLEAN_NAN_ERR', temp_clean_nan_err)
+        self.set_variable('BADPIXEL_CUTOUT_DIR', badpix_cutout_dir)
         self.set_variable('TEMP_INI_CUBE', temp_ini_cube)
         self.set_variable('TEMP_INI_ERR', temp_ini_err)
         self.set_variable('TEMP_INI_DQ', temp_ini_dq)
@@ -1037,6 +1001,8 @@ class Instrument:
         sig_cut = self.params['WLC.GENERAL.COSMIC_RAY_SIGMA']
         # storage for heat map
         heat_map = np.zeros(cube.shape[1:], dtype=float)
+        # store the first frame from before
+        frame_before = np.array(cube[0])
         # now remove the cosmics using a sigma flag
         for iframe in tqdm(range(cube.shape[0])):
             # get the frame
@@ -1051,8 +1017,8 @@ class Instrument:
             cube[iframe, cmask] = np.nan
         # ---------------------------------------------------------------------
         # plot fractions of good pixels (per pixel) as map
-        plots.plot_heatmap(self, heat_map / cube.shape[0], cube[0], 
-                           'cosmic rays rate', 'cosmic_rays_corr', 
+        plots.plot_heatmap(self, heat_map / cube.shape[0], frame_before,
+                           cube[0], 'cosmic rays rate', 'cosmic_rays_corr',
                            'Cosmic rays per frame')
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
@@ -1408,6 +1374,11 @@ class Instrument:
             raise exceptions.SossisseConstantException(emsg)
         else:
             bpixel_ssize = (wlc_params['PATCH_IBADS_SSIZE'] - 1) // 2
+        # ---------------------------------------------------------------------
+        # store cube[0] before (for plot)
+        iframe_before = np.array(cube[0])
+        # store the positions of the bad pixels
+        badpix_pos = dict()
         # loop around frames in cube
         for it, iframe in tqdm(enumerate(range(cube.shape[0]))):
             # sort out storage for this frame
@@ -1461,16 +1432,21 @@ class Instrument:
             # push back into the cube
             cube[iframe, :, :] = cframe
             err[iframe, :, :] = ecframe
+            # save the bad pixel positions
+            badpix_pos[iframe] = [ypix, xpix]
         # ---------------------------------------------------------------------
-        plots.plot_heatmap(self, heat_map, cube[0], 'isolated bad pixels',
+        plots.plot_heatmap(self, heat_map, iframe_before, cube[0],
+                           'isolated bad pixels',
                            'isolated_badpixels', 'Number across all frames')
         # ---------------------------------------------------------------------
         # create bad pixel images (one per frame)
-        bpixel_cutouts_small = self.create_stamp_images(bad_pixels_before, 
-                                                        bad_pixels_after,
-                                                        num=100)
-        pixel_cutouts_all = self.create_stamp_images(bad_pixels_before, 
-                                                     bad_pixels_after)
+        bpixel_cutouts_small, _ = self.create_stamp_images(bad_pixels_before,
+                                                           bad_pixels_after,
+                                                           badpix_pos,
+                                                           num=100)
+        csi_out = self.create_stamp_images(bad_pixels_before, bad_pixels_after,
+                                           badpix_pos, mode='seperate')
+        pixel_cutouts_all, table_cutouts_all = csi_out
         # plot this as a cut out
         plots.plot_pixels(self, bpixel_cutouts_small)
         # ---------------------------------------------------------------------
@@ -1485,8 +1461,8 @@ class Instrument:
             fits.writeto(temp_clean_nan, cube, overwrite=True)
             fits.writeto(temp_clean_nan_err, err, overwrite=True)
         # ---------------------------------------------------------------------
-        # TODO: Save bad pixels before and after to file
-
+        # save the cutouts of all bad pixels
+        self.save_cutouts(pixel_cutouts_all, table_cutouts_all)
         # ---------------------------------------------------------------------
         # return the cube
         return cube, err
@@ -1541,17 +1517,61 @@ class Instrument:
         # return the stamp list
         return stamp_list
 
+    def save_cutouts(self, cutouts: Dict[int, Tuple[np.ndarray, np.ndarray]],
+                     pos_table: Dict[int, Table]):
+        # set function name
+        func_name = f'{__NAME__}.save_cutouts()'
+        # get the output directory
+        outdir = self.get_variable('BADPIXEL_CUTOUT_DIR', func_name)
+        # make the directory if it doesn't exist
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+        # print progress
+        msg = ('Saving cutouts of all bad pixels to {0}.')
+        margs = [outdir]
+        misc.printc(msg.format(*margs), 'info')
+        # ---------------------------------------------------------------------
+        # loop around frames
+        for iframe in tqdm(cutouts):
+            # get the cutout
+            cutout = cutouts[iframe]
+            # create a fits file for this cutout
+            if isinstance(cutout, tuple):
+                hdu0 = fits.PrimaryHDU()
+                hdu1 = fits.ImageHDU(cutout[0])
+                hdu2 = fits.ImageHDU(cutout[1])
+                hdu3 = fits.BinTableHDU(pos_table[iframe])
+                hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
+            else:
+                hdu0 = fits.PrimaryHDU()
+                hdu1 = fits.ImageHDU(cutout)
+                hdu2 = fits.BinTableHDU(pos_table[iframe])
+                hdul = fits.HDUList([hdu0, hdu1, hdu2])
+            # write to file
+            outfilename = f'{self.name}_badpixels_{iframe:03d}.fits'
+            outfile = os.path.join(outdir, outfilename)
+            hdul.writeto(outfile, overwrite=True)
+            hdul.close()
+        return
+
     def create_stamp_images(self, before_dict: Dict[int, List[np.ndarray]], 
                             after_dict: Dict[int, List[np.ndarray]],
-                            num: Optional[int] = None) -> Dict[int, np.ndarray]:
+                            pos_dict: Dict[int, Tuple[np.ndarray, np.ndarray]],
+                            num: Optional[int] = None,
+                            mode: Literal['seperate', 'together'] = 'together'
+                            ) -> Tuple[Dict[int, np.ndarray], Table]:
         # set function name
         func_name = f'{__NAME__}.Instrument.create_stamp_images()'
         # calculate the size of the stamps
         ssize = self.params['WLC.GENERAL.PATCH_IBADS_SSIZE']
         # storage of output images
         images = dict()
+        # position of the bad pixels
+        bad_table = dict()
         # loop around each frame
         for iframe in tqdm(range(len(before_dict))):
+            # store positions
+            bad_itable = dict(x=[], y=[], row=[], col=[])
             # get the before and after lists
             before_list = before_dict[iframe]
             after_list = after_dict[iframe]
@@ -1572,12 +1592,17 @@ class Instrument:
                 after_list = [after_list[i] for i in indices]
                 # update length parameter
                 length = len(before_list)
+
             # -----------------------------------------------------------------
             tile_height = ssize
             # border of NaNs around the final image
             border = 3
-             # (before) + border (nan) +(after)
-            tile_width = ssize + 1 + ssize
+            # individual
+            if mode == 'seperate':
+                tile_width = ssize
+            # (before) + border (nan) +(after)
+            else:
+                tile_width = ssize + 1 + ssize
             # -----------------------------------------------------------------
             # Determine a grid size: make it as square as possible, 
             #    with height ~ 2*width
@@ -1593,29 +1618,49 @@ class Instrument:
             # Prepare the final image size
             height = rows * tile_height + (rows + 1) * border
             width = cols * tile_width + (cols + 1) * border
-            image = np.full((height, width), np.nan)
+            # set up two images (only use one if mode == together)
+            image1 = np.full((height, width), np.nan)
+            image2 = np.full((height, width), np.nan)
             # -----------------------------------------------------------------
             # Fill the image
             for idx in range(length):
-                r = idx // cols
-                c = idx % cols
+                # work out the row and column
+                row = idx // cols
+                col = idx % cols
                 # Calculate the position in the image
                 # y0 is the top left corner of the tile
                 # x0 is the left side of the tile
-                y0 = r * tile_height + (r + 1) * border
-                x0 = c * tile_width + (c + 1) * border
+                y0 = row * tile_height + (row + 1) * border
+                x0 = col * tile_width + (col + 1) * border
                 # Extract the before and after arrays
                 before = before_list[idx]
                 after = after_list[idx]
-
+                # update bad piexl itable
+                bad_itable['x'].append(pos_dict[iframe][1][idx])
+                bad_itable['y'].append(pos_dict[iframe][0][idx])
+                bad_itable['row'].append(row)
+                bad_itable['col'].append(col)
                 # Insert them into the image
-                image[y0:y0+5, x0:x0+5] = before
-                image[y0:y0+5, x0+6:x0+11] = after 
+                if mode == 'seperate':
+                    image1[y0:y0 + 5, x0:x0 + 5] = before
+                    image2[y0:y0 + 5, x0:x0 + 5] = after
+                else:
+                    image1[y0:y0+5, x0:x0+5] = before
+                    image1[y0:y0+5, x0+6:x0+11] = after
+            # -----------------------------------------------------------------
+            # construct table
+            bad_itable = Table(bad_itable)
             # -----------------------------------------------------------------
             # store images
-            images[iframe] = image
+            if mode == 'seperate':
+                images[iframe] = (image1, image2)
+            else:
+                images[iframe] = image1
+            # store positions
+            bad_table[iframe] = bad_itable
 
-        return images   
+
+        return images, bad_table
 
     def optimize_trace_mask(self, log: bool = True):
         """
@@ -1896,8 +1941,6 @@ class Instrument:
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         clean_cube_file = self.get_variable('CLEAN_CUBE_FILE', func_name)
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
-        tmp_transit_invsout = self.get_variable('TEMP_TRANSIT_IN_VS_OUT',
-                                                func_name)
         tmp_amps = self.get_variable('TEMP_AMP_FILE', func_name)
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
@@ -1905,7 +1948,6 @@ class Instrument:
             # make sure all required files exist
             cond = os.path.exists(median_image_file)
             cond &= os.path.exists(clean_cube_file)
-            cond &= os.path.exists(tmp_transit_invsout)
             # only look for fit pca file if we are fitting pca
             if self.params['WLC.LMODEL.FIT_PCA']:
                 cond &= os.path.exists(tmp_pcas)
@@ -1920,15 +1962,11 @@ class Instrument:
                 # load the clean cube
                 misc.printc('\tReading: {0}'.format(clean_cube_file), 'info')
                 clean_cube = self.load_data(clean_cube_file)
-                # load the transit in vs out
-                misc.printc('\tReading: {0}'.format(tmp_transit_invsout),
-                            'info')
-                transit_invsout = self.load_data(tmp_transit_invsout)
                 # load the tmp file
                 misc.printc('\tReading: {0}'.format(tmp_amps), 'info')
                 amps = self.load_data(tmp_amps)
                 # return these files
-                return_list = [clean_cube, median_image, amps, transit_invsout]
+                return_list = [clean_cube, median_image, amps]
                 return return_list
         # ---------------------------------------------------------------------
         # create a copy of the cube, we will normalize the amplitude of each
@@ -1937,17 +1975,16 @@ class Instrument:
         # first estimate of the trace amplitude
         misc.printc('\tFirst median of cube to create trace esimate', 'info')
         # validate out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        oot_domain = self.get_variable('OOT_DOMAIN', func_name)
-        int_domain = self.get_variable('INT_DOMAIN', func_name)
+        self.get_baseline_params()
+        has_baseline = self.get_variable('HAS_BASELINE', func_name)
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # get flag for median out of transit
-        med_oot = self.params['WLC.GENERAL.MEDIAN_OOT']
+        med_baseline = self.params['WLC.GENERAL.MEDIAN_BASELINE']
         # ---------------------------------------------------------------------
         # deal with creating median
         with warnings.catch_warnings(record=True) as _:
-            if med_oot and has_oot:
-                med = np.nanmedian(cube2[oot_domain], axis=0)
+            if med_baseline and has_baseline:
+                med = np.nanmedian(cube2[baseline_domain], axis=0)
             else:
                 med = np.nanmedian(cube2, axis=0)
         # ---------------------------------------------------------------------
@@ -1969,17 +2006,10 @@ class Instrument:
         misc.printc('\tSecond median of cube with proper normalization', 'info')
         # normalize cube
         with warnings.catch_warnings(record=True) as _:
-            if med_oot:
-                med = np.nanmedian(cube2[oot_domain], axis=0)
+            if med_baseline:
+                med = np.nanmedian(cube2[baseline_domain], axis=0)
             else:
                 med = np.nanmedian(cube2, axis=0)
-        # ---------------------------------------------------------------------
-        # also keep track of the in vs out-of-transit 2D image.
-        with warnings.catch_warnings(record=True) as _:
-            med_out = np.nanmedian(cube2[oot_domain], axis=0)
-            med_in = np.nanmedian(cube2[int_domain], axis=0)
-        # get the diff in vs out
-        transit_invsout = med_in - med_out
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
@@ -1990,13 +2020,8 @@ class Instrument:
             # write the clean cube
             misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
             fits.writeto(clean_cube_file, cube, overwrite=True)
-            # write the before after clean 1f
-            misc.printc('\tWriting: {0}'.format(tmp_transit_invsout),
-                        'info')
-            fits.writeto(tmp_transit_invsout, transit_invsout,
-                         overwrite=True)
         # ---------------------------------------------------------------------
-        return [cube, med, amps, transit_invsout]
+        return [cube, med, amps]
 
     def clean_residual_1f(self, cube: np.ndarray, err: np.ndarray,
                           med: np.ndarray, amps: np.ndarray,
@@ -2116,115 +2141,38 @@ class Instrument:
         # return the transit integrations in the correct format
         return baseline_ints
 
-    def process_transit_ints(self,
-                             raw_transit_ints: Union[None, List[List[int]]]
-                             ) -> List[List[int]]:
+    def get_baseline_params(self):
         """
-        Make sure the TRANSIT_INTS parameter are in the correct format
-        i.e. None --> []
-             lists of len 2 are ints and forced to length 4 (2nd=1st, 3rd=4th)
-             lists of len 4 are ints
-
-        :param raw_transit_ints: Union[None, List[List[int]]], the raw transit
-                                 integrations
-        :return: List[List[int]], the processed transit integrations
-        """
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.process_transit_ints()'
-        # get the number of frames
-        data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
-        # if we don't have transit integrations defined we have no transit
-        if raw_transit_ints in [None, 'None', '']:
-            transit_ints = []
-        # otherwise we need a list of lists(length 2 or 4)
-        elif isinstance(raw_transit_ints, list):
-            # output transit integrations
-            transit_ints = []
-            # loop around raw transit integrations
-            for row in range(len(raw_transit_ints)):
-                # if we have a length 4 list
-                if len(raw_transit_ints[row]) in [2, 4]:
-                    # storage for this specific transit/ecplise
-                    transit_int_row = []
-                    # make sure they are all integers
-                    try:
-                        for integration in raw_transit_ints[row]:
-                            # test that we have a valid integer
-                            valid_int = int(integration)
-                            # deal with out-of-bounds value
-                            if valid_int < 0:
-                                valid_int = 0
-                            elif valid_int > data_n_frames:
-                                valid_int = data_n_frames
-                            # if we get to here the transit is valid
-                            # if we have four entries we just add it once
-                            if len(raw_transit_ints[row]) == 4:
-                                transit_int_row.append(valid_int)
-                            # if we have two entries we add it twice (i.e. the
-                            # 2nd contact = 1st contact and 3rd contact =
-                            # 4th contact)
-                            else:
-                                transit_int_row.append(valid_int)
-                                transit_int_row.append(valid_int)
-                    except Exception as _:
-                        emsg = ('TRANSIT_INTS[{0}] must be a list of ints '
-                                'between 0 and {1}')
-                        emsg = emsg.format(row, data_n_frames)
-                        raise exceptions.SossisseConstantException(emsg)
-                    # we then add this row to the transit_ints
-                    # but sort from smallest to largest
-                    transit_int_row = np.sort(transit_int_row)
-                    transit_ints.append(list(transit_int_row))
-                else:
-                    emsg = ('TRANSIT_INTS[{0}] must be a list of ints of '
-                            'length 2 or 4').format(row)
-                    raise exceptions.SossisseConstantException(emsg)
-        else:
-            emsg = 'TRANSIT_INTS must be a list of lists or None'
-            raise exceptions.SossisseConstantException(emsg)
-        # return the transit integrations in the correct format
-        return transit_ints
-
-    def get_baseline_transit_params(self):
-        """
-        Get the out-of-transit domain (before, after and full removing any
-        rejected domain)
+        Get the baseline domain (before, after and full removing any
+        rejected domain including transits)
 
         :return:
         """
         # set function name
-        func_name = f'{__NAME__}.{self.name}.get_baseline_transit_params()'
+        func_name = f'{__NAME__}.{self.name}.get_baseline_params()'
         # get the oot domain
-        has_oot = self._variables['HAS_OUT_TRANSIT']
-        has_int = self._variables['HAS_IN_TRANSIT']
+        has_baseline = self._variables['HAS_BASELINE']
         # deal with value already found (we don't need to run this again)
-        if has_oot is not None and has_int is not None:
+        if has_baseline is not None:
             return
         # get the number of frames
         data_n_frames = self.get_variable('DATA_N_FRAMES', func_name)
-        # get the baseline integrations and the transit integrations
+        # get the baseline integrations
         raw_baseline_ints = self.params['WLC.INPUTS.BASELINE_INTS']
-        has_transit = self.params['WLC.INPUTS.HAS_TRANSIT']
-        raw_transit_ints = self.params['WLC.INPUTS.TRANSIT_INTS']
         # process the baseline integrations
         baseline_ints = self.process_baseline_ints(raw_baseline_ints)
-        # process transit integrations
-        if has_transit:
-            transit_ints = self.process_transit_ints(raw_transit_ints)
-        else:
-            transit_ints = []
         # get the rejection domain
         rej_domain = self.params['WLC.INPUTS.REJECT_DOMAIN']
         # ---------------------------------------------------------------------
         # get the valid out of transit domain
         # ---------------------------------------------------------------------
         # at first everything is considered as "out of transit"
-        has_out_transit = True
-        valid_oot = np.zeros(data_n_frames, dtype=bool)
+        has_baseline = True
+        valid_baseline = np.zeros(data_n_frames, dtype=bool)
         # loop around baseline integrations given
         for cframe in baseline_ints:
             # set the baseline frames to True
-            valid_oot[cframe[0]:cframe[1] + 1] = True
+            valid_baseline[cframe[0]:cframe[1] + 1] = True
             # deal with the rejection of domain
             if rej_domain is not None:
                 # get the rejection domain
@@ -2232,53 +2180,14 @@ class Instrument:
                     # get the start and end of the domain to reject
                     start = rej_domain[ireject * 2]
                     end = rej_domain[ireject * 2 + 1]
-                    # set to False in valid_oot
-                    valid_oot[start:end] = False
-        # ---------------------------------------------------------------------
-        # get the valid in transit domain
-        # ---------------------------------------------------------------------
-        if len(transit_ints) == 0:
-            valid_int = np.zeros(data_n_frames, dtype=bool)
-            valid_int_integrate = np.zeros(data_n_frames, dtype=bool)
-            has_in_transit = False
-        else:
-            has_in_transit = True
-            valid_int = np.ones(data_n_frames, dtype=bool)
-            valid_int_integrate = np.ones(data_n_frames, dtype=bool)
-            # loop through the transit integrations
-            for cframe in transit_ints:
-                # set the frames out of transit to False
-                #  note +1 as the last point of contact is deemed part of the transit
-                valid_int[:cframe[0]] = False
-                valid_int[cframe[3] + 1:] = False
-                # set the frames out of integration window to False
-                #  note +1 as the last point of contact is deemed part of the transit
-                valid_int_integrate[:cframe[1]] = False
-                valid_int_integrate[cframe[2] + 1:] = False
-                # deal with rejection of domain
-                if rej_domain is not None:
-                    # get the rejection domain
-                    for ireject in range(len(rej_domain) // 2):
-                        # get the start and end of the domain to reject
-                        start = rej_domain[ireject * 2]
-                        end = rej_domain[ireject * 2 + 1]
-                        # set to False in valid_int
-                        valid_int[start:end] = False
-                        valid_int_integrate[start:end] = False
-        # ---------------------------------------------------------------------
-        # reject the valid in transit domain from the out-of-transit domain
-        # ---------------------------------------------------------------------
-        valid_oot &= ~valid_int
+                    # set to False in valid_baseline
+                    valid_baseline[start:end] = False
         # ---------------------------------------------------------------------
         # set flag
-        self.set_variable('HAS_OUT_TRANSIT', has_out_transit)
-        self.set_variable('HAS_IN_TRANSIT', has_in_transit)
+        self.set_variable('HAS_BASELINE', has_baseline)
         # update variables
         self.set_variable('BASELINE_INTS', baseline_ints)
-        self.set_variable('TRANSIT_INTS', transit_ints)
-        self.set_variable('OOT_DOMAIN', valid_oot)
-        self.set_variable('INT_DOMAIN', valid_int)
-        self.set_variable('IN_TRANSIT_INTEGRATE', valid_int_integrate)
+        self.set_variable('BASELINE_DOMAIN', valid_baseline)
 
     def add_integration_times(self, ltable: Table):
         """
@@ -2291,84 +2200,6 @@ class Instrument:
         # add the integration times to the table
         ltable['bjd'] = int_times
         return ltable
-
-    def define_transit_ints(self, ltable: Table):
-        """
-        Manually define the transit parameters
-
-
-        :param ltable:
-        :return:
-        """
-        # set function name
-        func_name = __NAME__ + '.define_transit_ints()'
-        # get the baseline integrations and the transit integrations
-        raw_baseline_ints = self.params['WLC.INPUTS.BASELINE_INTS']
-        has_transit = self.params['WLC.INPUTS.HAS_TRANSIT']
-        raw_transit_ints = self.params['WLC.INPUTS.TRANSIT_INTS']
-        # ---------------------------------------------------------------------
-        # if the user has flagged there is no transit/eclipse we just return
-        # here
-        if not has_transit:
-            return
-        # ---------------------------------------------------------------------
-        # if the user has given transit integrations we jst return here
-        if raw_transit_ints is not None:
-            return
-        # ---------------------------------------------------------------------
-        # we re-get baseline_transit parameters
-        self.get_baseline_transit_params()
-        # ---------------------------------------------------------------------
-        # setup for the interactive plot
-        ikwargs = dict()
-        ikwargs['oot_domain'] = self.get_variable('OOT_DOMAIN', func_name)
-        ikwargs['amps'] = ltable['amplitude']
-        ikwargs['eamps'] = ltable['amplitude_error']
-        ikwargs['OBJECTNAME'] = self.params['INPUTS.OBJECTNAME']
-        # ---------------------------------------------------------------------
-        # run interactive plot
-        itransit_plot = plots.InteractiveTransitPlot(**ikwargs)
-        itransit_plot.plot()
-        # deal with failure
-        if not itransit_plot.success:
-            msg = ('Unable to interactively get transit integrations,'
-                   ' please set TRANSIT_INTS or set HAS_TRANSIT to False')
-            raise exceptions.SossisseConstantException(msg)
-        # ---------------------------------------------------------------------
-        # print raw transit parameters
-        misc.printc('Using transit parameters: ', 'number')
-        for r_it, r_int in enumerate(itransit_plot.transit_ints):
-            misc.printc('\t{0}: {1}'.format(r_it + 1, r_int), 'number')
-        # ---------------------------------------------------------------------
-        # now we have the transit we can set variables
-        self.params['WLC.INPUTS.TRANSIT_INTS'] = itransit_plot.transit_ints
-        # set the oot domain and has in transit to None
-        self._variables['HAS_OUT_TRANSIT'] = None
-        self._variables['HAS_IN_TRANSIT'] = None
-        # we re-get baseline_transit parameters
-        self.get_baseline_transit_params()
-        # ---------------------------------------------------------------------
-        # we can also update the input yaml file (but just for SOSSSISE)
-        # we can't update a POGOS one yet
-        # ---------------------------------------------------------------------
-        # get parameter file path
-        outpath = self.params['INPUTS.PARAM_FILE']
-        # update the sossisse backup
-        const_funcs.create_yaml(self.params, log=True)
-        # deal with a SOSSISSE input
-        if self.params['__SOURCE__'] == 'SOSSISSE':
-            # get parameter file path
-            outpath = self.params['INPUTS.PARAM_FILE']
-            # create yaml
-            const_funcs.create_yaml(self.params, log=True, outpath=outpath)
-        else:
-            # print message
-            misc.printc('Please save transit ints to: {0}'.format(outpath),
-                        'warning')
-            # display warning
-            misc.printc('Cannot write over POGOS input: {0}'.format(outpath),
-                        'warning')
-
 
     def subtract_1f(self, residuals: np.ndarray,
                     cube: np.ndarray, err: np.ndarray,
@@ -2493,9 +2324,8 @@ class Instrument:
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # validate out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_params()
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the pca analysis
         if not has_oot:
@@ -2511,7 +2341,7 @@ class Instrument:
         nanmask = np.ones_like(trace_mask, dtype=float)
         nanmask[~trace_mask] = np.nan
         # copy the normalized cube
-        cube3ini = cube2[out_transit_domain]
+        cube3ini = cube2[baseline_domain]
         # subtract off the median
         for iframe in tqdm(range(cube3ini.shape[0])):
             cube3ini[iframe] -= med
@@ -2519,7 +2349,7 @@ class Instrument:
         # copy the normalized cube
         cube3 = np.array(cube3ini)
         # get the valid error domain
-        err3 = err[out_transit_domain]
+        err3 = err[baseline_domain]
         # apply the nanmask to the cube3
         for iframe in range(cube3.shape[0]):
             cube3[iframe] *= nanmask
@@ -3103,12 +2933,12 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.normalize_sum_trace()'
         # validate out-of-transit domain
-        self.get_baseline_transit_params()
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_params()
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # get the normalization factor
         with warnings.catch_warnings(record=True) as _:
-            norm_factor = np.nanmedian(loutputs[out_transit_domain]['sum_trace'])
+            norm_factor = np.nanmedian(loutputs[baseline_domain]['sum_trace'])
         # apply the normalization factor
         loutputs['sum_trace'] /= norm_factor
         loutputs['sum_trace_error'] /= norm_factor
@@ -3137,12 +2967,12 @@ class Instrument:
         # get the frame numbers
         frames = np.arange(nframes, dtype=float)
         # get the out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_params()
+        has_baseline = self.get_variable('HAS_BASELINE', func_name)
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the normalization
-        if not has_oot:
+        if not has_baseline:
             wmsg = ('Cannot do per pixel baseline correction without '
                     'baseline domain.'
                     '\n\tPlease set WLC.INPUTS.BASELINE_INTS to do per pixel'
@@ -3153,27 +2983,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the polynomial degree for the transit baseline
         poly_order = self.params['WLC.GENERAL.TRANSIT_BASELINE_POLYORD']
-        # get the transit integrations
-        transit_ints = self._variables['TRANSIT_INTS']
-        # storage of the mid transit frames
-        mid_transit_frames = []
-        # storage for rms's of the mid transit slice (before correction)
-        rms1_cube_list = []
-        # storage for rms's of the mid transit slice (after correction)
-        rms2_cube_list = []
-        # deal with transits (if we have them)
-        if transit_ints is not None and isinstance(transit_ints, list):
-            for cframe in transit_ints:
-                # get the mid transit frame
-                mid_transit_frame = int(np.nanmean(cframe))
-                # get the image for the mid transit frame
-                mid_transit_slice = (cube[mid_transit_frame] *
-                                     valid_arr[mid_transit_frame])
-                # get the rms of the cube (before correction) for mid transit
-                rms1_cube = mp.estimate_sigma(mid_transit_slice)
-                # append to storage
-                mid_transit_frames.append(mid_transit_frame)
-                rms1_cube_list.append(rms1_cube)
         # ---------------------------------------------------------------------
         # print progress
         msg = 'Correcting the per pixel baseline'
@@ -3198,11 +3007,11 @@ class Instrument:
                 # get the sample column
                 sample = cube_slice[:, iy]
                 # get the out of transit domain in the sample
-                sample_oot = sample[out_transit_domain]
+                sample_oot = sample[baseline_domain]
                 # get the indices of the out of transit domain
-                frames_oot = frames[out_transit_domain]
+                frames_oot = frames[baseline_domain]
                 # find any nans in the oot sample
-                finite_mask = finite_mask_slice[:, iy][out_transit_domain]
+                finite_mask = finite_mask_slice[:, iy][baseline_domain]
                 # -------------------------------------------------------------
                 # only fit the polynomial if we have enough points
                 if np.sum(finite_mask) <= poly_order:
@@ -3223,29 +3032,6 @@ class Instrument:
             # -----------------------------------------------------------------
             # push the updated cube slice back into the cube
             cube[:, :, ix] = np.array(cube_slice)
-
-        # ---------------------------------------------------------------------
-        # deal with transits (if we have them
-        if transit_ints is not None and isinstance(transit_ints, list):
-            for mid_transit_frame in mid_transit_frames:
-                # re-get the image for the mid transit frame
-                mid_transit_slice = (cube[mid_transit_frame] *
-                                     valid_arr[mid_transit_frame])
-                # recalculate the rms of the cube
-                rms2_cube = mp.estimate_sigma(mid_transit_slice)
-                # append to storage
-                rms2_cube_list.append(rms2_cube)
-        # ---------------------------------------------------------------------
-        # print the mid transit frame used
-        for mit, mid_transit_frame in enumerate(mid_transit_frames):
-            # prin the mid transit frame used for this transit
-            msg = f'\tMid transit[{mit+1}] frame used: {mid_transit_frame}'
-            misc.printc(msg, 'info')
-            # print the rms of the cube before and after
-            msg_before = f'\tRMS[{mit+1}][before]: {rms1_cube_list[mit]:.3f}'
-            misc.printc(msg_before, 'number')
-            msg_after = f'\tRMS[{mit+1}][after]: {rms2_cube_list[mit]:.3f}'
-            misc.printc(msg_after, 'number')
         # ---------------------------------------------------------------------
         # return the updated cube
         return cube
@@ -3681,13 +3467,13 @@ class Instrument:
         # get the polynomial degree for trace baseline
         polydeg = self.params['WLC.GENERAL.TRACE_BASELINE_POLYORD']
         # get the out-of-transit domain
-        self.get_baseline_transit_params()
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_params()
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # loop around
         for ix in range(nbxpix):
             # get the slide without the transit
-            v1 = spec[out_transit_domain, ix]
+            v1 = spec[baseline_domain, ix]
             # find valid pixels
             valid = np.isfinite(v1)
             # if we don't have enough good pixels skip removing trend for this
@@ -3695,7 +3481,7 @@ class Instrument:
             if np.sum(valid) < 2:
                 continue
             # get the valid xpix for this row
-            index = np.arange(nbframes)[out_transit_domain]
+            index = np.arange(nbframes)[baseline_domain]
             # fit the trend
             tfit = np.polyfit(index[valid], v1[valid], polydeg)
             # remove the trend and update the spectrum
@@ -3716,9 +3502,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_trend_phot()'
         # get the out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+        self.get_baseline_params()
+        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # do the same for the photometric time series
         # ---------------------------------------------------------------------
@@ -3727,128 +3512,121 @@ class Instrument:
         # get an index array for v1
         index = np.arange(spec.shape[0])
         # fit the out-of-transit trend
-        tfit = np.polyfit(index[out_transit_domain], v1[out_transit_domain], 1)
+        tfit = np.polyfit(index[baseline_domain], v1[baseline_domain], 1)
         # remove this off the amplitudes
         ltable['amplitude'] /= np.polyval(tfit, index)
         # ---------------------------------------------------------------------
         # return the updated spec and ltable
         return ltable
 
-    def get_transit_depth(self, ltable: Table) -> Union[float, None]:
-        """
-        Get the transit depth (either user defined or calculate)
+    # def get_transit_depth(self, ltable: Table) -> Union[float, None]:
+    #     """
+    #     Get the transit depth (either user defined or calculate)
+    #
+    #     :param ltable: Table, the linear fit table (from WLC)
+    #
+    #     :raises SossisseConstantException: if TDEPTH_MODE is set to compute
+    #                                          and TDEPTH is not set or TDEPTH
+    #                                          is not a valid float
+    #     :return: None if out-of-transit domain not set, otherwise the transit
+    #              depth
+    #     """
+    #     # set function name
+    #     func_name = f'{__NAME__}.{self.name}.get_transit_depth()'
+    #     # get the spectral extraction parameters
+    #     spec_ext_params = self.params.get('SPEC_EXT')
+    #     # deal with the case where we are not in "compute" mode
+    #     if spec_ext_params['TDEPTH_MODE'] != 'compute':
+    #         # user must set the transit depth if this is the case
+    #         if spec_ext_params['TDEPTH'] is None:
+    #             emsg = 'TDEPTH_MODE is not set to compute, please set TDEPTH'
+    #             raise exceptions.SossisseConstantException(emsg)
+    #         # return the transit depth defined by user
+    #         else:
+    #             try:
+    #                 return float(spec_ext_params['TDEPTH'])
+    #             except Exception as e:
+    #                 emsg = 'TDEPTH value is not valid\n\t{0}:{1}'
+    #                 emsg = emsg.format(type(e), e)
+    #                 raise exceptions.SossisseConstantException(emsg)
+    #     # ---------------------------------------------------------------------
+    #     # otherwise we are in compute mode
+    #     # ---------------------------------------------------------------------
+    #     # get the out-of-transit domain
+    #     self.get_baseline_params()
+    #     has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
+    #     out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+    #     # deal with out of transit domain not set
+    #     if not has_oot:
+    #         wmsg = ('Cannot calculate transit depth trend without '
+    #                 'baseline domain.'
+    #                 '\n\tPlease set WLC.INPUTS.BASELINE_INTS to remove_trend.')
+    #         misc.printc(wmsg, 'warning')
+    #         # return the spec and ltable without removing trend
+    #         return None
+    #     # ---------------------------------------------------------------------
+    #     # TODO: Question does this work with multiple transits?
+    #     # get the transit depth
+    #     with warnings.catch_warnings(record=True) as _:
+    #         part1 = np.nanmedian(ltable['amplitude'][out_transit_domain])
+    #         part2 = np.nanmean(ltable['amplitude'][in_transit_domain])
+    #         # transit depth is the median out-of-transit amplitudes
+    #         # minus the mean of the in transit amplitudes
+    #         transit_depth = part1 - part2
+    #     # ---------------------------------------------------------------------
+    #     # return the transit depth
+    #     return transit_depth
 
-        :param ltable: Table, the linear fit table (from WLC)
-
-        :raises SossisseConstantException: if TDEPTH_MODE is set to compute
-                                             and TDEPTH is not set or TDEPTH
-                                             is not a valid float
-        :return: None if out-of-transit domain not set, otherwise the transit
-                 depth
-        """
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.get_transit_depth()'
-        # get the spectral extraction parameters
-        spec_ext_params = self.params.get('SPEC_EXT')
-        # deal with the case where we are not in "compute" mode
-        if spec_ext_params['TDEPTH_MODE'] != 'compute':
-            # user must set the transit depth if this is the case
-            if spec_ext_params['TDEPTH'] is None:
-                emsg = 'TDEPTH_MODE is not set to compute, please set TDEPTH'
-                raise exceptions.SossisseConstantException(emsg)
-            # return the transit depth defined by user
-            else:
-                try:
-                    return float(spec_ext_params['TDEPTH'])
-                except Exception as e:
-                    emsg = 'TDEPTH value is not valid\n\t{0}:{1}'
-                    emsg = emsg.format(type(e), e)
-                    raise exceptions.SossisseConstantException(emsg)
-        # ---------------------------------------------------------------------
-        # otherwise we are in compute mode
-        # ---------------------------------------------------------------------
-        # get the out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
-        in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE', func_name)
-        # deal with out of transit domain not set
-        if not has_oot:
-            wmsg = ('Cannot calculate transit depth trend without '
-                    'baseline domain.'
-                    '\n\tPlease set WLC.INPUTS.BASELINE_INTS to remove_trend.')
-            misc.printc(wmsg, 'warning')
-            # return the spec and ltable without removing trend
-            return None
-        # ---------------------------------------------------------------------
-        # TODO: Question does this work with multiple transits?
-        # get the transit depth
-        with warnings.catch_warnings(record=True) as _:
-            part1 = np.nanmedian(ltable['amplitude'][out_transit_domain])
-            part2 = np.nanmean(ltable['amplitude'][in_transit_domain])
-            # transit depth is the median out-of-transit amplitudes
-            # minus the mean of the in transit amplitudes
-            transit_depth = part1 - part2
-        # ---------------------------------------------------------------------
-        # return the transit depth
-        return transit_depth
-
-    IntransitSpectrum = Union[Tuple[np.ndarray, np.ndarray, np.ndarray],
-                              Tuple[None, None, None]]
-
-    def intransit_spectrum(self, spec: np.ndarray, spec_err: np.ndarray
-                           ) -> IntransitSpectrum:
-        """
-        Construct the in-transit spectrum
-
-        :param spec: np.ndarray, the spectrum
-        :param spec_err: np.ndarray, the spectrum error
-
-        :return: tuple, 1. the in-transit spectrum, 2. the in-transit spectrum
-                    error, 3. the out-of-transit spectrum error,
-                    if out-of-transit if not defined returns None, None, None
-        """
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
-        # get the out-of-transit domain
-        self.get_baseline_transit_params()
-        has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-        out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
-        in_transit_domain = self.get_variable('IN_TRANSIT_INTEGRATE',
-                                              func_name)
-        # ---------------------------------------------------------------------
-        # weights of each point from uncertainties
-        weight = 1 / spec_err ** 2
-        # in transit spectrum and error
-        with warnings.catch_warnings(record=True) as _:
-            sprod = spec[in_transit_domain] * weight[in_transit_domain]
-            # calculate the weighted sum of the spectrum - in transit
-            sumspec_in = np.nansum(sprod, axis=0)
-            # calculate the sum of the weights - in transit
-            sumweight_in = np.nansum(weight[in_transit_domain], axis=0)
-            # calculate the in transit spectrum
-            spec_in = sumspec_in / sumweight_in
-            # calculate the in transit spectrum error
-            ispec_err2_in = np.nansum(1 / spec_err[in_transit_domain] ** 2,
-                                      axis=0)
-            spec_err_in = 1 / np.sqrt(ispec_err2_in)
-
-        with warnings.catch_warnings(record=True) as _:
-            # calculate the sum of the weights - out of transit
-            ispec_err2_out = np.nansum(1 / spec_err[out_transit_domain] ** 2, axis=0)
-            # calculate the out-of-transit spectrum error
-            spec_err_out = 1 / np.sqrt(ispec_err2_out)
-        # ---------------------------------------------------------------------
-        # if we have removed a trend, we need to add in quadrature
-        #  out-of-transit  errors to in-transit
-        if self.params['SPEC_EXT.REMOVE_TREND']:
-            spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
-        # ---------------------------------------------------------------------
-        # chane infinite values to nan
-        spec_err_in[~np.isfinite(spec_err_in)] = np.nan
-        spec_err_out[~np.isfinite(spec_err_out)] = np.nan
-        # ---------------------------------------------------------------------
-        return spec_in, spec_err_in, spec_err_out
+    # def intransit_spectrum(self, spec: np.ndarray, spec_err: np.ndarray
+    #                        ) -> IntransitSpectrum:
+    #     """
+    #     Construct the in-transit spectrum
+    #
+    #     :param spec: np.ndarray, the spectrum
+    #     :param spec_err: np.ndarray, the spectrum error
+    #
+    #     :return: tuple, 1. the in-transit spectrum, 2. the in-transit spectrum
+    #                 error, 3. the out-of-transit spectrum error,
+    #                 if out-of-transit if not defined returns None, None, None
+    #     """
+    #     # set function name
+    #     func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
+    #     # get the out-of-transit domain
+    #     self.get_baseline_params()
+    #     out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
+    #     # ---------------------------------------------------------------------
+    #     # weights of each point from uncertainties
+    #     weight = 1 / spec_err ** 2
+    #     # in transit spectrum and error
+    #     with warnings.catch_warnings(record=True) as _:
+    #         sprod = spec[in_transit_domain] * weight[in_transit_domain]
+    #         # calculate the weighted sum of the spectrum - in transit
+    #         sumspec_in = np.nansum(sprod, axis=0)
+    #         # calculate the sum of the weights - in transit
+    #         sumweight_in = np.nansum(weight[in_transit_domain], axis=0)
+    #         # calculate the in transit spectrum
+    #         spec_in = sumspec_in / sumweight_in
+    #         # calculate the in transit spectrum error
+    #         ispec_err2_in = np.nansum(1 / spec_err[in_transit_domain] ** 2,
+    #                                   axis=0)
+    #         spec_err_in = 1 / np.sqrt(ispec_err2_in)
+    #
+    #     with warnings.catch_warnings(record=True) as _:
+    #         # calculate the sum of the weights - out of transit
+    #         ispec_err2_out = np.nansum(1 / spec_err[out_transit_domain] ** 2, axis=0)
+    #         # calculate the out-of-transit spectrum error
+    #         spec_err_out = 1 / np.sqrt(ispec_err2_out)
+    #     # ---------------------------------------------------------------------
+    #     # if we have removed a trend, we need to add in quadrature
+    #     #  out-of-transit  errors to in-transit
+    #     if self.params['SPEC_EXT.REMOVE_TREND']:
+    #         spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
+    #     # ---------------------------------------------------------------------
+    #     # chane infinite values to nan
+    #     spec_err_in[~np.isfinite(spec_err_in)] = np.nan
+    #     spec_err_out[~np.isfinite(spec_err_out)] = np.nan
+    #     # ---------------------------------------------------------------------
+    #     return spec_in, spec_err_in, spec_err_out
 
     def bin_spectrum(self, wavegrid: np.ndarray, spec_in: np.ndarray,
                      spec_err_in: np.ndarray

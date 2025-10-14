@@ -712,10 +712,6 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     vtype = inst.params['WLC.PLOT.LOWPASS_VLIM_TYPE']
     interval = inst.params['WLC.PLOT.LOWPASS_INTERVAL']
     stretch = inst.params['WLC.PLOT.LOWPASS_STRETCH']
-
-    vlims = [1, 70]
-    interval = 'zscale'
-
     norm, ntext = plot_normalization(frame0_before, interval=interval, 
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -785,7 +781,8 @@ def plot_flat_field(inst, frame0_before, frame0_after):
     save_show_plot(inst.params, 'flatfield')
 
 
-def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe: np.ndarray,
+def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
+                 iframe_after: np.ndarray,
                  title: str, outname: str, clabel: str):
     """
     Plot a heatmap of the bad pixels
@@ -799,36 +796,39 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe: np.ndarray,
     :return: None, plots graph
     """
     # set up figure
-    fig, frames = plt.subplots(ncols=1, nrows=2, figsize=(12, 12))
+    fig, frames = plt.subplots(ncols=1, nrows=3, figsize=(12, 12))
     # -------------------------------------------------------------------------
     # get the image normalization
     vlims = inst.params['WLC.PLOT.FRAME_VLIM']
     vtype = inst.params['WLC.PLOT.FRAME_VLIM_TYPE']
     interval = inst.params['WLC.PLOT.FRAME_INTERVAL']
     stretch = inst.params['WLC.PLOT.FRAME_STRETCH']
-    norm, ntext = plot_normalization(iframe, interval=interval, stretch=stretch,
-                                     vlims=vlims, vtype=vtype)
+    norm, ntext = plot_normalization(iframe_before, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
     # plot the heat map
     im0 = frames[0].imshow(heat_map, origin='lower', cmap='inferno',
                           aspect='auto', interpolation='none')
     # add a color bar
-    plt.colorbar(im0, ax=frames[0], orientation='vertical', 
+    plt.colorbar(im0, ax=frames[0], orientation='horizontal',
                  label=clabel)
-
-    # TODO: Add before
-
     # set the title
     frames[0].set(title=title)
-    # plot a comparison frame
-    im1 = frames[1].imshow(iframe, origin='lower', cmap='inferno',
+    # -------------------------------------------------------------------------
+    # plot a comparison frame (before)
+    im1 = frames[1].imshow(iframe_before, origin='lower', cmap='inferno',
                           aspect='auto', interpolation='none',
                           norm=norm)
-    # add a color bar
-    plt.colorbar(im1, ax=frames[1], orientation='vertical', label='Flux')
+    frames[1].set(title='Before correction')
+    # -------------------------------------------------------------------------
+    # plot a comparison frame (before)
+    im2 = frames[2].imshow(iframe_after, origin='lower', cmap='inferno',
+                          aspect='auto', interpolation='none',
+                          norm=norm)
+    frames[2].set(title='After correction')
     # -------------------------------------------------------------------------
     # add footer text with normalization info
-    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    add_footer_text(fig, 'before: ' + ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # force a tight layout leaving space at bottom for footer
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
@@ -858,10 +858,9 @@ def plot_stability(inst: Any, table: Table):
     # set function name
     func_name = f'{__NAME__}.plot_stability()'
     # validate out-of-transit domain
-    inst.get_baseline_transit_params()
-    has_oot = inst.get_variable('HAS_OUT_TRANSIT', func_name)
-    out_transit_domain = inst.get_variable('OOT_DOMAIN', func_name)
-    in_transit_domain = inst.get_variable('INT_DOMAIN', func_name)
+    inst.get_baseline_params()
+    has_baseline = inst.get_variable('HAS_BASELINE', func_name)
+    baseline_domain = inst.get_variable('BASELINE_DOMAIN', func_name)
     # -------------------------------------------------------------------------
     # get the output names, units and factors
     output_names = inst.get_variable('OUTPUT_NAMES', func_name)
@@ -915,20 +914,14 @@ def plot_stability(inst: Any, table: Table):
         value = table[name_it] * factor_it
         errvalue = table[name_it + '_error'] * factor_it
         # ---------------------------------------------------------------------
-        # deal with having out of transit points
-        if has_oot:
+        # deal with having baseline points
+        if has_baseline:
             # plot the out of transit points
-            frames[it].errorbar(index[out_transit_domain],
-                                value[out_transit_domain],
-                                yerr=errvalue[out_transit_domain],
+            frames[it].errorbar(index[baseline_domain],
+                                value[baseline_domain],
+                                yerr=errvalue[baseline_domain],
                                 fmt='.', color='green', alpha=alpha,
-                                label='out-of-transit')
-            # plot the in transit points
-            frames[it].errorbar(index[in_transit_domain],
-                                value[in_transit_domain],
-                                yerr=errvalue[in_transit_domain],
-                                fmt='.', color='red', alpha=alpha,
-                                label='in-transit')
+                                label='baseline integrations')
             # only plot the legend for the first plot frame
             if it == 0:
                 frames[it].legend()
@@ -966,125 +959,125 @@ def plot_stability(inst: Any, table: Table):
     save_show_plot(inst.params, 'stability')
 
 
-def plot_transit(inst: Any, table: Table):
-    # set function name
-    func_name = f'{__NAME__}.plot_transit()'
-    # validate out-of-transit domain
-    inst.get_baseline_transit_params()
-    has_oot = inst.get_variable('HAS_OUT_TRANSIT', func_name)
-    has_int = inst.get_variable('HAS_IN_TRANSIT', func_name)
-    out_transit_domain = inst.get_variable('OOT_DOMAIN', func_name)
-    in_transit_domain = inst.get_variable('INT_DOMAIN', func_name)
-    baseline_ints = inst.get_variable('BASELINE_INTS', func_name)
-    transit_ints = inst.get_variable('TRANSIT_INTS', func_name)
-    # get wlc_params
-    wlc_params = inst.params.get('WLC')
-    # get object name and suffix
-    objname = inst.params['INPUTS.OBJECTNAME']
-    suffix = inst.params['INPUTS.SUFFIX']
-    # get the polynomial degree for the transit baseline
-    poly_order = wlc_params['GENERAL.TRANSIT_BASELINE_POLYORD']
-    # -------------------------------------------------------------------------
-    # get the number of points
-    npoints = len(table['amplitude'])
-    # -------------------------------------------------------------------------
-    # get the amplitude and error values
-    value = table['amplitude']
-    errvalue = table['amplitude_error']
-    # get the index of the pixels
-    index = np.arange(npoints)
-    # -------------------------------------------------------------------------
-    # deal with no out-of-transit defined
-    if not has_oot:
-        out_transit_domain = np.ones_like(index, dtype=bool)
-    # -------------------------------------------------------------------------
-    # 5-sigma robust poly fit of the continuum
-    ampfit, _ = mp.robust_polyfit(index[out_transit_domain],
-                                  value[out_transit_domain],
-                                  degree=poly_order, nsigcut=5)
-    # remove this fit from the amplitude
-    value = value / np.polyval(ampfit, index)
-    # -------------------------------------------------------------------------
-    # deal with no transit
-    if has_int:
-        # storage for mid transits/eclipses
-        mid_transits, fit_mids, mid_transit_depths = [], [], []
-        # loop around transits/eclipses
-        for cframe in transit_ints:
-            # calculate the mid-transit frames
-            norm_index = index - (cframe[0] + cframe[3]) / 2
-            mid_transit = np.abs(norm_index) < 0.3 * (cframe[3] - cframe[0])
-            # -----------------------------------------------------------------
-            # fit the mid transit frames
-            fit_mid, _ = mp.robust_polyfit(index[mid_transit],
-                                           value[mid_transit],
-                                           degree=2, nsigcut=5)
-            # -----------------------------------------------------------------
-            # calculate the mid-transit point and depth
-            mid_transit_point = -0.5 * fit_mid[1] / fit_mid[0]
-            mid_transit_depth = np.polyval(fit_mid, mid_transit_point)
-            # -----------------------------------------------------------------
-            # append to lists
-            mid_transits.append(mid_transit)
-            fit_mids.append(fit_mid)
-            mid_transit_depths.append(mid_transit_depth)
-
-    else:
-        mid_transits, fit_mids, mid_transit_depths = [], [], []
-
-
-    # -------------------------------------------------------------------------
-    # setup the plot
-    fig, frame = plt.subplots(nrows=1, ncols=1, figsize=[8, 4])
-    # -------------------------------------------------------------------------
-    # plot the out-of-transit
-    if has_oot:
-        frame.errorbar(index[out_transit_domain],
-                       value[out_transit_domain],
-                       yerr=errvalue[out_transit_domain],
-                       fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
-    # otherwise just plot the transit
-    else:
-        frame.errorbar(index, value, yerr=errvalue,
-                       fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
-    # -------------------------------------------------------------------------
-    # plot the in transit (if we have it)
-    if has_int:
-        frame.errorbar(index[in_transit_domain],
-                       value[in_transit_domain],
-                       yerr=errvalue[in_transit_domain],
-                       fmt='.', color='red', alpha=0.4, label='it', zorder=2)
-        # plot the transit fit
-        for it in range(len(mid_transits)):
-            frame.plot(index[mid_transits[it]],
-                       np.polyval(fit_mids[it], index[mid_transits[it]]),
-                       'k--', zorder=10)
-        # add a legend
-        frame.legend()
-
-
-    # ---------------------------------------------------------------------
-    # axis labels, title and grid
-    # ---------------------------------------------------------------------
-    # get the y limits
-    ylim = cal_y_limits(value, errvalue)
-    # get the title for the plot
-    title = f'{objname} -- {suffix}\n'
-    sub_strs = []
-    for m_it, mid_transit_depth in enumerate(mid_transit_depths):
-        sub_strs.append(f'Transit-{m_it+1}: {(1-mid_transit_depth)*1e6:.0f} ppm')
-    title += '\n'.join(sub_strs)
-
-    # set the axis
-    frame.set(xlabel='Nth frame', ylabel='Baseline-corrected flux', ylim=ylim,
-              title=title)
-    # set up the grid
-    frame.grid(linestyle='--', color='grey', zorder=-99)
-    # force a tight layout
-    plt.tight_layout()
-    # -------------------------------------------------------------------------
-    # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'transit')
+# def plot_transit(inst: Any, table: Table):
+#     # set function name
+#     func_name = f'{__NAME__}.plot_transit()'
+#     # validate out-of-transit domain
+#     inst.get_baseline_params()
+#     has_oot = inst.get_variable('HAS_OUT_TRANSIT', func_name)
+#     has_int = inst.get_variable('HAS_IN_TRANSIT', func_name)
+#     out_transit_domain = inst.get_variable('OOT_DOMAIN', func_name)
+#     in_transit_domain = inst.get_variable('INT_DOMAIN', func_name)
+#     baseline_ints = inst.get_variable('BASELINE_INTS', func_name)
+#     transit_ints = inst.get_variable('TRANSIT_INTS', func_name)
+#     # get wlc_params
+#     wlc_params = inst.params.get('WLC')
+#     # get object name and suffix
+#     objname = inst.params['INPUTS.OBJECTNAME']
+#     suffix = inst.params['INPUTS.SUFFIX']
+#     # get the polynomial degree for the transit baseline
+#     poly_order = wlc_params['GENERAL.TRANSIT_BASELINE_POLYORD']
+#     # -------------------------------------------------------------------------
+#     # get the number of points
+#     npoints = len(table['amplitude'])
+#     # -------------------------------------------------------------------------
+#     # get the amplitude and error values
+#     value = table['amplitude']
+#     errvalue = table['amplitude_error']
+#     # get the index of the pixels
+#     index = np.arange(npoints)
+#     # -------------------------------------------------------------------------
+#     # deal with no out-of-transit defined
+#     if not has_oot:
+#         out_transit_domain = np.ones_like(index, dtype=bool)
+#     # -------------------------------------------------------------------------
+#     # 5-sigma robust poly fit of the continuum
+#     ampfit, _ = mp.robust_polyfit(index[out_transit_domain],
+#                                   value[out_transit_domain],
+#                                   degree=poly_order, nsigcut=5)
+#     # remove this fit from the amplitude
+#     value = value / np.polyval(ampfit, index)
+#     # -------------------------------------------------------------------------
+#     # deal with no transit
+#     if has_int:
+#         # storage for mid transits/eclipses
+#         mid_transits, fit_mids, mid_transit_depths = [], [], []
+#         # loop around transits/eclipses
+#         for cframe in transit_ints:
+#             # calculate the mid-transit frames
+#             norm_index = index - (cframe[0] + cframe[3]) / 2
+#             mid_transit = np.abs(norm_index) < 0.3 * (cframe[3] - cframe[0])
+#             # -----------------------------------------------------------------
+#             # fit the mid transit frames
+#             fit_mid, _ = mp.robust_polyfit(index[mid_transit],
+#                                            value[mid_transit],
+#                                            degree=2, nsigcut=5)
+#             # -----------------------------------------------------------------
+#             # calculate the mid-transit point and depth
+#             mid_transit_point = -0.5 * fit_mid[1] / fit_mid[0]
+#             mid_transit_depth = np.polyval(fit_mid, mid_transit_point)
+#             # -----------------------------------------------------------------
+#             # append to lists
+#             mid_transits.append(mid_transit)
+#             fit_mids.append(fit_mid)
+#             mid_transit_depths.append(mid_transit_depth)
+#
+#     else:
+#         mid_transits, fit_mids, mid_transit_depths = [], [], []
+#
+#
+#     # -------------------------------------------------------------------------
+#     # setup the plot
+#     fig, frame = plt.subplots(nrows=1, ncols=1, figsize=[8, 4])
+#     # -------------------------------------------------------------------------
+#     # plot the out-of-transit
+#     if has_oot:
+#         frame.errorbar(index[out_transit_domain],
+#                        value[out_transit_domain],
+#                        yerr=errvalue[out_transit_domain],
+#                        fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
+#     # otherwise just plot the transit
+#     else:
+#         frame.errorbar(index, value, yerr=errvalue,
+#                        fmt='.', color='green', alpha=0.4, label='oot', zorder=3)
+#     # -------------------------------------------------------------------------
+#     # plot the in transit (if we have it)
+#     if has_int:
+#         frame.errorbar(index[in_transit_domain],
+#                        value[in_transit_domain],
+#                        yerr=errvalue[in_transit_domain],
+#                        fmt='.', color='red', alpha=0.4, label='it', zorder=2)
+#         # plot the transit fit
+#         for it in range(len(mid_transits)):
+#             frame.plot(index[mid_transits[it]],
+#                        np.polyval(fit_mids[it], index[mid_transits[it]]),
+#                        'k--', zorder=10)
+#         # add a legend
+#         frame.legend()
+#
+#
+#     # ---------------------------------------------------------------------
+#     # axis labels, title and grid
+#     # ---------------------------------------------------------------------
+#     # get the y limits
+#     ylim = cal_y_limits(value, errvalue)
+#     # get the title for the plot
+#     title = f'{objname} -- {suffix}\n'
+#     sub_strs = []
+#     for m_it, mid_transit_depth in enumerate(mid_transit_depths):
+#         sub_strs.append(f'Transit-{m_it+1}: {(1-mid_transit_depth)*1e6:.0f} ppm')
+#     title += '\n'.join(sub_strs)
+#
+#     # set the axis
+#     frame.set(xlabel='Nth frame', ylabel='Baseline-corrected flux', ylim=ylim,
+#               title=title)
+#     # set up the grid
+#     frame.grid(linestyle='--', color='grey', zorder=-99)
+#     # force a tight layout
+#     plt.tight_layout()
+#     # -------------------------------------------------------------------------
+#     # standard save/show plot for SOSSISSE
+#     save_show_plot(inst.params, 'transit')
 
 def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # set function name
@@ -1098,11 +1091,7 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     vmin = np.nanpercentile(spec2, 2.5)
     vmax= np.nanpercentile(spec2, 97.5)
     frame.imshow(spec2, origin='lower', cmap='inferno', vmin=vmin, vmax=vmax,
-                    aspect='auto', interpolation='none')
-    frame.axhline(inst.params['WLC.INPUTS.TRANSIT_INTS'][0][0],
-                    linestyle='--', color='k', zorder=4)
-    frame.axhline(inst.params['WLC.INPUTS.TRANSIT_INTS'][0][-1],
-                    linestyle='--', color='k', zorder=4)
+                 aspect='auto', interpolation='none')
     frame.set_xlabel('x pixel')
     frame.set_ylabel('Integration number')
     # plot colorbar
@@ -1207,141 +1196,141 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
 # =============================================================================
 # Define the interactive transit plot functions
 # =============================================================================
-class InteractiveTransitPlot:
-    def __init__(self, **kwargs):
-        # get values out of kwargs
-        self.x = np.arange(len(kwargs['amps']))
-        self.y = kwargs['amps']
-        self.yerr = kwargs['eamps']
-        self.mask = kwargs['oot_domain']
-        # Set title
-        self.title = ('Pick groups of 4 transit integrations'
-                      '\n1: First Contact, 2: Second Contact,'
-                      '3: Third Contact, 4: Fourth Contact'
-                      '\n\nObject name = {0}'.format(kwargs['OBJECTNAME']))
-
-        # Store selected points
-        self.selected_points = []
-        self.lines = []
-        self.fig = None
-        self.frame = None
-        self.frame_reset = None
-        self.frame_accept = None
-        self.btn_reset = None
-        self.btn_accept = None
-        # store outputs
-        self.success = False
-        self.transit_ints = []
-
-    def plot(self):
-        # try to do the plot
-        try:
-            # close any previously open plots
-            plt.close()
-            # Create figure and plot
-            self.fig, self.frame = plt.subplots()
-            plt.subplots_adjust(bottom=0.2)
-
-            # plot out of transit domain in blue
-            self.frame.errorbar(self.x[self.mask], self.y[self.mask],
-                                yerr=self.yerr[self.mask],
-                                linestyle='None', marker='o', color='b',
-                                label='BASELINE_INTS')
-            # plot rejected points in black
-            self.frame.errorbar(self.x[~self.mask], self.y[~self.mask],
-                                yerr=self.yerr[~self.mask],
-                                linestyle='None', marker='o', color='b',
-                                label='Rest of domain')
-            # set title
-            self.frame.set(xlabel='Integration number',
-                           ylabel='Flux',
-                           title=self.title)
-            # Create buttons
-            self.frame_reset = plt.axes([0.3, 0.05, 0.2, 0.075])
-            self.frame_accept = plt.axes([0.55, 0.05, 0.2, 0.075])
-            self.btn_reset = Button(self.frame_reset, 'Reset')
-            self.btn_accept = Button(self.frame_accept, 'Accept')
-
-            self.btn_reset.on_clicked(self.reset)
-            self.btn_accept.on_clicked(self.accept)
-
-            self.fig.canvas.mpl_connect('button_press_event', self.on_click)
-            plt.show(block=True)
-        except Exception as e:
-            misc.printc(str(e), 'error')
-            self.success = False
-
-    def on_click(self, event):
-        """Handles mouse clicks to select points."""
-        if event.inaxes != self.frame:
-            return
-
-        x_selected = event.xdata
-        self.selected_points.append(x_selected)
-
-        line = self.frame.axvline(x_selected, color='r', linestyle='--')
-        self.lines.append(line)
-        self.fig.canvas.draw()
-
-    def reset(self, event):
-        """Clears selected points and removes lines."""
-        _ = event
-        self.selected_points.clear()
-        for line in self.lines:
-            line.remove()
-        self.lines.clear()
-        self.fig.canvas.draw()
-
-    def accept(self, event):
-        """Accepts selections and closes the plot."""
-        _ = event
-        # ask user whether they want to continue
-        if self.try_again():
-            return
-        # close the
-        plt.close(self.fig)
-        # set success to True
-        self.success = True
-        # sort selected points
-        selected_points = list(self.selected_points)
-        selected_points.sort()
-        # storage for transit groups
-        transit_group = []
-        # loop through point and make them integers
-        for point in selected_points:
-            if len(transit_group) < 4:
-                transit_group.append(int(point))
-            else:
-                self.transit_ints.append(transit_group)
-                transit_group = [int(point)]
-        # sort in ascending order
-        self.transit_ints.sort()
-
-    def try_again(self) -> bool:
-        """
-        Ask user if they want to continue
-        :return:
-        """
-        # deal with having 4 points (continue)
-        if len(self.selected_points) % 4 == 0:
-            return False
-        # try to create a warning message box
-        try:
-            import tkinter as tk
-            from tkinter import messagebox
-            root = tk.Tk()
-            root.withdraw()
-            title = 'Selection Error'
-            msg = ('Please select groups of exactly 4 points. '
-                   '\nDo you want to continue selecting?')
-            uinput = messagebox.askquestion(title, msg, icon='warning')
-            if uinput == 'no':
-                self.success = False
-                self.transit_ints = [[]]
-                return False
-        except Exception as e:
-            misc.printc(str(e), 'error')
-            self.success = False
-            return False
-        # if we get here return True
-        return True
+# class InteractiveTransitPlot:
+#     def __init__(self, **kwargs):
+#         # get values out of kwargs
+#         self.x = np.arange(len(kwargs['amps']))
+#         self.y = kwargs['amps']
+#         self.yerr = kwargs['eamps']
+#         self.mask = kwargs['baseline_domain']
+#         # Set title
+#         self.title = ('Pick groups of 4 transit integrations'
+#                       '\n1: First Contact, 2: Second Contact,'
+#                       '3: Third Contact, 4: Fourth Contact'
+#                       '\n\nObject name = {0}'.format(kwargs['OBJECTNAME']))
+#
+#         # Store selected points
+#         self.selected_points = []
+#         self.lines = []
+#         self.fig = None
+#         self.frame = None
+#         self.frame_reset = None
+#         self.frame_accept = None
+#         self.btn_reset = None
+#         self.btn_accept = None
+#         # store outputs
+#         self.success = False
+#         self.transit_ints = []
+#
+#     def plot(self):
+#         # try to do the plot
+#         try:
+#             # close any previously open plots
+#             plt.close()
+#             # Create figure and plot
+#             self.fig, self.frame = plt.subplots()
+#             plt.subplots_adjust(bottom=0.2)
+#
+#             # plot out of transit domain in blue
+#             self.frame.errorbar(self.x[self.mask], self.y[self.mask],
+#                                 yerr=self.yerr[self.mask],
+#                                 linestyle='None', marker='o', color='b',
+#                                 label='BASELINE_INTS')
+#             # plot rejected points in black
+#             self.frame.errorbar(self.x[~self.mask], self.y[~self.mask],
+#                                 yerr=self.yerr[~self.mask],
+#                                 linestyle='None', marker='o', color='b',
+#                                 label='Rest of domain')
+#             # set title
+#             self.frame.set(xlabel='Integration number',
+#                            ylabel='Flux',
+#                            title=self.title)
+#             # Create buttons
+#             self.frame_reset = plt.axes([0.3, 0.05, 0.2, 0.075])
+#             self.frame_accept = plt.axes([0.55, 0.05, 0.2, 0.075])
+#             self.btn_reset = Button(self.frame_reset, 'Reset')
+#             self.btn_accept = Button(self.frame_accept, 'Accept')
+#
+#             self.btn_reset.on_clicked(self.reset)
+#             self.btn_accept.on_clicked(self.accept)
+#
+#             self.fig.canvas.mpl_connect('button_press_event', self.on_click)
+#             plt.show(block=True)
+#         except Exception as e:
+#             misc.printc(str(e), 'error')
+#             self.success = False
+#
+#     def on_click(self, event):
+#         """Handles mouse clicks to select points."""
+#         if event.inaxes != self.frame:
+#             return
+#
+#         x_selected = event.xdata
+#         self.selected_points.append(x_selected)
+#
+#         line = self.frame.axvline(x_selected, color='r', linestyle='--')
+#         self.lines.append(line)
+#         self.fig.canvas.draw()
+#
+#     def reset(self, event):
+#         """Clears selected points and removes lines."""
+#         _ = event
+#         self.selected_points.clear()
+#         for line in self.lines:
+#             line.remove()
+#         self.lines.clear()
+#         self.fig.canvas.draw()
+#
+#     def accept(self, event):
+#         """Accepts selections and closes the plot."""
+#         _ = event
+#         # ask user whether they want to continue
+#         if self.try_again():
+#             return
+#         # close the
+#         plt.close(self.fig)
+#         # set success to True
+#         self.success = True
+#         # sort selected points
+#         selected_points = list(self.selected_points)
+#         selected_points.sort()
+#         # storage for transit groups
+#         transit_group = []
+#         # loop through point and make them integers
+#         for point in selected_points:
+#             if len(transit_group) < 4:
+#                 transit_group.append(int(point))
+#             else:
+#                 self.transit_ints.append(transit_group)
+#                 transit_group = [int(point)]
+#         # sort in ascending order
+#         self.transit_ints.sort()
+#
+#     def try_again(self) -> bool:
+#         """
+#         Ask user if they want to continue
+#         :return:
+#         """
+#         # deal with having 4 points (continue)
+#         if len(self.selected_points) % 4 == 0:
+#             return False
+#         # try to create a warning message box
+#         try:
+#             import tkinter as tk
+#             from tkinter import messagebox
+#             root = tk.Tk()
+#             root.withdraw()
+#             title = 'Selection Error'
+#             msg = ('Please select groups of exactly 4 points. '
+#                    '\nDo you want to continue selecting?')
+#             uinput = messagebox.askquestion(title, msg, icon='warning')
+#             if uinput == 'no':
+#                 self.success = False
+#                 self.transit_ints = [[]]
+#                 return False
+#         except Exception as e:
+#             misc.printc(str(e), 'error')
+#             self.success = False
+#             return False
+#         # if we get here return True
+#         return True

@@ -373,7 +373,7 @@ CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
 # -----------------------------------------------------------------------------
 # Integrations used to construct a model PSF.
 #     This should be a list of [start, end] lists
-#     Ideally, these would be out-of-transit (if any) and without flares.
+#     These should be out-of-transit (if any) and without flares.
 #     If you observed constantly a variable object (brown dwarf, phase curve),
 #     you should enter the first to last as frame IDs, except significant
 #     flares.
@@ -392,7 +392,7 @@ CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
           group=cgroup,
           description='Integrations used to construct a model PSF. ' 
                        'This should be a list of [start, end] lists. '
-                      '\nIdeally, these would be out-of-transit (if any) and '
+                      '\nThese should be out-of-transit (if any) and '
                       'without flares. '
                       '\nIf you observed constantly a variable '
                       'object (brown dwarf, phase curve), you should enter the '
@@ -411,52 +411,6 @@ CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
                       '\n         BASELINE_INTS:'
                       '\n            - [0, 89]'
                       '\n           - [111, 230]')
-
-# -----------------------------------------------------------------------------
-# Whether there is a transit/eclipse in the data.
-# If this is set to False TRANSIT_INTS is ignored
-# If this is set to True and TRANSIT_INTS is None a graph will help you
-#    decide where the transit should be
-# If this is set to True and TRANSIT_INTS is set the code will process transits
-#    and treat the data as such
-CDict.add('HAS_TRANSIT', value=True, dtype=bool, source=__NAME__,
-          user=True, active=True, group=cgroup, not_none=True,
-          description='Whether there is a transit/eclipse in the data. '
-                      '\nIf this is set to False TRANSIT_INTS is ignored. '
-                      '\nIf this is set to True and TRANSIT_INTS is None a '
-                      'graph will help you decide where the transit should be. '
-                      '\n If this is set to True and TRANSIT_INTS is set the '
-                      'code will process transits and treat the data as such')
-
-# -----------------------------------------------------------------------------
-# If there are transit(s)/eclipse(s) in the data, enter the frames
-#     corresponding to either the 1st, 2nd, 3rd and 4th contact [length 4 list]
-#     or the 1st to 4th contact [length 2 list].
-#     These should not overlap with the BASELINE_INTS,
-#     but there may be some domain that is neither because of flares
-#     (i.e., not within a transit but not within baseline).
-#     You can enter a guess and fine-tune in a second step.
-#     Note the 1st frame is zero (pythonic numbering)
-#     Note that leaving this blank assumes there is no transit/eclipse
-#     e.g. TRANSIT_INTS:
-#           - [90, 97, 103, 110]
-CDict.add('TRANSIT_INTS', value=None, dtype=list, dtypei=list,
-          source=__NAME__, user=True, active=True, not_none=False,
-          group=cgroup,
-          description='If there are transit(s)/eclipse(s) in the data, enter '
-                      'the frames corresponding to either the 1st, 2nd, 3rd '
-                      'and 4th contact [length 4 list] or the 1st to 4th '
-                      'contact [length 2 list]. These should not overlap with '
-                      'the BASELINE_INTS, but there may be some domain that '
-                      'is neither because of flares (i.e., not within a transit '
-                      'but not within baseline). '
-                      '\nYou can enter a guess and fine-tune in a second step.'
-                      '\nNote the 1st frame is zero (pythonic numbering)'
-                      '\nNote that leaving this blank assumes there is no '
-                      'transit/eclipse'
-                      '\ne.g. TRANSIT_INTS:'
-                      '\n         - [90, 97, 103, 110]')
-
 # -----------------------------------------------------------------------------
 # used to reject bits of domain from the analysis
 # you can reject frames 0-600 with the values
@@ -619,12 +573,12 @@ CDict.add('COSMIC_RAY_SIGMA', value=5, dtype=float, minimum=0,
           description='sigma to flag cosmic rays at (away from the '
                       'mean)')
 # -----------------------------------------------------------------------------
-# median of out-of-transit values for reference trace construction.
+# median of baseline values for reference trace construction.
 # If set to false, then we have the median of the entire timeseries
 # Formally ootmed
-CDict.add('MEDIAN_OOT', value=True, dtype=bool,
+CDict.add('MEDIAN_BASELINE', value=True, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='median of out-of-transit values for reference '
+          description='median baseline values for reference '
                       'trace construction. If set to false, then we '
                       'have the median of the entire timeseries')
 # -----------------------------------------------------------------------------
@@ -736,7 +690,7 @@ CDict.add('BACKGROUND_INTERVAL', value='zscale', dtype=str,
 # -----------------------------------------------------------------------------
 # define the vmin and vmax values for the lowpass plot
 #    (depends on LOWPASS_VLIM_TYPE)
-CDict.add('LOWPASS_VLIM', value=[1, 10], dtype=list, dtypei=float,
+CDict.add('LOWPASS_VLIM', value=[1, 70], dtype=list, dtypei=float,
           length=2, source=__NAME__, user=False, active=True, group=cgroup,
           description='define the vmin and vmax values for the '
                       'lowpass plot (depends on LOWPASS_VLIM_TYPE)')
@@ -752,7 +706,7 @@ CDict.add('LOWPASS_STRETCH', value='linear', dtype=str,
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style stretch for the low pass plot')
 # define the ds9 style interval for the low pass plot
-CDict.add('LOWPASS_INTERVAL', value='minmax', dtype=str,
+CDict.add('LOWPASS_INTERVAL', value='zscale', dtype=str,
           options=['base', 'zscale', 'minmax'],
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style interval for the low pass plot')    
@@ -790,7 +744,7 @@ CDict.add('FRAME_VLIM_TYPE', value='percentile', dtype=str,
           description='define the type of the vmin and vmax values for the '
                       'frame plot')
 # Define the ds9 style stretch for the frame plot
-CDict.add('FRAME_STRETCH', value='linear', dtype=str,   
+CDict.add('FRAME_STRETCH', value='log', dtype=str,
           options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the ds9 style stretch for the frame plot')

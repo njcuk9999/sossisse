@@ -298,11 +298,11 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         _ = mask_trace_pos
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_mask_order0()'
-        # get in vs out filename
-        in_vs_out_file = self.get_variable('TEMP_TRANSIT_IN_VS_OUT', func_name)
         # get the size of the data
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         # get the diff file
+        # TODO: Ask Etienne and Loic about this - we have no transit
+        #       What do we use for diff0?
         diff0 = self.load_data(in_vs_out_file)
         # get the trace position for order zero
         # TODO: Add order 2 here (in a loop) sigmask &= sigmas_ord
