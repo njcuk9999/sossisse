@@ -335,7 +335,12 @@ def run_time_params(params: ParamDict, only_create: bool = False
         paths['FITS_PATH'] = os.path.join(paths['SID_PATH'], 'fits')
         paths.set_source('FITS_PATH', func_name)
     io.create_directory(paths['FITS_PATH'])
-
+    # -------------------------------------------------------------------------
+    # the out paths
+    if paths['OUT_PATH'] is None:
+        paths['OUT_PATH'] = os.path.join(paths['SID_PATH'], 'out')
+        paths.set_source('OUT_PATH', func_name)
+    io.create_directory(paths['OUT_PATH'])
     # -------------------------------------------------------------------------
     # load the raw files
     # -------------------------------------------------------------------------

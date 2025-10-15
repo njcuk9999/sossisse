@@ -469,7 +469,7 @@ def plot_trace_mask(inst: Any, trace_map: np.ndarray,
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'masking_order0')
+    save_show_plot(inst.params, 'trace_mask')
 
 def trace_correction_sample(inst: Any, iframe: int,
                             cube: np.ndarray, recon: np.ndarray,

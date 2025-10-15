@@ -323,6 +323,9 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # convert sossisse to eureka products
     inst.to_eureka(storage)
     # -------------------------------------------------------------------------
+    # save final outputs
+    inst.save_final_outputs(storage)
+    # -------------------------------------------------------------------------
     # write the yaml file to html
     io.summary_html(inst.params)
     # -------------------------------------------------------------------------

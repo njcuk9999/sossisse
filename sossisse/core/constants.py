@@ -308,6 +308,11 @@ CDict.add('OTHER_PATH', value=None, dtype=str,
 CDict.add('FITS_PATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
           description='The fits path')
+# -----------------------------------------------------------------------------
+# the out path
+CDict.add('OUT_PATH', value=None, dtype=str,
+          source=__NAME__, active=False, user=False, group=cgroup,
+          description='The SOSSISSE final products path')
 
 # =============================================================================
 # Definition of inputs related to plots
@@ -609,13 +614,6 @@ CDict.add('TRACE_X_SCALE', value=None, dtype=int,
           modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
                       '-nbxpix/trace_x_scale to +nbxpix/trace_x_scale')
-# -----------------------------------------------------------------------------
-# Whether to mask order zero
-# Formally mask_order_0
-CDict.add('MASK_ORDER_ZERO', value=True, dtype=bool,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          modes='JWST.NIRISS.SOSS, JWST.NIRISS.FGS',
-          description='Whether to mask order zero')
 # -----------------------------------------------------------------------------
 # Whether to recenter the trace position
 CDict.add('RECENTER_TRACE_POSITION', value=True, dtype=bool,

@@ -21,10 +21,9 @@ from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
 from scipy.ndimage import binary_dilation
-from scipy.ndimage import shift, median_filter
+from scipy.ndimage import shift
 from scipy.signal import convolve2d
 from scipy.signal import medfilt2d
-from scipy.optimize import curve_fit
 from tqdm import tqdm
 from wpca import EMPCA
 
@@ -35,7 +34,6 @@ from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
-from sossisse.core import const_funcs
 from sossisse.general import plots
 
 # =============================================================================
@@ -441,7 +439,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         reconfile = os.path.join(temppath, 'recon.fits')
         # ---------------------------------------------------------------------
-        ltbl_file = os.path.join(otherpath, 'stability.csv')
+        ltbl_file = os.path.join(otherpath, 'linear_recon_coeffs.csv')
         # ---------------------------------------------------------------------
         sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace_order}.csv')
         # ---------------------------------------------------------------------
@@ -1922,8 +1920,6 @@ class Instrument:
         Clean the 1/f noise from the cube
 
         :param cube: np.ndarray, the cube to clean
-        :param err: np.ndarray, the error cube
-        :param trace_mask: np.ndarray, the trace map
 
         :return: tuple, 1. the clean cube, 2. the median image,
                  3. the tmp before after clean1f, 4. the transit in vs out
@@ -2325,11 +2321,12 @@ class Instrument:
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # validate out-of-transit domain
         self.get_baseline_params()
+        has_baseline = self.get_variable('HAS_BASELINE', func_name)
         baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # ---------------------------------------------------------------------
         # if we don't have oot domain we cannot do the pca analysis
-        if not has_oot:
-            wmsg = ('Cannot do PCA analysis without out-of-transit domain.'
+        if not has_baseline:
+            wmsg = ('Cannot do PCA analysis without baseline domain.'
                     '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to use PCA.')
             misc.printc(wmsg, 'warning')
             return None
@@ -2628,38 +2625,8 @@ class Instrument:
         # later in the code
         x_order0 = [np.nan]
         y_order0 = [np.nan]
-        # deal with masking order zero
-        if wlc_gen_params['MASK_ORDER_ZERO']:
-            # adding the masking of order 0
-            mo0out = self.get_mask_order0(mask_trace_pos, trace_mask,
-                                          no_plot=no_plot)
-            # get return from get_mask_order0
-            mask_order0, x_order0, y_order0 = mo0out
-            # set the values in the mask where order zero to 0
-            mask_trace_pos[mask_order0] = 0
         # return the mask trace positions
         return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
-
-    def get_mask_order0(self, mask_trace_pos: np.ndarray,
-                        trace_mask: np.ndarray, no_plot: bool = False
-                        ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Get the mask for order 0 - this is a dummy function that returns
-        the default values and overriden by JWST.NIRISS.SOSS
-
-        :param mask_trace_pos: np.ndarray, the mask trace positions
-        :param trace_mask: np.ndarray, the trace map
-
-        :return: tuple, 1. the updated mask trace positions, 2. the x order 0
-                        positions, 3. the y order 0 positions
-        """
-        # default option does not use trace_mask
-        _ = self, trace_mask, no_plot
-        # default option is not to mask order 0 (overridden by SOSS)
-        empty_x = np.array([np.nan])
-        empty_y = np.array([np.nan])
-        # return the default values
-        return mask_trace_pos, empty_x, empty_y
 
     def setup_linear_reconstruction(self, med: np.ndarray, dx: np.ndarray,
                                     dy: np.ndarray, rotxy: np.ndarray,
@@ -3314,20 +3281,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         # the model starts as the recon
         model = np.array(recon)
-        # deal with masking order zero
-        if self.params['WLC.GENERAL.MASK_ORDER_ZERO']:
-            # load the mask trace position
-            glrm_out = self.get_linear_recon_mask(med, trace_mask,
-                                                  no_plot=True)
-            mask_trace_pos = glrm_out[0]
-            # need to re-get the mask order zero
-            mask_order0, xpos, ypos = self.get_mask_order0(mask_trace_pos,
-                                                           trace_mask,
-                                                           no_plot=True)
-            # loop around frames and mask out order zero (with NaNs)
-            for iframe in tqdm(range(nbframes)):
-                # set the order zero values to nan
-                model[iframe][mask_order0] = np.nan
         # ---------------------------------------------------------------------
         # return the model
         return model
@@ -3835,6 +3788,43 @@ class Instrument:
             # save eureka format file
             io.save_eureka(filename, flux, flux_err, wavegrid, time_arr)
 
+
+    def save_final_outputs(self, storage: Dict[int, Dict[str, Any]]):
+        """
+        Save the final outputs to disk
+        :param storage: dict, storage dictionary
+        :return: None
+        """
+        # print progress
+        msg = 'Saving final outputs'
+        __ = misc.printc(msg, 'info', True, True, True)
+        # get output directory
+        output_dir = self.params['PATH.OUT_PATH']
+        # check output directory
+        if not os.path.exists(output_dir):
+            msg = f'Output directory {output_dir} does not exist'
+            raise exceptions.SossisseException(msg)
+        elif __:
+            return
+        # ---------------------------------------------------------------------
+        # Producing spectroscopy light curves
+        self.out_spec_lc_file(storage)
+        # Producing white light curve
+        self.out_wlc_file(storage)
+        # Producing output.tex
+        self.out_tex_file(storage)
+
+    def out_spec_lc_file(self, storage: Dict[int, Dict[str, Any]]):
+        pass
+
+    def out_wlc_file(self, storage: Dict[int, Dict[str, Any]]):
+        pass
+
+    def out_param_file(self):
+        pass
+
+    def out_tex_file(self, storage: Dict[int, Dict[str, Any]]):
+        pass
 
 # =============================================================================
 # Start of code
