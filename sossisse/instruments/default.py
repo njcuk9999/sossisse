@@ -3783,7 +3783,7 @@ class Instrument:
         # get the keys that have the tex attribute
         tsnapshot = self.params.snapshot_table(tex=True)
         # only keep name and value
-        tsnapshot = tsnapshot['name', 'value']
+        tsnapshot = tsnapshot['NAME', 'VALUE']
         # write to latex table
         io.save_table(filename, tsnapshot, fmt='ascii.latex')
 
