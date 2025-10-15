@@ -1133,8 +1133,6 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
 def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
-    # get resolution_bin
-    res_bin = inst.params['SPEC_EXT.RESOLUTION_BIN']
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
     suffix = inst.params['INPUTS.SUFFIX']
@@ -1167,17 +1165,6 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
         frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
                          'order {0}'.format(trace_order))
-        # plot the in-transit spectrum
-        #frame.errorbar(wavegrid, (spec_in + transit_depth) * 1e6,
-        #               yerr=spec_err_in * 1e6, alpha=0.25,
-        #               label='in-transit, order {}'.format(trace_order),
-        #               **pkwargs1)
-        # plot the binned in-transit spectrum
-        binlabelargs = [res_bin, trace_order]
-        binlabel = 'Resolution {}, order {}'.format(*binlabelargs)
-        #frame.errorbar(wave_bin, (flux_bin + transit_depth) * 1e6,
-        #               yerr=flux_bin_err * 1e6, label=binlabel,
-        #               **pkwargs2)
     # -------------------------------------------------------------------------
     # construct title
     title = f'{objname} -- {suffix}'

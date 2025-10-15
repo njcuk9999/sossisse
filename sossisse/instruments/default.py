@@ -45,6 +45,8 @@ __date__ = base.__date__
 __authors__ = base.__authors__
 # Get parmaeter dictionary
 ParamDict = param_functions.ParamDict
+# cache for param table
+PARAM_TABLE = dict()
 
 
 # =============================================================================
@@ -121,6 +123,10 @@ class Instrument:
         self._variables['BASELINE_DOMAIN'] = None
         self._variables['PHOTO_WEIGHTED_MEAN'] = None
         self._variables['ENERGY_WEIGHTED_MEAN'] = None
+        # final output files
+        self._variables['OUT_SPEC_LC_FILE'] = None
+        self._variables['OUT_WLC_FILE'] = None
+        self._variables['OUT_TEX_FILE'] = None
         # ---------------------------------------------------------------------
         # define source for variables
         self.vsources = dict()
@@ -176,6 +182,10 @@ class Instrument:
         self.vsources['BASELINE_DOMAIN'] = f'{self.name}.get_baseline_params()'
         self.vsources['PHOTO_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
         self.vsources['ENERGY_WEIGHTED_MEAN'] = f'{self.name}.get_effective_wavelength()'
+        # final output files
+        self.vsources['OUT_SPEC_LC_FILE'] = define_func
+        self.vsources['OUT_WLC_FILE'] = define_func
+        self.vsources['OUT_TEX_FILE'] = define_func
 
     def param_override(self):
         """
@@ -374,6 +384,7 @@ class Instrument:
         temppath = self.params['PATHS.TEMP_PATH']
         otherpath = self.params['PATHS.OTHER_PATH']
         fitspath = self.params['PATHS.FITS_PATH']
+        outpath = self.params['PATHS.OUT_PATH']
         # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
@@ -464,6 +475,15 @@ class Instrument:
         eureka_file = 'spectra_ord{trace_order}.h5'
         eureka_file = os.path.join(fitspath, eureka_file)
         # ---------------------------------------------------------------------
+        out_spec_lc_file = 'spectroscopy_light_curves.fits'
+        out_spec_lc_file = os.path.join(outpath, out_spec_lc_file)
+        # ---------------------------------------------------------------------
+        out_wlc_file = 'white_light_curve.fits'
+        out_wlc_file = os.path.join(outpath, out_wlc_file)
+        # ---------------------------------------------------------------------
+        out_tex_file = 'sossisse_params.tex'
+        out_tex_file = os.path.join(outpath, out_tex_file)
+        # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
         self.set_variable('TEMP_AMP_FILE', tmp_amp_file)
@@ -498,6 +518,10 @@ class Instrument:
         self.set_variable('TSPEC_ORD', tspec_ord)
         self.set_variable('TSPEC_ORD_BIN', tspec_ord_bin)
         self.set_variable('EUREKA_FILE', eureka_file)
+        # final output files
+        self.set_variable('OUT_SPEC_LC_FILE', out_spec_lc_file)
+        self.set_variable('OUT_WLC_FILE', out_wlc_file)
+        self.set_variable('OUT_TEX_FILE', out_tex_file)
 
     # ==========================================================================
     # White light curve functionality
@@ -3472,152 +3496,6 @@ class Instrument:
         # return the updated spec and ltable
         return ltable
 
-    # def get_transit_depth(self, ltable: Table) -> Union[float, None]:
-    #     """
-    #     Get the transit depth (either user defined or calculate)
-    #
-    #     :param ltable: Table, the linear fit table (from WLC)
-    #
-    #     :raises SossisseConstantException: if TDEPTH_MODE is set to compute
-    #                                          and TDEPTH is not set or TDEPTH
-    #                                          is not a valid float
-    #     :return: None if out-of-transit domain not set, otherwise the transit
-    #              depth
-    #     """
-    #     # set function name
-    #     func_name = f'{__NAME__}.{self.name}.get_transit_depth()'
-    #     # get the spectral extraction parameters
-    #     spec_ext_params = self.params.get('SPEC_EXT')
-    #     # deal with the case where we are not in "compute" mode
-    #     if spec_ext_params['TDEPTH_MODE'] != 'compute':
-    #         # user must set the transit depth if this is the case
-    #         if spec_ext_params['TDEPTH'] is None:
-    #             emsg = 'TDEPTH_MODE is not set to compute, please set TDEPTH'
-    #             raise exceptions.SossisseConstantException(emsg)
-    #         # return the transit depth defined by user
-    #         else:
-    #             try:
-    #                 return float(spec_ext_params['TDEPTH'])
-    #             except Exception as e:
-    #                 emsg = 'TDEPTH value is not valid\n\t{0}:{1}'
-    #                 emsg = emsg.format(type(e), e)
-    #                 raise exceptions.SossisseConstantException(emsg)
-    #     # ---------------------------------------------------------------------
-    #     # otherwise we are in compute mode
-    #     # ---------------------------------------------------------------------
-    #     # get the out-of-transit domain
-    #     self.get_baseline_params()
-    #     has_oot = self.get_variable('HAS_OUT_TRANSIT', func_name)
-    #     out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
-    #     # deal with out of transit domain not set
-    #     if not has_oot:
-    #         wmsg = ('Cannot calculate transit depth trend without '
-    #                 'baseline domain.'
-    #                 '\n\tPlease set WLC.INPUTS.BASELINE_INTS to remove_trend.')
-    #         misc.printc(wmsg, 'warning')
-    #         # return the spec and ltable without removing trend
-    #         return None
-    #     # ---------------------------------------------------------------------
-    #     # TODO: Question does this work with multiple transits?
-    #     # get the transit depth
-    #     with warnings.catch_warnings(record=True) as _:
-    #         part1 = np.nanmedian(ltable['amplitude'][out_transit_domain])
-    #         part2 = np.nanmean(ltable['amplitude'][in_transit_domain])
-    #         # transit depth is the median out-of-transit amplitudes
-    #         # minus the mean of the in transit amplitudes
-    #         transit_depth = part1 - part2
-    #     # ---------------------------------------------------------------------
-    #     # return the transit depth
-    #     return transit_depth
-
-    # def intransit_spectrum(self, spec: np.ndarray, spec_err: np.ndarray
-    #                        ) -> IntransitSpectrum:
-    #     """
-    #     Construct the in-transit spectrum
-    #
-    #     :param spec: np.ndarray, the spectrum
-    #     :param spec_err: np.ndarray, the spectrum error
-    #
-    #     :return: tuple, 1. the in-transit spectrum, 2. the in-transit spectrum
-    #                 error, 3. the out-of-transit spectrum error,
-    #                 if out-of-transit if not defined returns None, None, None
-    #     """
-    #     # set function name
-    #     func_name = f'{__NAME__}.{self.name}.intransit_spectrum()'
-    #     # get the out-of-transit domain
-    #     self.get_baseline_params()
-    #     out_transit_domain = self.get_variable('OOT_DOMAIN', func_name)
-    #     # ---------------------------------------------------------------------
-    #     # weights of each point from uncertainties
-    #     weight = 1 / spec_err ** 2
-    #     # in transit spectrum and error
-    #     with warnings.catch_warnings(record=True) as _:
-    #         sprod = spec[in_transit_domain] * weight[in_transit_domain]
-    #         # calculate the weighted sum of the spectrum - in transit
-    #         sumspec_in = np.nansum(sprod, axis=0)
-    #         # calculate the sum of the weights - in transit
-    #         sumweight_in = np.nansum(weight[in_transit_domain], axis=0)
-    #         # calculate the in transit spectrum
-    #         spec_in = sumspec_in / sumweight_in
-    #         # calculate the in transit spectrum error
-    #         ispec_err2_in = np.nansum(1 / spec_err[in_transit_domain] ** 2,
-    #                                   axis=0)
-    #         spec_err_in = 1 / np.sqrt(ispec_err2_in)
-    #
-    #     with warnings.catch_warnings(record=True) as _:
-    #         # calculate the sum of the weights - out of transit
-    #         ispec_err2_out = np.nansum(1 / spec_err[out_transit_domain] ** 2, axis=0)
-    #         # calculate the out-of-transit spectrum error
-    #         spec_err_out = 1 / np.sqrt(ispec_err2_out)
-    #     # ---------------------------------------------------------------------
-    #     # if we have removed a trend, we need to add in quadrature
-    #     #  out-of-transit  errors to in-transit
-    #     if self.params['SPEC_EXT.REMOVE_TREND']:
-    #         spec_err_in = np.sqrt(spec_err_in ** 2 + spec_err_out ** 2)
-    #     # ---------------------------------------------------------------------
-    #     # chane infinite values to nan
-    #     spec_err_in[~np.isfinite(spec_err_in)] = np.nan
-    #     spec_err_out[~np.isfinite(spec_err_out)] = np.nan
-    #     # ---------------------------------------------------------------------
-    #     return spec_in, spec_err_in, spec_err_out
-
-    def bin_spectrum(self, wavegrid: np.ndarray, spec_in: np.ndarray,
-                     spec_err_in: np.ndarray
-                     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Bin the spectrum
-        
-        :param wavegrid: np.ndarray, the wavelength grid
-        :param spec_in: np.ndarray, the in-transit
-        :param spec_err_in: np.ndarray, the in-transit error
-        
-        """
-        # get resolution_bin
-        res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
-        # get the wavelength bins
-        with warnings.catch_warnings(record=True) as _:
-            # log the wavelength
-            logwave = np.log(wavegrid / np.nanmin(wavegrid))
-            # get the wavelength binning
-            wbin = np.floor(logwave * res_bin)
-        # create a wavebin, fluxbin and corresponding error vectors for output
-        bin_num = np.array(list(set(wbin[np.isfinite(wbin)])))
-        wave_bin = np.zeros_like(bin_num)
-        flux_bin = np.zeros_like(bin_num)
-        err_bin = np.zeros_like(bin_num)
-        # loop around bins in wavelength
-        for ibin in range(len(bin_num)):
-            # find all wavelengths in this bin
-            valid = wbin == bin_num[ibin]
-            # get the flux and error using odd_ratio_mean
-            flux, error = mp.odd_ratio_mean(spec_in[valid], spec_err_in[valid])
-            # push into array
-            wave_bin[ibin] = np.mean(wavegrid[valid])
-            flux_bin[ibin] = flux
-            err_bin[ibin] = error
-        # return the binned data
-        return wave_bin, flux_bin, err_bin
-
     def save_spe_results(self, storage: Dict[str, Any], trace_order: int):
         """
         Save the results to disk
@@ -3795,11 +3673,13 @@ class Instrument:
         :param storage: dict, storage dictionary
         :return: None
         """
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.save_final_outputs()'
         # print progress
         msg = 'Saving final outputs'
         __ = misc.printc(msg, 'info', True, True, True)
         # get output directory
-        output_dir = self.params['PATH.OUT_PATH']
+        output_dir = self.params['PATHS.OUT_PATH']
         # check output directory
         if not os.path.exists(output_dir):
             msg = f'Output directory {output_dir} does not exist'
@@ -3807,24 +3687,105 @@ class Instrument:
         elif __:
             return
         # ---------------------------------------------------------------------
+        # update the meta data
+        self.update_meta_data()
+        # get the meta data
+        meta_data = self.get_variable('META', func_name)
+        # ---------------------------------------------------------------------
+        # generate the param snapshot table
+        psnapshot = self.params.snapshot_table(include_zero_counts=True)
         # Producing spectroscopy light curves
-        self.out_spec_lc_file(storage)
+        self.out_spec_lc_file(storage, meta_data, psnapshot)
         # Producing white light curve
-        self.out_wlc_file(storage)
+        self.out_wlc_file(storage, meta_data, psnapshot)
         # Producing output.tex
-        self.out_tex_file(storage)
+        self.out_tex_file()
 
-    def out_spec_lc_file(self, storage: Dict[int, Dict[str, Any]]):
-        pass
+    def out_spec_lc_file(self, storage: Dict[int, Dict[str, Any]],
+                         meta_data: Dict[str, Any],
+                         psnapshot: Table):
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.out_spec_lc_file()'
+        # get the trace orders from the storage keys
+        trace_orders = list(storage.keys())
+        # storage for fits data writing
+        datalist = []
+        datatypes = []
+        datanames = []
+        # loop around trace ordesr
+        for trace_order in trace_orders:
+            # get the wavelength from storage for this trace order
+            wavegrid = storage[trace_order]['wavegrid']
+            # get the 2D spectrum from storage for this trace order
+            spec2 = storage[trace_order]['spec2']
+            # get the 2D spectrum error from storage for this trace order
+            spec_err = storage[trace_order]['spec_err']
+            # get the integration times from storage for each integration
+            int_times = storage[trace_order]['ltable']['bjd']
+            # push into data list
+            datalist.extend([wavegrid, spec2, spec_err, int_times])
+            datatypes.extend(['image', 'image', 'image', 'image'])
+            datanames.extend([f'WAVELENGTH_{trace_order}',
+                              f'RELFLUX_{trace_order}',
+                              f'RELFLUX_ERROR_{trace_order}',
+                              f'BJD_{trace_order}'])
+        # add the param table
+        datalist.append(psnapshot)
+        datatypes.append('table')
+        datanames.append('PARAMS')
+        # construct the fits filename
+        filename = self.get_variable('OUT_SPEC_LC_FILE', func_name)
+        # save the fits file
+        io.save_fits(filename, datalist=datalist, datatypes=datatypes,
+                     datanames=datanames, meta=meta_data)
 
-    def out_wlc_file(self, storage: Dict[int, Dict[str, Any]]):
-        pass
+    def out_wlc_file(self, storage: Dict[int, Dict[str, Any]],
+                     meta_data: Dict[str, Any],
+                     psnapshot: Table):
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.out_wlc_file()'
+        # get the trace orders from the storage keys
+        trace_orders = list(storage.keys())
+        # storage for fits data writing
+        datalist = []
+        datatypes = []
+        datanames = []
+        # loop around trace ordesr
+        for trace_order in trace_orders:
+            # get the linear fit table from storage for this trace order
+            ltable = storage[trace_order]['ltable']
 
-    def out_param_file(self):
-        pass
+            # get columns names to keep
+            rtable = Table()
+            rtable['Time'] = ltable['bjd']
+            rtable['RelFlux'] = ltable['amplitude']
+            rtable['RelFlux_Err'] = ltable['amplitude_error']
 
-    def out_tex_file(self, storage: Dict[int, Dict[str, Any]]):
-        pass
+            # push into data list
+            datalist.append(rtable)
+            datatypes.append('table')
+            datanames.append(f'WLC_{trace_order}')
+        # add the param table
+        datalist.append(psnapshot)
+        datatypes.append('table')
+        datanames.append('PARAMS')
+        # construct the fits filename
+        filename = self.get_variable('OUT_WLC_FILE', func_name)
+        # save the fits file
+        io.save_fits(filename, datalist=datalist, datatypes=datatypes,
+                     datanames=datanames, meta=meta_data)
+
+    def out_tex_file(self):
+        # set the function name
+        func_name = f'{__NAME__}.{self.name}.out_tex_file()'
+        # construct the fits filename
+        filename = self.get_variable('OUT_TEX_FILE', func_name)
+        # get the keys that have the tex attribute
+        tsnapshot = self.params.snapshot_table(tex=True)
+        # only keep name and value
+        tsnapshot = tsnapshot['name', 'value']
+        # write to latex table
+        io.save_table(filename, tsnapshot, fmt='ascii.latex')
 
 # =============================================================================
 # Start of code

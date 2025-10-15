@@ -182,7 +182,7 @@ CDict.add('BKGFILE', value=None, dtype=str,
                       'its value')
 # -----------------------------------------------------------------------------
 # do background correction - must have BKGFILE defined to do this
-CDict.add('DO_BACKGROUND', value=False, dtype=bool,
+CDict.add('DO_BACKGROUND', value=False, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Do background correction - must have BKGFILE '
                       'defined to do this')
@@ -235,14 +235,14 @@ CDict.add('SAVE_RESULTS', value=True, dtype=bool,
 # - 2
 CDict.add('TRACE_ORDERS', value=None, dtype=list, dtypei=int,
           source=__NAME__, user=True, active=True, group=cgroup,
-          modes='JWST.NIRISS.SOSS',
+          modes='JWST.NIRISS.SOSS', tex_arg = True,
           description='Define which orders to use e.g. \n - 1 \n - 2')
 
 # -----------------------------------------------------------------------------
 # wavelength domain for the white light curve
 #   For SOSS if this is defined we only get order 1
 CDict.add('WLC_DOMAIN', value=None, dtype=list, dtypei=float, length=2,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          source=__NAME__, user=True, active=True, group=cgroup, tex_arg = True,
           description='wavelength domain for the white light curve '
                       'e.g. \n - 1.2 \n - 1.6')
 
@@ -359,20 +359,20 @@ CDict.add_group(cgroup,
 # -----------------------------------------------------------------------------
 # Apply DQ flags
 CDict.add('APPLY_DQ_FLAGS', value=True, dtype=bool, source=__NAME__,
-          user=True, active=True, group=cgroup,
+          user=True, active=True, group=cgroup, tex_arg = True,
           description='Apply DQ flags')
 
 # -----------------------------------------------------------------------------
 # DQ flags that we should use (list)
 CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int,
-          source=__NAME__, user=True, active=True,
+          source=__NAME__, user=True, active=True, tex_arg = True,
           not_none=False, minimum=0, group=cgroup,
           description='DQ flags that we should use (list)'
                       ' e.g. \n -0 \n -2')
 # -----------------------------------------------------------------------------
 # Correct 1/f
 CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
-          user=True, active=True, group=cgroup,
+          user=True, active=True, group=cgroup, tex_arg = True,
           description='Apply 1/f correction')
 
 # -----------------------------------------------------------------------------
@@ -394,7 +394,7 @@ CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
 #               - [111, 230]
 CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
           source=__NAME__, user=True, active=True, not_none=False,
-          group=cgroup,
+          group=cgroup, tex_arg = True,
           description='Integrations used to construct a model PSF. ' 
                        'This should be a list of [start, end] lists. '
                       '\nThese should be out-of-transit (if any) and '
@@ -423,7 +423,7 @@ CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
 # reject domain:
 # - [0, 600]
 CDict.add('REJECT_DOMAIN', value=None, dtype=list, dtypei=list,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          source=__NAME__, user=True, active=True, group=cgroup, tex_arg = True,
           description='Used to reject bits of domain from the '
                       'analysis e.g. \n - [0, 600] '
                       '\n\n if you want to reject two bits of '
@@ -434,13 +434,13 @@ CDict.add('REJECT_DOMAIN', value=None, dtype=list, dtypei=list,
 # If PRISM data or saturated, you can perform a CDS between these two readouts
 # cds_id:
 CDict.add('CDS_IDS', value=None, dtype=list, dtypei=int,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          source=__NAME__, user=True, active=True, group=cgroup, tex_arg = True,
           description='If PRISM data or saturated, you can perform '
                       'a CDS between these two readouts e.g. '
                       '\n - 0 # first \n - 2 # last')
 # -----------------------------------------------------------------------------
 # If input is a CDS file you must define the read out noise
-CDict.add('CDS_RON', value=None, dtype=float, minimum=0.0,
+CDict.add('CDS_RON', value=None, dtype=float, minimum=0.0, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='If input is a CDS file you must define the '
                       'read out noise')
@@ -448,7 +448,7 @@ CDict.add('CDS_RON', value=None, dtype=float, minimum=0.0,
 # define the area around which we will optimize the background
 #   this should be a length 4 list (x start, x end, y start, y end)
 CDict.add('BACKGROUND_GLITCH_BOX', value=None,
-          dtype=list, dtypei=int, length=4,
+          dtype=list, dtypei=int, length=4, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
           description='define the area around which we will '
@@ -458,7 +458,7 @@ CDict.add('BACKGROUND_GLITCH_BOX', value=None,
 # -----------------------------------------------------------------------------
 # define the area around which the background will be optimized
 #    should be a list (start, end, step)
-CDict.add('BACKGROUND_SHIFTS', value=None, dtype=list,
+CDict.add('BACKGROUND_SHIFTS', value=None, dtype=list, tex_arg = True,
           dtypei=float, length=3,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
@@ -473,24 +473,24 @@ CDict.add_group(cgroup, description='Definition of inputs to the linear model',
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
 # fit the dx -- along the dispersion
-CDict.add('FIT_DX', value=True, dtype=bool,
+CDict.add('FIT_DX', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the dx -- along the dispersion')
 
 # -----------------------------------------------------------------------------
 # fit the dy -- along the cross-dispersion
-CDict.add('FIT_DY', value=True, dtype=bool,
+CDict.add('FIT_DY', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the dy -- along the cross-dispersion')
 # -----------------------------------------------------------------------------
 # fit the before - after morphological change
 #   Formally before_after
-CDict.add('FIT_BEFORE_AFTER', value=False, dtype=bool,
+CDict.add('FIT_BEFORE_AFTER', value=False, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the before - after morphological change')
 # -----------------------------------------------------------------------------
 # fit the rotation in the linear reconstruction of the trace
-CDict.add('FIT_ROTATION', value=True, dtype=bool,
+CDict.add('FIT_ROTATION', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the rotation in the linear '
                       'reconstruction of the trace')
@@ -498,7 +498,7 @@ CDict.add('FIT_ROTATION', value=True, dtype=bool,
 # fit the zero point offset in the linear model for the trace
 #  should not be used at the time as the quadratic term
 #  Formally zero_point_offset
-CDict.add('FIT_ZERO_POINT_OFFSET', value=True, dtype=bool,
+CDict.add('FIT_ZERO_POINT_OFFSET', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the zero point offset in the linear '
                       'model for the trace, should not be used at'
@@ -509,7 +509,7 @@ CDict.add('FIT_ZERO_POINT_OFFSET', value=True, dtype=bool,
 # with the amplitude term. Set to false for actual science analysis
 # should not be used at the same time as the zero point offset
 # formally quadratic_term
-CDict.add('FIT_QUAD_TERM', value=False, dtype=bool,
+CDict.add('FIT_QUAD_TERM', value=False, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit a flux^2 dependency. This is mostly '
                       'meant as a test of the quality of the '
@@ -521,19 +521,19 @@ CDict.add('FIT_QUAD_TERM', value=False, dtype=bool,
 # -----------------------------------------------------------------------------
 # fit the 2nd derivative in y, good to find glitches!
 #  Formally ddy
-CDict.add('FIT_DDY', value=True, dtype=bool,
+CDict.add('FIT_DDY', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the 2nd derivative in y, good to find '
                       'glitches!')
 # -----------------------------------------------------------------------------
 # fit with a PCA
-CDict.add('FIT_PCA', value=False, dtype=bool,
+CDict.add('FIT_PCA', value=False, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit with a PCA')
 # -----------------------------------------------------------------------------
 # Number of PCA components to use
 #  Formally n_pca
-CDict.add('FIT_N_PCA', value=0, dtype=int, minimum=0,
+CDict.add('FIT_N_PCA', value=0, dtype=int, minimum=0, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Number of PCA components to use')
 # -----------------------------------------------------------------------------
@@ -557,23 +557,23 @@ CDict.add_group(cgroup, source=__NAME__, user=True, active=True,
                             'the data within each frame')
 # -----------------------------------------------------------------------------
 # whether to patch isolated bad pixels
-CDict.add('PATCH_ISOLATED_BADS', value=True, dtype=bool,
+CDict.add('PATCH_ISOLATED_BADS', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='whether to patch isolated bad pixels')
 # -----------------------------------------------------------------------------
 # size of the patch isolated bad pixel stamps (should be odd)
-CDict.add('PATCH_IBADS_SSIZE', value=5, dtype=int,
+CDict.add('PATCH_IBADS_SSIZE', value=5, dtype=int, tex_arg = True,
           source=__NAME__, user=False, active=True, group=cgroup,
           description='size of the patch isolated bad pixel stamps '
           '(should be odd)')
 # -----------------------------------------------------------------------------
 # whether to remove cosmic rays
-CDict.add('REMOVE_COSMIC_RAYS', value=True, dtype=bool,
+CDict.add('REMOVE_COSMIC_RAYS', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='whether to remove cosmic rays')
 # -----------------------------------------------------------------------------
 # sigma to flag cosmic rays at (away from the mean)
-CDict.add('COSMIC_RAY_SIGMA', value=5, dtype=float, minimum=0,
+CDict.add('COSMIC_RAY_SIGMA', value=5, dtype=float, minimum=0, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='sigma to flag cosmic rays at (away from the '
                       'mean)')
@@ -581,27 +581,27 @@ CDict.add('COSMIC_RAY_SIGMA', value=5, dtype=float, minimum=0,
 # median of baseline values for reference trace construction.
 # If set to false, then we have the median of the entire timeseries
 # Formally ootmed
-CDict.add('MEDIAN_BASELINE', value=True, dtype=bool,
+CDict.add('MEDIAN_BASELINE', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='median baseline values for reference '
                       'trace construction. If set to false, then we '
                       'have the median of the entire timeseries')
 # -----------------------------------------------------------------------------
 # The number of pixels in the x direction to offset the trace by
-CDict.add('X_TRACE_OFFSET', value=0, dtype=int,
+CDict.add('X_TRACE_OFFSET', value=0, dtype=int, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='The number of pixels in the x direction to '
                       'offset the trace by')
 # -----------------------------------------------------------------------------
 # The number of pixels in the y direction to offset the trace by
-CDict.add('Y_TRACE_OFFSET', value=0, dtype=int,
+CDict.add('Y_TRACE_OFFSET', value=0, dtype=int, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='The number of pixels in the y direction to '
                       'offset the trace by')
 # -----------------------------------------------------------------------------
 # Set the range of dys to scan over number of -nbypix/trace_y_scale to
 #     +nbyix/trace_y_scale
-CDict.add('TRACE_Y_SCALE', value=None, dtype=int,
+CDict.add('TRACE_Y_SCALE', value=None, dtype=int, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
@@ -609,52 +609,53 @@ CDict.add('TRACE_Y_SCALE', value=None, dtype=int,
 # -----------------------------------------------------------------------------
 # Set the range of dys to scan over number of -nbxpix/trace_x_scale to
 #     +nbxpix/trace_x_scale
-CDict.add('TRACE_X_SCALE', value=None, dtype=int,
+CDict.add('TRACE_X_SCALE', value=None, dtype=int, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS',
           description='Set the range of dys to scan over number of '
                       '-nbxpix/trace_x_scale to +nbxpix/trace_x_scale')
 # -----------------------------------------------------------------------------
 # Whether to recenter the trace position
-CDict.add('RECENTER_TRACE_POSITION', value=True, dtype=bool,
+CDict.add('RECENTER_TRACE_POSITION', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           modes='JWST.NIRISS.SOSS, JWST.NIRISS.FGS',
           description='Whether to recenter the trace position')
 # -----------------------------------------------------------------------------
 # Whether to fit a per pixel baseline correction
 CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=True, dtype=bool,
+          tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Whether to fit a per pixel baseline correction')
 # -----------------------------------------------------------------------------
 # out of transit polynomial level correction
 CDict.add('TRANSIT_BASELINE_POLYORD', value=2, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          tex_arg=True, source=__NAME__, user=True, active=True, group=cgroup,
           description='out of transit polynomial level correction')
 # -----------------------------------------------------------------------------
 # out-of-trace baseline polynomial order
 CDict.add('TRACE_BASELINE_POLYORD', value=2, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          tex_arg=True, source=__NAME__, user=True, active=True, group=cgroup,
           description='out-of-trace baseline polynomial order')
 # -----------------------------------------------------------------------------
 # degree of the polynomial for the 1/f correction
 # degree_1f_corr = 0 -> just a constant through the 256 pix spatial
 # degree_1f_corr = 1 -> slope ... and so on
 CDict.add('DEGREE_1F_CORR', value=0, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          tex_arg=True, source=__NAME__, user=True, active=True, group=cgroup,
           description='degree of the polynomial for the 1/f correction'
                       '\n0 = just a constant through the pix spatial '
                       '\n1 = slope ... and so on')
 # -----------------------------------------------------------------------------
 # Trace extraction width. Set to 0 to use the full image
 CDict.add('LINRECON_TRACE_WIDTH', value=40, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          tex_arg=True, source=__NAME__, user=True, active=True, group=cgroup,
           description='Trace extraction width. Set to 0 to use the '
                       'full image. Should be equal or smaller than '
                       'TRACE_WIDTH_MASKING.')
 # -----------------------------------------------------------------------------
 # define the width for masking the white light curve trace
 CDict.add('TRACE_WIDTH_MASKING', value=40, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
+          tex_arg=True, source=__NAME__, user=True, active=True, group=cgroup,
           description='define the width for masking the white light '
                       'curve trace')
 # =============================================================================
@@ -808,33 +809,10 @@ CDict.add_group(cgroup, description='Definition for white light curve',
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
 # do remove trend from out-of-transit
-CDict.add('REMOVE_TREND', value=True, dtype=bool,
+CDict.add('REMOVE_TREND', value=True, dtype=bool,tex_arg=True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='remove trend from out-of-transit')
-# -----------------------------------------------------------------------------
-# define how the "white" transit depth is computed/assigned
-#   "compute": Compute transit depth using median OOT relative flux from WLC,
-#       and mean in-transit relative flux from WLC
-#   OR
-#   "known": provide the number in TDEPTH
-CDict.add('TDEPTH_MODE', value='compute', dtype=str,
-          options=['compute', 'known'],
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='define how the "white" transit depth is '
-                      'computed/assigned \n"compute": Compute transit '
-                      'depth using median OOT relative flux from WLC, '
-                      'and mean in-transit relative flux from WLC \nOR '
-                      '\n "known": provide the number in TDEPTH')
-# -----------------------------------------------------------------------------
-# define the "white" transit depth if known
-CDict.add('TDEPTH', value=None, dtype=float,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='define the "white" transit depth if known')
-# -----------------------------------------------------------------------------
-# Define the resolution to bin to
-CDict.add('RESOLUTION_BIN', value=20, dtype=int, minimum=0,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Define the resolution to bin to')
+
 
 # =============================================================================
 # Start of code
