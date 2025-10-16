@@ -11,12 +11,13 @@ Created on 2024-08-13 at 11:23
 """
 import copy
 import os
+import sys
 import time
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
-import numpy as np
 import numexpr as ne
+import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
@@ -29,7 +30,6 @@ from wpca import EMPCA
 
 from aperocore import math as mp
 from aperocore.constants import param_functions
-
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
@@ -47,6 +47,21 @@ __authors__ = base.__authors__
 ParamDict = param_functions.ParamDict
 # cache for param table
 PARAM_TABLE = dict()
+# Customize LaTeX output for tex out table
+LATEX_DICT = {
+    # outer environment
+    'tabletype': 'table',
+    # column format with vertical lines
+    'col_align': '|l|r|',
+    # before header row
+    'header_start': r'\hline',
+    # after header row
+    'header_end': r'\hline',
+    # after all data
+    'data_end': r'\hline',
+    # caption text
+    'caption': f'SOSSISSE ({__version__}) parameters used for this run',
+}
 
 
 # =============================================================================
@@ -3670,6 +3685,12 @@ class Instrument:
     def save_final_outputs(self, storage: Dict[int, Dict[str, Any]]):
         """
         Save the final outputs to disk
+
+        Currently these are:
+        - OUT_SPEC_LC_FILE: spectral light curve fits file
+        - OUT_WLC_FILE: white light curve fits file
+        - OUT_TEX_FILE: latex summary file (.tex file)
+
         :param storage: dict, storage dictionary
         :return: None
         """
@@ -3677,14 +3698,17 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.save_final_outputs()'
         # print progress
         msg = 'Saving final outputs'
-        __ = misc.printc(msg, 'info', True, True, True)
+        misc.printc(msg, 'info')
         # get output directory
         output_dir = self.params['PATHS.OUT_PATH']
         # check output directory
         if not os.path.exists(output_dir):
             msg = f'Output directory {output_dir} does not exist'
             raise exceptions.SossisseException(msg)
-        elif __:
+        elif 'ipykernel' in sys.modules:
+            msg = (f'For final outputs please run from the command line with '
+                   f'your yaml file.')
+            misc.printc(msg, 'warning')
             return
         # ---------------------------------------------------------------------
         # update the meta data
@@ -3704,6 +3728,16 @@ class Instrument:
     def out_spec_lc_file(self, storage: Dict[int, Dict[str, Any]],
                          meta_data: Dict[str, Any],
                          psnapshot: Table):
+        """
+        Produce the spectral light curve fits file with the 2D spectra for
+        each trace order and the param snapshot table
+
+        :param storage: dict, storage dictionary
+        :param meta_data: dict, meta data dictionary
+        :param psnapshot: Table, param snapshot table
+
+        :return: None, saves fits file to OUT_SPEC_LC_FILE
+        """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.out_spec_lc_file()'
         # get the trace orders from the storage keys
@@ -3742,6 +3776,16 @@ class Instrument:
     def out_wlc_file(self, storage: Dict[int, Dict[str, Any]],
                      meta_data: Dict[str, Any],
                      psnapshot: Table):
+        """
+        Produce the white light curve fits file with the linear fit table
+        and the param snapshot table
+
+        :param storage: dict, storage dictionary
+        :param meta_data: dict, meta data dictionary
+        :param psnapshot: Table, param snapshot table
+
+        :return: None, saves fits file to OUT_WLC_FILE
+        """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.out_wlc_file()'
         # get the trace orders from the storage keys
@@ -3750,21 +3794,18 @@ class Instrument:
         datalist = []
         datatypes = []
         datanames = []
-        # loop around trace ordesr
-        for trace_order in trace_orders:
-            # get the linear fit table from storage for this trace order
-            ltable = storage[trace_order]['ltable']
-
-            # get columns names to keep
-            rtable = Table()
-            rtable['Time'] = ltable['bjd']
-            rtable['RelFlux'] = ltable['amplitude']
-            rtable['RelFlux_Err'] = ltable['amplitude_error']
-
-            # push into data list
-            datalist.append(rtable)
-            datatypes.append('table')
-            datanames.append(f'WLC_{trace_order}')
+        # get the linear fit table from storage for this trace order
+        #   note the linear fit table is the same for all orders used
+        ltable = storage[trace_orders[0]]['ltable']
+        # get columns names to keep
+        rtable = Table()
+        rtable['Time'] = ltable['bjd']
+        rtable['RelFlux'] = ltable['amplitude']
+        rtable['RelFlux_Err'] = ltable['amplitude_error']
+        # push into data list
+        datalist.append(rtable)
+        datatypes.append('table')
+        datanames.append(f'WLC_TABLE')
         # add the param table
         datalist.append(psnapshot)
         datatypes.append('table')
@@ -3776,16 +3817,21 @@ class Instrument:
                      datanames=datanames, meta=meta_data)
 
     def out_tex_file(self):
+        """
+        Use ParamDicts build in latex table functionality to produce
+        a latex table of the parameters used in this run
+
+        :return: None, saves a tex table to OUT_TEX_FILE
+        """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.out_tex_file()'
         # construct the fits filename
         filename = self.get_variable('OUT_TEX_FILE', func_name)
-        # get the keys that have the tex attribute
-        tsnapshot = self.params.snapshot_table(tex=True)
-        # only keep name and value
-        tsnapshot = tsnapshot['NAME', 'VALUE']
+        # get tex file snapshot table
+        tsnapshot = self.params.out_tex_file()
         # write to latex table
-        io.save_table(filename, tsnapshot, fmt='ascii.latex')
+        io.save_table(filename, tsnapshot, fmt='ascii.latex',
+                      latexdict=LATEX_DICT)
 
 # =============================================================================
 # Start of code

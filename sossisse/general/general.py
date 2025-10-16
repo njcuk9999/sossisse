@@ -12,6 +12,7 @@ Created on 2022-09-20
 import os
 
 import numpy as np
+from astropy.table import Table
 
 from sossisse.core import base
 from sossisse.core import io
@@ -338,14 +339,15 @@ def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
     # reshape the wave grid into an image
     wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
     # save for plotting (outside the trace_order loop) / saving
+    # must copy here to avoid shallow copying between orders
     storage_it = dict()
-    storage_it['wavegrid'] = wavegrid
-    storage_it['sp_sed'] = sp_sed
-    storage_it['throughput'] = throughput
-    storage_it['spec'] = spec
-    storage_it['spec_err'] = spec_err
-    storage_it['ltable'] = ltable
-    storage_it['spec2'] = spec2
+    storage_it['wavegrid'] = np.array(wavegrid)
+    storage_it['sp_sed'] = np.array(sp_sed)
+    storage_it['throughput'] = np.array(throughput)
+    storage_it['spec'] = np.array(spec)
+    storage_it['spec_err'] = np.array(spec_err)
+    storage_it['ltable'] = Table(ltable)
+    storage_it['spec2'] = np.array(spec2)
     storage_it['wavegrid_2d'] = wavegrid_2d
     # append to plot storage
     storage[trace_order] = storage_it

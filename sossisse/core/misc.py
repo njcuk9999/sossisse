@@ -259,7 +259,7 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
 
 
 def printc(message: str, msg_type: str, print_time: bool = True,
-           wrap: bool = True, nb = 0) -> int:
+           wrap: bool = True):
     """
     Print a message with color
 
@@ -269,10 +269,6 @@ def printc(message: str, msg_type: str, print_time: bool = True,
 
     :return: None, prints to screen
     """
-    # nb check
-    if nb < 0 and 'ipykernel' in sys.modules:
-        printc('Not allowed', msg_type='error')
-        return 1
     # get time now
     timenow = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│ '
 
@@ -290,7 +286,7 @@ def printc(message: str, msg_type: str, print_time: bool = True,
     elif msg_type.lower() == 'error':
         msg_color = 'red'
     # formally bad3
-    elif msg_type.lower() == 'alert':
+    elif msg_type.lower() == 'alert' or msg_type.lower() == 'plot':
         msg_color = 'magenta'
 
     elif msg_type.lower() == 'number' or msg_type.lower() == 'info':
@@ -307,8 +303,7 @@ def printc(message: str, msg_type: str, print_time: bool = True,
     if LOG_LEVELS[msg_type.upper()] >= LOG_LEVELS[LOG_LEVEL.upper()]:
         print(color(timenow + message, msg_color), flush=True)
         time.sleep(0.01)
-    # return check
-    return 0
+
 
 def sossice_unique_id(param_file: str) -> str:
     """

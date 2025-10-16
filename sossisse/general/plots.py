@@ -10,6 +10,7 @@ Created on 2024-08-13 at 11:23
 @author: cook
 """
 import os
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -21,6 +22,7 @@ from astropy.visualization import interval as interval_mod
 from astropy.visualization import stretch as stretch_mod
 
 from aperocore import math as mp
+from aperocore.base import base as aperobase
 from sossisse.core import base
 from sossisse.core import misc
 
@@ -144,7 +146,29 @@ def add_footer_text(fig, text, fontsize=10, pad=0.02):
 # =============================================================================
 # Define functions used by plots
 # =============================================================================
-def save_show_plot(params: Dict[str, Any], outname: str):
+def plot_file(params: Dict[str, Any], outname: str, title,
+              description: str = ''):
+    # get plot file
+    plotfile = os.path.join(params['PATHS.PLOT_PATH'], 'plots.yaml')
+    # read yaml file
+    if os.path.exists(plotfile):
+        blocks = aperobase.load_yaml(plotfile)
+    else:
+        blocks = dict()
+    # ------------------------------------------------------------------------
+    # empty this block
+    blocks[outname] = dict()
+    # prepare yaml block
+    blocks[outname]['title'] = title
+    blocks[outname]['description'] = description
+    blocks[outname]['time'] = float(time.time())
+    # ------------------------------------------------------------------------
+    # save the yaml file
+    aperobase.write_yaml(blocks, plotfile)
+
+
+def save_show_plot(params: Dict[str, Any], outname: str, title: str = '', 
+                   description: str = ''):
     """
     Save and show the plot
     :param params: dict, the parameters for the instrument
@@ -152,6 +176,8 @@ def save_show_plot(params: Dict[str, Any], outname: str):
 
     :return:
     """
+    # save to yaml file (for html writing)
+    plot_file(params, outname, title, description)
     # loop around figure types
     for figtype in params['PLOTS.FIGURE_TYPES']:
         # construct the basename with extension
@@ -165,6 +191,9 @@ def save_show_plot(params: Dict[str, Any], outname: str):
         plt.savefig(abspath)
     # if we want to show the plot do it now
     if params['PLOTS.SHOW']:
+        # deal with description
+        if len(description) > 0:
+            misc.printc(f'PLOT: {title} \n\n{description}', 'plot')
         # show the plot
         plt.show(block=True)
     # finally close the plot
@@ -206,6 +235,9 @@ def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
 
     :return: None, plots graph
     """
+    # set title and description
+    title = f'PCA components (n_comp={n_comp})'
+    description = ('PCA components used to model the 1/f noise.')
     # set up figure
     fig, frames = plt.subplots(nrows=n_comp, ncols=1, sharex='all',
                                sharey='all', figsize=[8, 4 * n_comp])
@@ -229,7 +261,7 @@ def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'file_temporary_pcas')
+    save_show_plot(inst.params, 'file_temporary_pcas', title, description)
 
 
 def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
@@ -246,6 +278,10 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
     """
     # set function name
     func_name = f'{__NAME__}.gradient_plot()'
+    # set title and description
+    title = 'Gradients of median trace image'
+    description = ('Gradients of the median trace image used to model '
+                   'the white light curve flux variations.')
     # get the image normalization
     vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
     vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
@@ -306,12 +342,18 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'derivatives')
+    save_show_plot(inst.params, 'derivatives', title, description)
 
 
 def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_pvalues()'
+    # set title and description
+    title = '1/f noise correction values'
+    description = ('Values used to correct for the 1/f noise in each '
+                   'integration. These values are either the median of the '
+                   'residuals or a polynomial fit to the residuals, '
+                   'depending on the DEGREE_1F_CORR parameter.')
     # get the degree for the 1/f polynomial fit
     degree_1f_corr = inst.params['WLC.GENERAL.DEGREE_1F_CORR']
 
@@ -351,12 +393,17 @@ def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'subtract_1f_pvalues')
+    save_show_plot(inst.params, 'subtract_1f_pvalues', title, description)
 
 
 def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_comp()'
+    # set title and description
+    title = '1/f noise correction example'
+    description = ('Example of the 1/f noise correction on integration 0. '
+                   'Top panel is before correction, bottom panel is after '
+                   'correction.')
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
     # get the image normalization parameters
@@ -383,7 +430,7 @@ def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'subtract_1f_comp')
+    save_show_plot(inst.params, 'subtract_1f_comp', title, description)
 
 
 def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray, 
@@ -391,6 +438,13 @@ def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray,
                      all_labels: np.ndarray, sigmask: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.mask_order0_plot()'
+    # set title and description
+    title = 'Order 0 masking'
+    description = ('Order 0 masking steps. From top to bottom: '
+                   'Original median trace image, straightened image, '
+                   'low pass filtered image, unstraightened image, '
+                   'Original - unstraightened, all clusters found, '
+                   'Order 0 mask.')
     # set up figure
     fig, frames = plt.subplots(nrows=7, ncols=1, figsize=(12, 20))
     # loop around diffs
@@ -422,7 +476,7 @@ def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'masking_order0')
+    save_show_plot(inst.params, 'masking_order0', title, description)
 
 
 def plot_trace_mask(inst: Any, trace_map: np.ndarray,
@@ -430,6 +484,10 @@ def plot_trace_mask(inst: Any, trace_map: np.ndarray,
                     labels: Optional[List[str]] = None):
     # set function name
     func_name = f'{__NAME__}.plot_trace_mask()'
+    # set title and description
+    title = 'Trace mask'
+    description = ('Trace mask used to extract the white light curve. '
+                   'Hatched region is the trace mask.')
     # deal with no image or labels and set up figure
     if images is None or labels is None:
         _images, _labels = [None], [None]
@@ -469,7 +527,7 @@ def plot_trace_mask(inst: Any, trace_map: np.ndarray,
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'trace_mask')
+    save_show_plot(inst.params, 'trace_mask', title, description)
 
 def trace_correction_sample(inst: Any, iframe: int,
                             cube: np.ndarray, recon: np.ndarray,
@@ -477,6 +535,13 @@ def trace_correction_sample(inst: Any, iframe: int,
                             x_order0: np.ndarray, y_order0: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.trace_correction'
+    # set title and description
+    title = 'Trace correction'
+    description = (f'Example of the trace correction on integration {iframe}. '
+                   'Top panel is the original integration, bottom panel is '
+                   'the integration minus the linear reconstruction. '
+                   'Orange points are the trace mask, red points are the '
+                   'order 0 mask (if given).')
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
     # plot the cube
@@ -519,13 +584,21 @@ def trace_correction_sample(inst: Any, iframe: int,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'sample_frame{0}'.format(iframe))
+    save_show_plot(inst.params, 'sample_frame{0}'.format(iframe),
+                   title, description)
 
 
 def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
                              trace_corr: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.aperture_correction_plot()'
+    # set title and description
+    title = 'Aperture correction'
+    description = ('Aperture correction applied to the white light curve '
+                   'amplitude coefficients. Top panel shows the amplitude '
+                   'coefficients before and after correction. Bottom panel '
+                   'shows the aperture correction applied (in ppt).')
+    # -------------------------------------------------------------------------
     # get values from outputs
     xpix = np.arange(len(outputs['amplitude_uncorrected']))
     amp_uncorr = outputs['amplitude_uncorrected']
@@ -561,7 +634,7 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'aperture_correction')
+    save_show_plot(inst.params, 'aperture_correction', title, description)
 
 
 def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
@@ -571,6 +644,15 @@ def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
                          med: np.ndarray, best_dx: float, best_dy: float):
     # set function name
     func_name = f'{__NAME__}.plot_trace_flux_loss()'
+    # set title and description
+    title = 'Trace flux loss'
+    description = ('Flux lost/gained in the white light curve aperture '
+                   'as a function of trace position offset. Top panel is '
+                   'the flux gained/lost as a function of x offset, middle '
+                   'panel is the flux gained/lost as a function of y offset, '
+                   'bottom panel is the 2D map of flux in the aperture as a '
+                   'function of x and y offset. The best position is shown '
+                   'as a red point in the bottom panel.')
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=3, ncols=1, figsize=[12, 12])
@@ -602,13 +684,18 @@ def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'trace_flux_loss')
+    save_show_plot(inst.params, 'trace_flux_loss', title, description)
 
 
 def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
                           traceois_fit: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_fancy_centering1()'
+    # set title and description
+    title = 'Fancy centering step 1'
+    description = ('Example of the fancy centering step 1. Top panel is the '
+                   'trace position (red) and the fitted trace position (blue). '
+                   'Bottom panel is the residuals between the two.')
     # -------------------------------------------------------------------------
     # setup the plot
     fig, frames = plt.subplots(nrows=2, ncols=1, sharex='all')
@@ -623,7 +710,7 @@ def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'fancy_centering1')
+    save_show_plot(inst.params, 'fancy_centering1', title, description)
 
 
 def plot_fancy_centering2(inst: Any, med: np.ndarray,
@@ -632,6 +719,12 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
                           x2: np.ndarray, y2: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_fancy_centering2()'
+    # set title and description
+    title = 'Fancy centering step 2'
+    description = ('Example of the fancy centering step 2. Top panel is the '
+                   'extracted spectrum (black). Bottom panel is the '
+                   'sqrt of the absolute median flux image (gray scale) '
+                   'with the two traces overplotted (green and red).')
     # -------------------------------------------------------------------------
     # we want the sqrt of the absolute median flux
     sqrtabsim = np.sqrt(np.abs(med))
@@ -652,12 +745,17 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'fancy_centering2')
+    save_show_plot(inst.params, 'fancy_centering2', title, description)
 
 
 def plot_background(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_background1()'
+    # set title and description
+    title = 'Background correction'
+    description = ('Example of the background correction on integration 0. '
+                   'Top panel is before background correction, bottom panel '
+                   'is after background correction.')
     # -------------------------------------------------------------------------
     inst.params['WLC.PLOT.BACKGROUND_VLIM'] = [1, 70]
     inst.params['WLC.PLOT.BACKGROUND_INTERVAL'] = 'zscale'
@@ -700,12 +798,18 @@ def plot_background(inst, frame0_before, frame0_after):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'background_corr')
+    save_show_plot(inst.params, 'background_corr', title, description)
 
 
 def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     # set function name
     func_name = f'{__NAME__}.plot_lowpass()'
+    # set title and description
+    title = 'Low pass filter correction'
+    description = ('Example of the low pass filter correction on integration 0. '
+                   'Top panel is before low pass correction, middle panel is '
+                   'after low pass correction, bottom panel is the average '
+                   'low pass filter corrections applied to all integrations.')
     # -------------------------------------------------------------------------
     # get the image normalization
     vlims = inst.params['WLC.PLOT.LOWPASS_VLIM']
@@ -744,12 +848,17 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'lowpass_corr')
+    save_show_plot(inst.params, 'lowpass_corr', title, description)
 
 
 def plot_flat_field(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_flat_field()'
+    # set title and description
+    title = 'Flat field correction'
+    description = ('Example of the flat field correction on integration 0. '
+                   'Top panel is before flat field correction, bottom panel is '
+                   'after flat field correction.')
     # -------------------------------------------------------------------------
     # get the image normalization
     vlims = inst.params['WLC.PLOT.FLAT_VLIM']
@@ -778,7 +887,7 @@ def plot_flat_field(inst, frame0_before, frame0_after):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'flatfield')
+    save_show_plot(inst.params, 'flatfield', title, description)
 
 
 def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
@@ -795,6 +904,11 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
 
     :return: None, plots graph
     """
+    # set title and description
+    description = (f'Top panel is the heat map of {title}. '
+                   f'Middle panel is a comparison frame before '
+                   'correction, bottom panel is the same frame after '
+                   'correction.')
     # set up figure
     fig, frames = plt.subplots(ncols=1, nrows=3, figsize=(12, 12))
     # -------------------------------------------------------------------------
@@ -834,11 +948,19 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, outname)
+    save_show_plot(inst.params, outname, title, description)
 
 
 def plot_pixels(inst: Any, pixel_dict: Dict[int, np.ndarray],
                 frame_num: int = 0):
+    # set title and description
+    title = 'Bad pixel correction stamps'
+    description = (f'Example of the bad pixel correction stamps for '
+                   f'pixel {frame_num}. Each stamp is a '
+                   f'{inst.params["WLC.GENERAL.PATCH_IBADS_SSIZE"]}x'
+                   f'{inst.params["WLC.GENERAL.PATCH_IBADS_SSIZE"]} '
+                   f'stamp of the bad pixel and its surrounding pixels.')
+    # -------------------------------------------------------------------------
     # set up figure
     fig, frame = plt.subplots(ncols=1, nrows=1, figsize=(20, 20))
     # plot this frame
@@ -847,14 +969,20 @@ def plot_pixels(inst: Any, pixel_dict: Dict[int, np.ndarray],
     # add a color bar
     plt.colorbar(im, ax=frame, orientation='vertical', label='Flux')
     # add title
-    title = 'Pixel {0}. {1}x{1} stamps of bad pixels'
     targs = [frame_num, inst.params['WLC.GENERAL.PATCH_IBADS_SSIZE']]
     frame.set(title=title.format(*targs))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'isolated_pixel_corr_stamps')
+    save_show_plot(inst.params, 'isolated_pixel_corr_stamps',
+                   title, description)
 
 def plot_stability(inst: Any, table: Table):
+    # set title and description
+    title = 'Stability of white light curve parameters'
+    description = ('Stability of the white light curve parameters as a '
+                   'function of integration number. Each panel is a different '
+                   'parameter with error bars. If baseline domain is '
+                   'defined these are highlighted in green.')
     # set function name
     func_name = f'{__NAME__}.plot_stability()'
     # validate out-of-transit domain
@@ -956,7 +1084,7 @@ def plot_stability(inst: Any, table: Table):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'stability')
+    save_show_plot(inst.params, 'stability', title, description)
 
 
 # def plot_transit(inst: Any, table: Table):
@@ -1082,6 +1210,12 @@ def plot_stability(inst: Any, table: Table):
 def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # set function name
     func_name = f'{__NAME__}.plot_spectral_timeseries()'
+    # set title and description
+    title = 'Spectral time series'
+    description = (f'Spectral time series for trace order {trace_order}. '
+                   'Each row is a different integration, each column is a '
+                   'different pixel in the spectral direction.')
+    # -------------------------------------------------------------------------
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
     suffix = inst.params['INPUTS.SUFFIX']
@@ -1104,12 +1238,19 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, f'spectral_timeseries_ord{trace_order}')
+    save_show_plot(inst.params, f'spectral_timeseries_ord{trace_order}',
+                   title, description)
 
 def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
              trace_order: int):
     # set function name
     # func_name = f'{__NAME__}.plot_sed()'
+    # set title and description
+    title = 'Spectral energy distribution'
+    description = (f'Spectral energy distribution for trace order '
+                   f'{trace_order}. This is the flux as a function of '
+                   'wavelength, corrected for the instrument throughput.')
+    # -------------------------------------------------------------------------
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
     suffix = inst.params['INPUTS.SUFFIX']
@@ -1127,10 +1268,17 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'sed_{0}_ord{1}'.format(objname, trace_order))
+    save_show_plot(inst.params, 'sed_{0}_ord{1}'.format(objname, trace_order),
+                   title, description)
 
 
 def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
+    # set title and description
+    title = 'Full Spectral energy distribution'
+    description = ('Full spectral energy distribution for all trace orders. '
+                   'This is the flux as a function of wavelength, corrected '
+                   'for the instrument throughput.')
+    # -------------------------------------------------------------------------
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
     # get object name and suffix
@@ -1177,7 +1325,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'sed_{0}'.format(objname))
+    save_show_plot(inst.params, 'sed_{0}'.format(objname), title, description)
 
 
 # =============================================================================

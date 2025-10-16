@@ -23,6 +23,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
+from aperocore.base import base as aperobase
 from aperocore.constants.param_functions import ParamDict
 from aperocore.constants.param_functions import SubParamDict
 from aperocore.constants.constant_functions import ConstantsDict
@@ -330,13 +331,16 @@ def save_fits(filename: str, datalist: List[Any], datatypes: List[str],
         raise exceptions.SossisseFileException(emsg.format(*eargs))
 
 
-def save_table(filename: str, data: Table, fmt: str = 'csv'):
+def save_table(filename: str, data: Table, fmt: str = 'csv',
+               **kwargs):
     """
     Save the table to a file
 
     :param filename: str, the filename to save to
     :param data: Table, the astropy table to save
     :param fmt: str, the format to save the table in
+    :param kwargs: additional keyword arguments to pass to Table.write()
+
     :return:
     """
     # print progres
@@ -344,7 +348,8 @@ def save_table(filename: str, data: Table, fmt: str = 'csv'):
     misc.printc(msg.format(filename), msg_type='info')
     # try to save the data
     try:
-        data.write(filename, format=fmt, overwrite=True)
+        data.write(filename, format=fmt, overwrite=True,
+                   **kwargs)
     except Exception as e:
         emsg = 'Error saving table to file: {0}\n\t{1}: {2}'
         eargs = [filename, type(e), str(e)]
@@ -452,18 +457,39 @@ def plots_to_html(params: Dict[str, Any]):
     :param params:
     :return:
     """
-    # get all png files in the plot path
-    png_files = glob.glob(os.path.join(params['PATHS.PLOT_PATH'], '*.png'))
+    # get plot file
+    plotfile = os.path.join(params['PATHS.PLOT_PATH'], 'plots.yaml')
+    # read yaml file
+    plotdict = aperobase.load_yaml(plotfile)
     # define the html string
     html = '<br>'
+    # counter for figures
+    figcounter = 1
+    # order the plotdict by time subkey
+    plotdict = dict(sorted(plotdict.items(),
+                           key=lambda item: item[1].get('time', 0)))
     # loop around all png files
-    for png_file in png_files:
+    for png_file in plotdict:
         # get the filename
-        filename = os.path.basename(png_file)
+        abspath =os.path.join(params['PATHS.PLOT_PATH'], f'{png_file}.png')
+        # skip files that don't exist
+        if not os.path.exists(abspath):
+            continue
+        # get basename
+        basename = os.path.basename(abspath)
+        # get title and description
+        title = plotdict[png_file]['title']
+        description = plotdict[png_file]['description']
         # create the html string
-        html_image = '<img src="{0}" alt="{0}" style="width:"600"">'
-        html_image += '<br><br><br>'
-        html += html_image.format(filename)
+        html_image = f'<h3>Figure {figcounter}: {title}</h3>\n'
+        if description is not None:
+            html_image += f'<br>{description}<br>\n'
+        html_image += (f'<img src="{basename}" alt="{png_file}" '
+                       f'style="width:"600"">\n')
+        html_image += '<br><br><br>\n'
+        html += html_image
+        # increment figure counter
+        figcounter += 1
     # return the html string
     return html
 
