@@ -2099,9 +2099,9 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Subtract of the 1/f noise
         # ---------------------------------------------------------------------
-        cube1, pvalues = self.subtract_1f(residuals, cube, err, trace_mask)
+        cube1, scorr = self.subtract_1f(residuals, cube, err, trace_mask)
         # plot the pvalues
-        plots.plot_subtract_1f_pvalues(self, pvalues)
+        plots.plot_subtract_1f_scorr(self, scorr)
         # plot the first frame before and after 1/f correction
         plots.plot_subtract_1f_comp(self, cube, cube1)
         # ---------------------------------------------------------------------
@@ -2259,8 +2259,8 @@ class Instrument:
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        # storage for fits
-        pvalues = np.zeros((nbypix, nbxpix))
+        # storage correction for plot
+        scorr = np.zeros_like(cube)
         # deal with no poly fit of the 1/f noise
         if degree_1f_corr == 0:
             # get the median noise contribution
@@ -2271,7 +2271,7 @@ class Instrument:
                 # we subtract the 1/f noise off each column
                 for col in range(nbxpix):
                     # store the noise model as the pvalues
-                    pvalues += noise_1f[iframe, col]
+                    scorr[iframe, :, col] = noise_1f[iframe, col]
                     cube[iframe, :, col] -= noise_1f[iframe, col]
         # otherwise we fit the 1/f noise
         else:
@@ -2305,12 +2305,14 @@ class Instrument:
                         pvalue = np.polyval(pfit, index)
                         # subtract the fit from the cube
                         cube[iframe, :, col] -= pvalue
-                        # store the fits
-                        pvalues[iframe, col] = pfit[0]
+                        # store the correction
+                        scorr[iframe, :, col] = pvalue
                     except Exception as _:
                         # if the fit fails we just set the column to NaN
                         cube[iframe, :, col] = np.nan
-        return cube, pvalues
+                        # store the correction
+                        scorr[iframe, :, col] = np.nan
+        return cube, scorr
 
     def fit_pca(self, cube2: np.ndarray, err: np.ndarray,
                 med: np.ndarray, trace_mask: np.ndarray
@@ -3418,7 +3420,8 @@ class Instrument:
                     # calculate the weight
                     weight = p_valid / noise_ratio1 ** 2
                     # get the weighted mean per column
-                    mean1 = np.sum(ratio1 * weight, axis=0) / np.sum(weight, axis=0)
+                    denom = np.nansum(weight, axis=0)
+                    mean1 = np.nansum(ratio1 * weight, axis=0) / denom
                     # convert mean1 into a 2D array of xsize x ysize
                     model2 = np.tile(mean1, (ysize, 1)) * tmp_model
                     nsig = (tmp_residual - model2) / tmp_err

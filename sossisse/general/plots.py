@@ -345,15 +345,16 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
     save_show_plot(inst.params, 'derivatives', title, description)
 
 
-def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
+def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     # set function name
-    func_name = f'{__NAME__}.plot_subtract_1f_pvalues()'
+    func_name = f'{__NAME__}.plot_subtract_1f_scorr()'
     # set title and description
     title = '1/f noise correction values'
-    description = ('Values used to correct for the 1/f noise in each '
-                   'integration. These values are either the median of the '
-                   'residuals or a polynomial fit to the residuals, '
-                   'depending on the DEGREE_1F_CORR parameter.')
+    description = ('1/f noise correction values used to correct the data. '
+                   'Top panel is the correction values for the first '
+                   'integration, middle panel is the correction values for '
+                   'the last integration, bottom panel is the median '
+                   'correction values across all integrations.')
     # get the degree for the 1/f polynomial fit
     degree_1f_corr = inst.params['WLC.GENERAL.DEGREE_1F_CORR']
 
@@ -363,37 +364,68 @@ def plot_subtract_1f_pvalues(inst: Any, pvalues: np.ndarray):
         mode = 'correction (for 1/f)  = fit(residuals) degree_1f_corr = {0}'
         mode = mode.format(degree_1f_corr)
 
+    # calculate the median scorr
+    med_scorr = np.nanmedian(scorr, axis=0)
+
     # get the image normalization
     vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
     vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
     interval = inst.params['WLC.PLOT.GRADIENT_INTERVAL']
     stretch = inst.params['WLC.PLOT.GRADIENT_STRETCH']
     # get normaliz
-    norm, ntext = plot_normalization(pvalues, interval=interval,
-                                     stretch=stretch, vlims=vlims,
-                                     vtype=vtype)
+    ntexts = dict()
+    norm1, ntext1 = plot_normalization(scorr[0], interval=interval,
+                                       stretch=stretch, vlims=vlims,
+                                       vtype=vtype)
+    ntexts['First'] = ntext1
+    norm2, ntext2 = plot_normalization(scorr[-1], interval=interval,
+                                       stretch=stretch, vlims=vlims,
+                                       vtype=vtype)
+    ntexts['Last'] = ntext2
+    norm3, ntext3 = plot_normalization(med_scorr, interval=interval,
+                                       stretch=stretch, vlims=vlims,
+                                       vtype=vtype)
+    ntexts['Median'] = ntext3
     # setup the figure
-    fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[8, 6])
-    # plot the pvalues
-    frames[0].imshow(pvalues, aspect='auto', origin='lower',
-                     norm=norm)
-    # set the title and labels
-    frames[0].set(title='Correction for 1/f noise subtraction',
-               xlabel='Column number',
-               ylabel='Integration number')
-    # plot the average across all columns
-    frames[1].plot(np.arange(pvalues.shape[0]),
-                   np.nanmean(pvalues, axis=1), 'r-')
-    frames[1].set(title='Average correction across integrations',
-                  xlabel='Integration number',
-                  ylabel='Average correction')
+    fig, frames = plt.subplots(nrows=3, ncols=1, figsize=[8, 6])
+    # plot the first integration
+    im0 = frames[0].imshow(scorr[0], origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm1)
+    frames[0].set(title='1/f correction values for first integration')
+    # -------------------------------------------------------------------------
+    # colorbar
+    plt.colorbar(im0, ax=frames[0], orientation='vertical',
+                 pad=0.01, fraction=0.05, label='1/f correction value')
+    # plot the last integration
+    im1 = frames[1].imshow(scorr[-1], origin='lower', cmap='inferno',
+                           aspect='auto', norm=norm2)
+    frames[1].set(title='1/f correction values for last integration')
+    # colorbar
+    plt.colorbar(im1, ax=frames[1], orientation='vertical',
+                 pad=0.01, fraction=0.05, label='1/f correction value')
+    # -------------------------------------------------------------------------
+    # plot the median of all integrations
+    im2 = frames[2].imshow(med_scorr, origin='lower', cmap='inferno',
+                     aspect='auto', norm=norm3)
+    frames[2].set(title='Median 1/f correction values across all integrations')
+    # colorbar
+    plt.colorbar(im2, ax=frames[2], orientation='vertical',
+                 pad=0.01, fraction=0.05, label='1/f correction value')
+    # -------------------------------------------------------------------------
     # set the overall title
     plt.suptitle(mode)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
+    # deal with ntext
+    ntext = ''
+    for key in ntexts:
+        ntext += f'\n{key}: {ntexts[key]} '
+    # add footer text with normalization info
+    add_footer_text(fig, ntext, fontsize=8, pad=0.01)
+    # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'subtract_1f_pvalues', title, description)
+    save_show_plot(inst.params, 'subtract_1f_scorr', title, description)
 
 
 def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
