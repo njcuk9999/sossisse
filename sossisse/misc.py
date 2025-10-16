@@ -44,7 +44,6 @@ def sossart():
         '\n' + v + '\n' + color('└──────────────────────────────────┘', 'white')
 
     vlen = np.max([len(lenght_v) for lenght_v in v.split('\n')])
-
     try:
         w = os.get_terminal_size().columns
     except:
