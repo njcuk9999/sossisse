@@ -146,6 +146,7 @@ def add_footer_text(fig, text, fontsize=10, pad=0.02):
 # =============================================================================
 # Define functions used by plots
 # =============================================================================
+# TODO: same function in pogos.core.plots -> move to aperocore
 def plot_file(params: Dict[str, Any], outname: str, title,
               description: str = ''):
     # get plot file
@@ -167,6 +168,7 @@ def plot_file(params: Dict[str, Any], outname: str, title,
     aperobase.write_yaml(blocks, plotfile)
 
 
+# TODO: same function in pogos.core.plots -> move to aperocore
 def save_show_plot(params: Dict[str, Any], outname: str, title: str = '', 
                    description: str = ''):
     """
