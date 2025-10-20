@@ -7,6 +7,7 @@ Created on 2024-08-13
 
 @author: cook
 """
+import getpass
 import sys
 import json
 import os
@@ -20,6 +21,7 @@ from aperocore.constants import param_functions
 from aperocore.constants.param_functions import ParamDict
 from aperocore.constants.param_functions import SubParamDict
 from aperocore.constants.constant_functions import ConstantsDict
+
 
 from sossisse.core import base
 from sossisse.core import constants
@@ -246,7 +248,8 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
     if not params['PLOTS.SHOW']:
-        params['PLOTS.SHOW'] = os.getlogin() in params['PLOTS.USER_SHOW']
+        username = getpass.getuser()
+        params['PLOTS.SHOW'] = username in params['PLOTS.USER_SHOW']
         params.set_source('PLOTS.SHOW', func_name)
     # -------------------------------------------------------------------------
     # set up core paths
