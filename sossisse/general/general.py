@@ -331,7 +331,10 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     inst.save_final_outputs(storage)
     # -------------------------------------------------------------------------
     # write the yaml file to html
-    io.summary_html(inst.params)
+    objname = inst.params['INPUTS.OBJECTNAME']
+    imode = inst.params['INPUTS.INSTRUMENTMODE']
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH', 'INPUTS.SID',
+                    f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object
     return inst
