@@ -248,7 +248,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
     if not params['PLOTS.SHOW']:
-        username = getpass.getuser()
+        username = misc.safe_getuser()
         params['PLOTS.SHOW'] = username in params['PLOTS.USER_SHOW']
         params.set_source('PLOTS.SHOW', func_name)
     # -------------------------------------------------------------------------
