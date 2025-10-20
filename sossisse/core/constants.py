@@ -776,7 +776,7 @@ CDict.add('GRADIENT_INTERVAL', value='zscale', dtype=str,
           description='define the ds9 style interval for the gradient plot')
 # -----------------------------------------------------------------------------
 # Define the vmin and vmax for the subtract 1/f comparison plot
-CDict.add('SUB1F_COMP_VLIM', value=[5, 95],
+CDict.add('SUB1F_COMP_VLIM', value=[1, 70],
           dtype=list, dtypei=float, length=2,
           source=__NAME__, user=False, active=True, group=cgroup,
           description='define the vmin and vmax for the subtract 1/f '

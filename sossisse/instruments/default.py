@@ -1054,9 +1054,9 @@ class Instrument:
             cube[iframe, cmask] = np.nan
         # ---------------------------------------------------------------------
         # plot fractions of good pixels (per pixel) as map
-        plots.plot_heatmap(self, heat_map / cube.shape[0], frame_before,
+        plots.plot_heatmap(self, heat_map, frame_before,
                            cube[0], 'cosmic rays rate', 'cosmic_rays_corr',
-                           'Cosmic rays per frame')
+                           'Number of cosmic rays')
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp:
@@ -1474,9 +1474,10 @@ class Instrument:
         # ---------------------------------------------------------------------
         plots.plot_heatmap(self, heat_map, iframe_before, cube[0],
                            'isolated bad pixels',
-                           'isolated_badpixels', 'Number across all frames')
+                           'isolated_badpixels',
+                           'Number across all integrations')
         # ---------------------------------------------------------------------
-        # create bad pixel images (one per frame)
+        # create bad pixel images (one per integration)
         bpixel_cutouts_small, _ = self.create_stamp_images(bad_pixels_before,
                                                            bad_pixels_after,
                                                            badpix_pos,

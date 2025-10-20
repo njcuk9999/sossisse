@@ -229,7 +229,10 @@ def linear_recon(inst: Instrument) -> Instrument:
     plots.plot_stability(inst, ltable)
     # -------------------------------------------------------------------------
     # write the yaml file to html
-    io.summary_html(inst.params)
+    objname = inst.params['INPUTS.OBJECTNAME']
+    imode = inst.params['INPUTS.INSTRUMENTMODE']
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH', 'INPUTS.SID',
+                    f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object
     return inst
