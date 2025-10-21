@@ -189,9 +189,8 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         new_hdul[2].data['THROUGHPUT'] = spl_tp(wave2)
         # -------------------------------------------------------------------------
         # save to new file
-        if allow_temp:
-            misc.printc('\tWriting: {0}'.format(filename), 'info')
-            new_hdul.writeto(filename, overwrite=True)
+        misc.printc('\tWriting: {0}'.format(filename), 'info')
+        new_hdul.writeto(filename, overwrite=True)
         # update the POS file
         self.params['GENERAL.POS_FILE'] = filename
         return

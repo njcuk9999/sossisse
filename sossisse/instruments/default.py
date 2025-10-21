@@ -403,9 +403,6 @@ class Instrument:
         # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
-        median_image_file = 'median.fits'
-        median_image_file = os.path.join(temppath, median_image_file)
-        # ---------------------------------------------------------------------
         # amplitude file
         tmp_amp_file = 'temporary_amp.fits'
         tmp_amp_file = os.path.join(temppath, tmp_amp_file)
@@ -458,6 +455,9 @@ class Instrument:
         # ---------------------------------------------------------------------
         tmp_ini_err_lowpass = 'temporary_initial_err_lowpass.fits'
         tmp_ini_err_lowpass = os.path.join(temppath, tmp_ini_err_lowpass)
+        # ---------------------------------------------------------------------
+        median_image_file = 'median.fits'
+        median_image_file = os.path.join(fitspath, median_image_file)
         # ---------------------------------------------------------------------
         errfile = os.path.join(temppath, 'errormap.fits')
         # ---------------------------------------------------------------------
@@ -2049,10 +2049,11 @@ class Instrument:
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
+        # write the median image
+        misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
+        fits.writeto(median_image_file, med, overwrite=True)
+        # save temporary files
         if allow_temp:
-            # write the median image
-            misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
-            fits.writeto(median_image_file, med, overwrite=True)
             # write the clean cube
             misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
             fits.writeto(clean_cube_file, cube, overwrite=True)
@@ -3116,7 +3117,7 @@ class Instrument:
             # normalize by sqrt(20 / 9.0) and return
             return nsig / np.sqrt(20 / 9.0)
 
-    def get_effective_wavelength(self) -> Tuple[float, float]:
+    def get_effective_wavelength(self, med: np.ndarray) -> Tuple[float, float]:
         """
         Get the effective wavelength factors (photon and energy weights)
 
@@ -3124,10 +3125,6 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_effective_wavelength()'
-        # get the median file
-        medfile = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        # load the median from disk
-        med = io.load_fits(medfile)
         # get the trace_mask
         trace_mask = self.get_trace_mask()
         # get the wave grid

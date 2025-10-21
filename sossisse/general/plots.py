@@ -1354,41 +1354,24 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     suffix = inst.params['INPUTS.SUFFIX']
     # loop around tarce orders
     for trace_order in plot_storage.keys():
-
-        # deal with trace order
-        if trace_order == 0:
-            pkwargs1 = dict(color='b', marker='.', ls='None')
-            pkwargs2 = dict(color='orange', marker='o', ls='--')
-        elif trace_order == 1:
-            pkwargs1 = dict(color='g', marker='.', ls='None')
-            pkwargs2 = dict(color='r', marker='o', ls='--')
-        elif trace_order == 2:
-            pkwargs1 = dict(color='c', marker='.', ls='None')
-            pkwargs2 = dict(color='m', marker='o', ls='--')
-        else:
-            continue
         # get this trace orders parameters
         wavegrid = plot_storage[trace_order]['wavegrid']
         sed_spec = plot_storage[trace_order]['sp_sed']
         throughtput = plot_storage[trace_order]['throughput']
-        spec_in = plot_storage[trace_order]['spec']
-        spec_err_in = plot_storage[trace_order]['spec_err']
-        #transit_depth = plot_storage[trace_order]['transit_depth']
-        #wave_bin = plot_storage[trace_order]['wave_bin']
-        #flux_bin = plot_storage[trace_order]['flux_bin']
-        #flux_bin_err = plot_storage[trace_order]['flux_bin_err']
         # plot the SED
         frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
                          'order {0}'.format(trace_order))
     # -------------------------------------------------------------------------
-    # construct title
-    title = f'{objname} -- {suffix}'
+    # construct frame title
+    ftitle = objname
+    if suffix not in [None, '']:
+        ftitle += f'-- {suffix}'
 
     plt.legend(loc=0)
     # set the axis labels
     frame.set(xlabel=r'Wavelength [$\mu$m]', ylabel='ppm',
-              title=title)
+              title=ftitle)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------

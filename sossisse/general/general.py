@@ -202,7 +202,7 @@ def linear_recon(inst: Instrument) -> Instrument:
         misc.printc(msg, 'number')
     # -------------------------------------------------------------------------
     # calculate and print the effective wavelength
-    inst.get_effective_wavelength()
+    inst.get_effective_wavelength(med)
 
     # =========================================================================
     # Preemptively correct the cube for spectral extraction
@@ -231,7 +231,8 @@ def linear_recon(inst: Instrument) -> Instrument:
     # write the yaml file to html
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
-    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH', 'INPUTS.SID',
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
+                    'INPUTS.SID', 'PATHS.SID_PATH',
                     f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object
@@ -333,7 +334,8 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     # write the yaml file to html
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
-    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH', 'INPUTS.SID',
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
+                    'INPUTS.SID', 'PATHS.SID_PATH',
                     f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object

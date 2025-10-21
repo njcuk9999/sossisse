@@ -187,6 +187,11 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
 
     :return: data, the loaded data
     """
+    # deal with file not existing
+    if not os.path.exists(filename):
+        msg = 'File does not exist: {0}'
+        margs = [filename]
+        raise exceptions.SossisseFileException(msg.format(*margs))
     # try to get data from filename
     try:
         if hdufix:
@@ -201,9 +206,14 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
                     data = fits.getdata(filename, ext=ext, extname=extname)
         else:
             data = fits.getdata(filename, ext=ext, extname=extname)
-    except Exception as _:
+    except Exception as e:
         try:
-            load_fits(filename, ext, extname, hdufix=True)
+            if not hdufix:
+                load_fits(filename, ext, extname, hdufix=True)
+            else:
+                emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
+                eargs = [filename, type(e), str(e)]
+                raise exceptions.SossisseFileException(emsg.format(*eargs))
         except Exception as e:
             emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
             eargs = [filename, type(e), str(e)]
@@ -665,7 +675,7 @@ def plots_to_html(params: ParamDict, plot_path: str):
 
 
 # TODO: This is a carbon-copy of the pogos.core.io functionality --> move to aperocore
-def files_to_html(params: ParamDict, sid_name: str):
+def files_to_html(params: ParamDict, file_path: str):
     """
     Grab the csv files from the PLOT_PATH and push them into html
 
@@ -673,19 +683,23 @@ def files_to_html(params: ParamDict, sid_name: str):
     :return:
     """
     # get sid path
-    sid_path = params[sid_name]
-
+    filepath = params[file_path]
     # get all files in SID path
     files = []
-    for file_ext in FILE_EXTS:
-        files += glob.glob(os.path.join(sid_path, f'*{file_ext}'))
-
+    # walk through the directory
+    for _root, _dirs, filenames in os.walk(filepath):
+        for file in filenames:
+            # only add files with valid extensions
+            if any(file.endswith(ext) for ext in FILE_EXTS):
+                files.append(os.path.join(_root, file))
     # define the html string
     html = '<br><ul>'
+    # add the full file path
+    html += '<p><b>Directory:</b> {0}</p>\n'.format(filepath)
     # loop around all csv files
     for filename in files:
-        # get the filename
-        file_str = os.path.basename(filename)
+        # get the name
+        file_str = os.path.relpath(filename, filepath)
         # create the html string
         html_list = f'<li><a href="{filename}">{file_str}</a></li>'
         html += html_list.format(filename)
@@ -715,7 +729,7 @@ def info_html(params: ParamDict, sid_name: str):
 
 # TODO: This is a carbon-copy of the pogos.core.io functionality --> move to aperocore
 def summary_html(params: ParamDict, module: str, plot_path: str,
-                 sid_name: str, title: str):
+                 sid_name: str, out_path:str, title: str):
     """
     Create a summary html file
 
@@ -742,7 +756,7 @@ def summary_html(params: ParamDict, module: str, plot_path: str,
     # add plot section
     data['plots'] = plots_to_html(params, plot_path)
     # add file section
-    data['filelist'] = files_to_html(params, sid_name)
+    data['filelist'] = files_to_html(params, out_path)
     # add param section
     mod_params = params.get(module)
     if mod_params is None:
