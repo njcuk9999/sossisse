@@ -688,10 +688,11 @@ def files_to_html(params: ParamDict, file_path: str):
     files = []
     # walk through the directory
     for _root, _dirs, filenames in os.walk(filepath):
-        for file in filenames:
+        for _file in filenames:
             # only add files with valid extensions
-            if any(file.endswith(ext) for ext in FILE_EXTS):
-                files.append(os.path.join(_root, file))
+            for ext in FILE_EXTS:
+                if _file.endswith(ext):
+                    files.append(os.path.join(_root, _file))
     # define the html string
     html = '<br><ul>'
     # add the full file path
