@@ -2585,8 +2585,8 @@ class Instrument:
         # return the updated trace map
         return self.get_trace_mask()
 
-    def get_gradients(self, med: np.ndarray,
-                      no_plot: bool = False) -> List[np.ndarray]:
+    def get_fit_params(self, med: np.ndarray,
+                       no_plot: bool = False) -> List[np.ndarray]:
         """
         Get the gradients of the median image
 
@@ -3245,7 +3245,7 @@ class Instrument:
         med_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         med = io.load_fits(med_file)
         # get clean median trace for spectrum
-        dx, dy, rotxy, ddy, med_clean = self.get_gradients(med, no_plot=True)
+        dx, dy, rotxy, ddy, med_clean = self.get_fit_params(med, no_plot=True)
         # load the residuals
         res_file = self.get_variable('WLC_RES_FILE', func_name)
         residual = io.load_fits(res_file)

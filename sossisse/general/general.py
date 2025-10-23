@@ -150,9 +150,9 @@ def linear_recon(inst: Instrument) -> Instrument:
     # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy 
     #        + amp[3] x dM/dtheta + amp[4] x d2M/dy2
     # =========================================================================
-    # Step 1: get the gradients
+    # Step 1: get the parameters to fit
     # =========================================================================
-    dx, dy, rotxy, ddy, med_clean = inst.get_gradients(med)
+    dx, dy, rotxy, ddy, med_clean = inst.get_fit_params(med)
     # -------------------------------------------------------------------------
     # set up the mask for trace position
     mask_out = inst.get_linear_recon_mask(med, trace_mask)
