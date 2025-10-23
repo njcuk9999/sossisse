@@ -3750,7 +3750,7 @@ class Instrument:
         # loop around trace ordesr
         for trace_order in trace_orders:
             # get the wavelength from storage for this trace order
-            wavegrid = storage[trace_order]['wavegrid']
+            wavegrid = storage[trace_order]['wavegrid_2d']
             # get the 2D spectrum from storage for this trace order
             spec2 = storage[trace_order]['spec2']
             # get the 2D spectrum error from storage for this trace order
