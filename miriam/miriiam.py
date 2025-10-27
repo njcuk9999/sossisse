@@ -99,7 +99,7 @@ def printc(string, color = 'black'):
         'black': '\033[30m'
     }
     # get terminal width
-    columns = os.get_terminal_size().columns
+    columns = 80
     now = prefix_now()
 
     print(colors[color] + now + string + '\033[0m')
@@ -516,6 +516,8 @@ def cube2phot(cube, error=None, tbl=None,  d2flag = False,ww=1.0, file_plot_psf 
         if d2flag:
             d2s[i] = fit[3] # 2nd order gradient, representative of the FWHM
             d2s_err[i] = sig[3] # error in the 2nd order gradient
+
+        print(i, 'model_psf: ', np.nansum(psf_reconstructed), 'amps: ', np.nansum(amps[i]))
 
     if tbl is None:
         tbl = Table()

@@ -94,7 +94,7 @@ whoami = mi.whoami()
 
 #path0 = '/Users/eartigau/mnt/BELUGA/fortune/{}'.format(batch)
 
-where_is_data = 'beluga' # or 'beluga'
+where_is_data = 'jupiter' # miri or 'beluga'
 if where_is_data == 'miri':
     batch = 'eclipse3'
     path0 = '/Users/eartigau/mnt/miri/MIRI_lkurve/{}'.format(batch)
@@ -105,7 +105,11 @@ elif where_is_data == 'beluga':
     path0 = '/Users/eartigau/mnt/BELUGA/fortune/{}'.format(batch)
     file_type = 'calints'
     force = True
-
+elif where_is_data == 'jupiter':
+    batch = 'neil'
+    path0 = '/scratch3/jwst/pogos-data/data/miriam/DEMO-LHS-1140-MIRIAM-20240707/old/'
+    file_type = 'rateints'
+    force = True
 else:
     raise ValueError('where_is_data should be "miri" or "beluga"')
 
@@ -199,10 +203,10 @@ if not os.path.isfile(merged_cds_name) or force:
 
             else:
                 cds = fits.getdata(cube_file,'SCI')
-                meds = np.nanmedian(cds, axis=(1,2))
+                # meds = np.nanmedian(cds, axis=(1,2))
 
                 for islice in range(cds.shape[0]):
-                    frame = cds[islice,:, :]
+                    frame = np.array(cds[islice,:, :])
                     pix = np.arange(frame.shape[1])
                     for ite in range(2):
                         for icol in range(4):
