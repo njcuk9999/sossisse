@@ -3813,6 +3813,10 @@ class Instrument:
         datanames.append('PARAMS')
         # construct the fits filename
         filename = self.get_variable('OUT_WLC_FILE', func_name)
+        # Add the pogos modes
+        meta_data['POGOS_EM'] = ('SOSSISSE', 'POGOS extraction module')
+        meta_data['POGOS_V'] = ('N/A', 'POGOS Version')
+        meta_data['POGOS_EV'] = (base.__version__, 'POGOS extraction version')
         # save the fits file
         io.save_fits(filename, datalist=datalist, datatypes=datatypes,
                      datanames=datanames, meta=meta_data)
