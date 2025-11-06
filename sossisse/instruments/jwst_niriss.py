@@ -29,7 +29,10 @@ from sossisse.core import exceptions
 from sossisse.instruments import default
 from sossisse.general import plots
 
-import pastasoss
+# Just to suppress the deprecation warnings from pastasoss
+# TODO: Test this later (once we update pastasoss)
+with warnings.catch_warnings(record=True) as _:
+    import pastasoss
 
 # =============================================================================
 # Define variables
