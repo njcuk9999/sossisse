@@ -1110,15 +1110,20 @@ def plot_stability(inst: Any, table: Table):
         # ---------------------------------------------------------------------
         # deal with having baseline points
         if has_baseline:
-            # plot the out of transit points
+            # plot the baseline domain points
             frames[it].errorbar(index[baseline_domain],
                                 value[baseline_domain],
                                 yerr=errvalue[baseline_domain],
                                 fmt='.', color='green', alpha=alpha,
                                 label='baseline integrations')
+            # plot the non baseline domain points
+            frames[it].errorbar(index[~baseline_domain],
+                                value[~baseline_domain],
+                                yerr=errvalue[~baseline_domain],
+                                fmt='.', color='purple', alpha=alpha,
+                                label='non-baseline integrations')
             # only plot the legend for the first plot frame
-            if it == 0:
-                frames[it].legend()
+            frames[it].legend()
         # otherwise we just plot everything
         else:
             # plot all points
