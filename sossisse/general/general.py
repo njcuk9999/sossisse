@@ -232,7 +232,7 @@ def linear_recon(inst: Instrument) -> Instrument:
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
     io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.SID', 'PATHS.SID_PATH',
+                    'INPUTS.SUBDIRECTORY', 'PATHS.SUBDIRECTORY_PATH',
                     f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object
@@ -335,7 +335,7 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
     io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.SID', 'PATHS.SID_PATH',
+                    'INPUTS.SUBDIRECTORY', 'PATHS.SUBDIRECTORY_PATH',
                     f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object

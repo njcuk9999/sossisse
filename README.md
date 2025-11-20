@@ -143,10 +143,10 @@ single yaml file. One should not edit the python codes themselves, but rather ed
 relevant value. As it is likely that users will want to try  a number of parameter combinations, SOSSISSE creates a 
 unique hash key for each parameter combination. This key is used to name the output files and folder name. The 
 hash key is not meant to be an explicit description of the parameter combination, but rather a unique identifier. 
-The hash key (SID) is created from the date it was first run - so can either be used again or multiple created. SOSISSE will
-look for previous setups with the exact same parameter file and use this as the SID if an SID is not given, this prevents
-every run creating a new set of directories. A yaml file is copied to each SID directory as a reminder of which parameters
-were used (as the SID alone does not given this information).
+The hash key (SUBDIRECTORY) is created from the date it was first run - so can either be used again or multiple created. SOSISSE will
+look for previous setups with the exact same parameter file and use this as the SUBDIRECTORY if an SUBDIRECTORY is not given, this prevents
+every run creating a new set of directories. A yaml file is copied to each SUBDIRECTORY directory as a reminder of which parameters
+were used (as the SUBDIRECTORY alone does not given this information).
 
 Here are the main steps of the analysis :
 

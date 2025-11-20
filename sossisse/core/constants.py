@@ -86,14 +86,22 @@ CDict.add('SOSSIOPATH', value=None, dtype=str, not_none=True,
           source=__NAME__, user=True, active=True,
           cmd_arg='sossiopath', group=cgroup,
           description='The data directory')
-# -----------------------------------------------------------------------------
-# A unique identifier for this data set
-CDict.add('SID', value=None, dtype=str,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Set the SOSSISSE ID (SID) for using the same '
-                      'directory as before if left as None the code '
-                      '\nwill work out whether this yaml is found before '
-                      'or whether we need to create a new SID')
+# add the subdirectory (to be used when default path required)
+CDict.add('SUBDIRECTORY', value=None, dtype=str, source=__NAME__,
+          user=True, active=True, group=cgroup,
+          description='The sub-directory to use for this SOSSISSE run. '
+                      'This should be descriptive and unique. '
+                      '\nIt should contain no whitespaces or special '
+                      'characters other than underscoes.'
+                      '\nAll miriam data will be stored in '
+                      '{GLOBAL.DATA_PATH}/sossisse/{SUBDIRECTORY}/')
+
+# define what we are running through SOSSISSE
+CDict.add('DESCRIPTION', value='', dtype=str, source=__NAME__,
+          user=True, active=True, group=cgroup,
+          description='Description of the SOSSISSE run e.g. object name, '
+                      'date of observation, is it a transit or '
+                      'an eclipse etc.')
 # -----------------------------------------------------------------------------
 # Log level (DEBUG, INFO, WARNING, ERROR, NONE)
 CDict.add('LOG_LEVEL', value='INFO', dtype=str,
@@ -283,10 +291,10 @@ CDict.add('OBJECTPATH', value=None, dtype=str,
                       'data')
 # -----------------------------------------------------------------------------
 # the object path is where we store all the object data
-CDict.add('SID_PATH', value=None, dtype=str,
+CDict.add('SUBDIRECTORY_PATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
-          description='The path within the OBJECTPATH where this SID run '
-                      'is stored')
+          description='The path within the OBJECTPATH where this SUBDIRECTORY'
+                      ' run is stored')
 # -----------------------------------------------------------------------------
 # the temp path is where we store temporary versions of the raw data
 CDict.add('TEMP_PATH', value=None, dtype=str,

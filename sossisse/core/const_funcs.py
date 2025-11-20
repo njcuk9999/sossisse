@@ -56,7 +56,7 @@ INPUTARGS['sossisse.recipes.run_sossisse'] = ['INPUTS.PARAM_FILE']
 
 
 # list of constants to exlucde from hash
-EXCLUDED_HASH_KEYS = ['SID']
+EXCLUDED_HASH_KEYS = ['SUBDIRECTORY']
 
 # =============================================================================
 # Define functions that use CDICT
@@ -219,7 +219,7 @@ def get_parameters(no_yaml: bool = False,
     # create a copy of the yaml file in the object path
     _ = create_yaml(params, log=False)
     # -------------------------------------------------------------------------
-    # create hash file (for quick check on SID
+    # create hash file (for quick check on SUBDIRECTORY
     create_hash(params)
     # -------------------------------------------------------------------------
     # now we load the instrument specific parameters
@@ -290,58 +290,60 @@ def run_time_params(params: ParamDict, only_create: bool = False
         paths.set_source('OBJECTPATH', func_name)
     io.create_directory(paths['OBJECTPATH'])
     # -------------------------------------------------------------------------
-    # deal with the SID
+    # deal with the SUBDIRECTORY
     # -------------------------------------------------------------------------
     # get the sossisse unique id (sid) for this run
-    if inputs['SID'] is None:
+    if inputs['SUBDIRECTORY'] is None:
         # check whether we have a hash that matches the current yaml file
-        # if so this gives us our SID
+        # if so this gives us our SUBDIRECTORY
         sid = hash_match(params)
         # deal with having a yaml that matches a previous run
         if sid is None:
-            inputs['SID'] = misc.sossice_unique_id(inputs['PARAM_FILE'])
-            inputs.set_source('SID', func_name)
+            inputs['SUBDIRECTORY'] = misc.sossice_unique_id(inputs['PARAM_FILE'])
+            inputs.set_source('SUBDIRECTORY', func_name)
         else:
-            inputs['SID'] = sid
-            inputs.set_source('SID', func_name)
+            inputs['SUBDIRECTORY'] = sid
+            inputs.set_source('SUBDIRECTORY', func_name)
     # -------------------------------------------------------------------------
     # set up other paths
     # -------------------------------------------------------------------------
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
-    if paths['SID_PATH'] is None:
-        paths['SID_PATH'] = os.path.join(paths['OBJECTPATH'], inputs['SID'])
-        paths.set_source('SID_PATH', func_name)
-    io.create_directory(paths['SID_PATH'])
+    if paths['SUBDIRECTORY_PATH'] is None:
+        paths['SUBDIRECTORY_PATH'] = os.path.join(paths['OBJECTPATH'],
+                                                  inputs['SUBDIRECTORY'])
+        paths.set_source('SUBDIRECTORY_PATH', func_name)
+    io.create_directory(paths['SUBDIRECTORY_PATH'])
     # -------------------------------------------------------------------------
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
     if paths['TEMP_PATH'] is None:
-        paths['TEMP_PATH'] = os.path.join(paths['SID_PATH'], 'temporary')
+        paths['TEMP_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'],
+                                          'temporary')
         paths.set_source('TEMP_PATH', func_name)
     io.create_directory(paths['TEMP_PATH'])
     # -------------------------------------------------------------------------
     # the plot path
     if paths['PLOT_PATH'] is None:
-        paths['PLOT_PATH'] = os.path.join(paths['SID_PATH'], 'plots')
+        paths['PLOT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'plots')
         paths.set_source('PLOT_PATH', func_name)
     io.create_directory(paths['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
     if paths['OTHER_PATH'] is None:
-        paths['OTHER_PATH'] = os.path.join(paths['SID_PATH'], 'other')
+        paths['OTHER_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'other')
         paths.set_source('OTHER_PATH', func_name)
     io.create_directory(paths['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the fits paths
     if paths['FITS_PATH'] is None:
-        paths['FITS_PATH'] = os.path.join(paths['SID_PATH'], 'fits')
+        paths['FITS_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'fits')
         paths.set_source('FITS_PATH', func_name)
     io.create_directory(paths['FITS_PATH'])
     # -------------------------------------------------------------------------
     # the out paths
     if paths['OUT_PATH'] is None:
-        paths['OUT_PATH'] = os.path.join(paths['SID_PATH'], 'out')
+        paths['OUT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'out')
         paths.set_source('OUT_PATH', func_name)
     io.create_directory(paths['OUT_PATH'])
     # -------------------------------------------------------------------------
@@ -483,14 +485,14 @@ def create_hash(params: ParamDict):
     """
     # get the hash file path
     hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
-    # get the current SID
-    sid = params['INPUTS.SID']
+    # get the current SUBDIRECTORY
+    sid = params['INPUTS.SUBDIRECTORY']
     # get the current yaml file path
     yaml_file = params['INPUTS.PARAM_FILE']
     # we load the yaml file
     with open(yaml_file, "r") as yamlfile:
         yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    # remove SID from yaml_dict (we can't compare this)
+    # remove SUBDIRECTORY from yaml_dict (we can't compare this)
     for key in EXCLUDED_HASH_KEYS:
         if key in yaml_dict:
             del yaml_dict[key]
@@ -524,11 +526,12 @@ def create_hash(params: ParamDict):
 def hash_match(params: ParamDict) -> Union[str, None]:
     """
     Look for a match between the current yaml file and the hash list of
-    previous runs SIDS and hashes
+    previous runs SUBDIRECTORYs and hashes
 
     :param params: Dict[str, Any], the input parameters
 
-    :return: None if SID or hashlist.txt not found, otherwise returns the SID
+    :return: None if SUBDIRECTORY or hashlist.txt not found,
+             otherwise returns the SUBDIRECTORY
     """
     # get the hash file path
     hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
@@ -543,9 +546,9 @@ def hash_match(params: ParamDict) -> Union[str, None]:
     # deal with a POGOs yaml_dict (need to get the SOSSSISE nested dictionary)
     if 'SOSSISSE' in yaml_dict:
         yaml_dict = yaml_dict['SOSSISSE']
-    # remove SID from yaml_dict (we can't compare this)
-    if 'SID' in yaml_dict['INPUTS']:
-        del yaml_dict['INPUTS']['SID']
+    # remove SUBDIRECTORY from yaml_dict (we can't compare this)
+    if 'SUBDIRECTORY' in yaml_dict['INPUTS']:
+        del yaml_dict['INPUTS']['SUBDIRECTORY']
     # create a jason string
     yaml_string = json.dumps(yaml_dict, sort_keys=True)
     # get the hash for this file

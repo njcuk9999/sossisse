@@ -1089,7 +1089,7 @@ def plot_stability(inst: Any, table: Table):
     if inst.params['GENERAL.WLC_DOMAIN'] is not None:
         dargs = [inst.params['GENERAL.WLC_DOMAIN'][0],
                  inst.params['GENERAL.WLC_DOMAIN'][1],
-                 inst.params['INPUTS.SID']]
+                 inst.params['INPUTS.SUBDIRECTORY']]
         domain = '({0:.2f} - {1:.2f}µm)\nunique ID {2}\n'.format(*dargs)
     else:
         domain = ''
