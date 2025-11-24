@@ -82,7 +82,8 @@ def get_parameters(no_yaml: bool = False,
     # set function name
     func_name = __NAME__ + '.get_parameters()'
     # print splash
-    misc.sossart()
+    if log_level != 'setup':
+        misc.sossart()
     # in setup mode we force some parameters
     if setup_mode:
         no_yaml = True
