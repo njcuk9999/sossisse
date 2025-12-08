@@ -1286,6 +1286,14 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     description = (f'Spectral time series for trace order {trace_order}. '
                    'Each row is a different integration, each column is a '
                    'different pixel in the spectral direction.')
+    # get the image normalization
+    vlims = inst.params['SPEC_PLOT.FRAME_VLIM']
+    vtype = inst.params['SPEC_PLOT.FRAME_VLIM_TYPE']
+    interval = inst.params['SPEC_PLOT.FRAME_INTERVAL']
+    stretch = inst.params['SPEC_PLOT.FRAME_STRETCH']
+
+    norm, ntext = plot_normalization(spec2, interval=interval,
+                                     stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
@@ -1295,8 +1303,8 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # plot the spectral time series
     vmin = np.nanpercentile(spec2, 2.5)
     vmax= np.nanpercentile(spec2, 97.5)
-    frame.imshow(spec2, origin='lower', cmap='inferno', vmin=vmin, vmax=vmax,
-                 aspect='auto', interpolation='none')
+    frame.imshow(spec2, origin='lower', cmap='inferno', aspect='auto',
+                 interpolation='none', norm=norm)
     frame.set_xlabel('x pixel')
     frame.set_ylabel('Integration number')
     # plot colorbar

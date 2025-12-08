@@ -823,6 +823,34 @@ CDict.add('REMOVE_TREND', value=True, dtype=bool,tex_arg=True,
 
 
 # =============================================================================
+# Definition for spectral extraction
+# =============================================================================
+cgroup = 'SPEC_PLOT'
+CDict.add_group(cgroup, description='Definition for white light curve',
+                source=__NAME__, user=True, active=True)
+# Define the vmin and vmax for displaying a normal frame
+CDict.add('FRAME_VLIM', value=[0.98, 1.005], dtype=list,
+          dtypei=float, length=2, source=__NAME__, user=False,
+          active=True, group=cgroup,
+          description='define the vmin and vmax for displaying a normal frame')
+# Define the type of the vmin and vmax values for the frame plot
+CDict.add('FRAME_VLIM_TYPE', value='absolute', dtype=str,
+          options=['percentile', 'absolute'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the type of the vmin and vmax values for the '
+                      'frame plot')
+# Define the ds9 style stretch for the frame plot
+CDict.add('FRAME_STRETCH', value='linear', dtype=str,
+          options=['base', 'linear', 'sqrt', 'log', 'hist', 'power'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style stretch for the frame plot')
+# Define the ds9 style interval for the frame plot
+CDict.add('FRAME_INTERVAL', value='minmax', dtype=str,
+          options=['base', 'zscale', 'minmax'],
+          source=__NAME__, user=False, active=True, group=cgroup,
+          description='define the ds9 style interval for the frame plot')
+
+# =============================================================================
 # Start of code
 # =============================================================================
 if __name__ == "__main__":
