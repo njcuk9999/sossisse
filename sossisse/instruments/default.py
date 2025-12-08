@@ -245,7 +245,7 @@ class Instrument:
         # deal with key not set (must run another function first)
         if self._variables[key] is None:
             emsg = ('Variable {0} not set. '
-                    'Please run {0} before running {1}.')
+                    'Please run {1} before running {2}.')
             eargs = [key, self.vsources[key], func_name]
             raise exceptions.SossisseInstException(emsg.format(*eargs),
                                                    self.name)
@@ -749,9 +749,13 @@ class Instrument:
         # ---------------------------------------------------------------------
         # load and bin the cube
         cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds)
-
+        # ---------------------------------------------------------------------
+        # for future reference in the code, we keep track of data size
+        self.set_variable('DATA_X_SIZE', cube.shape[2])
+        self.set_variable('DATA_Y_SIZE', cube.shape[1])
+        self.set_variable('DATA_N_FRAMES', cube.shape[0])
+        # ---------------------------------------------------------------------
         return cube, err, dq
-
 
     def apply_flat_field(self, cube, err, dq):
         """
@@ -788,7 +792,7 @@ class Instrument:
                 misc.printc('Reading ff file: {0}'.format(temp_ff_dq),
                             'info')
                 dq = self.load_data(temp_ff_dq)
-                # for future reference in the code, we keep track of data size
+                # update the data sizes (is this required?)
                 self.set_variable('DATA_X_SIZE', cube.shape[2])
                 self.set_variable('DATA_Y_SIZE', cube.shape[1])
                 self.set_variable('DATA_N_FRAMES', cube.shape[0])
@@ -831,12 +835,11 @@ class Instrument:
             fits.writeto(temp_ff_err, err, overwrite=True)
             fits.writeto(temp_ff_dq, dq, overwrite=True)
         # ---------------------------------------------------------------------
-        # for future reference in the code, we keep track of data size
+        plots.plot_flat_field(self, frame0, cube[0])
+        # update the data sizes (is this required?)
         self.set_variable('DATA_X_SIZE', cube.shape[2])
         self.set_variable('DATA_Y_SIZE', cube.shape[1])
         self.set_variable('DATA_N_FRAMES', cube.shape[0])
-        # ---------------------------------------------------------------------
-        plots.plot_flat_field(self, frame0, cube[0])
         # ---------------------------------------------------------------------
         # return the cube and error
         return cube, err, dq
