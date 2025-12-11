@@ -437,6 +437,16 @@ def load_wave_ext1d(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
     # try to load wavelength
     try:
         wavevector = fileobj.spec[0].spec_table['wavelength']
+        # Older files may have a 1D wavevector, newer files have 2D
+        # We only want the 1D wavevector, so lets deal with both cases
+        if len(wavevector.shape) not in [1, 2]:
+            emsg = ('EXT1D file: {0} in wrong format (wavelength shape '
+                    'must be 1D or 2D)')
+            eargs = [filepath]
+            raise exceptions.SossisseFileException(emsg.format(*eargs))
+        if len(wavevector.shape) == 2:
+            wavevector = wavevector[:, 0]
+
     except Exception as e:
         emsg = 'Could not read wavelength from EXT1D file: {0}\n\t{1}:{2}'
         eargs = [filepath, type(e), str(e)]

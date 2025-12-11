@@ -1759,7 +1759,7 @@ class Instrument:
             return trace_mask
         # ---------------------------------------------------------------------
         # get the trace map (instrument dependent)
-        trace_mask = self.get_trace_positions(med=med, cube=cube)
+        trace_mask = self.get_trace_positions(med=med, cube=cube, log=log)
         # ---------------------------------------------------------------------
         # deal with wavelength domain cut down
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
