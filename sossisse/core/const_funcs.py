@@ -297,7 +297,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
     if paths['SUBDIRECTORY_PATH'] is None:
-        paths['SUBDIRECTORY_PATH'] = os.path.join(paths['SOSSIOPATH'],
+        paths['SUBDIRECTORY_PATH'] = os.path.join(inputs['SOSSIOPATH'],
                                                   inputs['SUBDIRECTORY'])
         paths.set_source('SUBDIRECTORY_PATH', func_name)
     io.create_directory(paths['SUBDIRECTORY_PATH'])
