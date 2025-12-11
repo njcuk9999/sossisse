@@ -114,8 +114,8 @@ def linear_recon(inst: Instrument) -> Instrument:
     # =========================================================================
     # get the trace map
     # =========================================================================
-    trace_mask = inst.get_trace_mask(no_plot=False, images=[cube[0], cube[-1]],
-                                     labels=['First frame', 'Last frame'])
+    trace_mask = inst.get_trace_mask(cube=cube, no_plot=False,
+                                     plot_frames=[0, -1])
 
     # =========================================================================
     # Create the median stack

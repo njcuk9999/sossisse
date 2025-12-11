@@ -74,7 +74,9 @@ class JWST_NIRSPEC(default.Instrument):
         func_name = f'{__NAME__}.{self.name}.optimize_trace_mask()'
         return
 
-    def get_trace_positions(self, log: bool = True) -> np.ndarray:
+    def get_trace_positions(self, med: np.ndarray = None,
+                            cube: np.ndarray = None,  log: bool = True
+                            ) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
@@ -98,12 +100,20 @@ class JWST_NIRSPEC(default.Instrument):
             yoffset = wlc_gen_params['Y_TRACE_OFFSET']
             # get the wave grid from the parameters
             xpix, wavegrid = self.get_wavegrid(return_xpix=True)
-            # get the median of the cleand data (patch isolated bads)
-            clean_cube = self.get_variable('TEMP_CLEAN_NAN', func_name)
-            # load the data in the clean cube
-            clean_cube_fits = self.load_data(clean_cube)
-            # take the median of the clean cube
-            med = np.nanmedian(clean_cube_fits, axis=0)
+            # -----------------------------------------------------------------
+            # deal with having a median supplied (and no temp clean nan)
+            if med is not None:
+                med = np.array(med)
+            # deal with having a cube supplied (and no temp clean nan)
+            elif cube is not None:
+                med = np.nanmedian(cube, axis=0)
+            # else raise exception
+            else:
+                emsg = 'No med/cube provided'
+                emsg += '\n function {0} must set med or cube'
+                eargs = [func_name]
+                raise exceptions.SossisseException(emsg.format(*eargs))
+            # -----------------------------------------------------------------
             # get the indices of the median image
             pixy, pixx = np.indices(med.shape)
             # calculate the sum and running sum of the median image

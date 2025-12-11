@@ -11,7 +11,7 @@ Created on 2024-08-13 at 11:29
 """
 import os
 import warnings
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 from astropy.io import fits
@@ -199,13 +199,17 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         return
 
 
-    def get_trace_positions(self, log: bool = True) -> np.ndarray:
+    def get_trace_positions(self, med: np.ndarray = None,
+                            cube: np.ndarray = None,  log: bool = True
+                            ) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
 
         :return: np.ndarray, the trace position map
         """
+        # med and cube are not used here
+        _ = med, cube
         # only get order 1 if the a wavelength domain is set
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
             # get the trace positions from the white light curve
@@ -219,7 +223,7 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
         return trace_mask
 
     def get_wavegrid(self, order_num: Union[int, None] = None,
-                     return_xpix: bool = False
+                     return_xpix: bool = False, source: Optional[str] = None,
                      ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get the wave grid for the instrument

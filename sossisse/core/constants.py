@@ -187,7 +187,8 @@ CDict.add('BKGFILE', value=None, dtype=str,
           description='Background file, leave as None if there is no '
                       'background available for the mode, '
                       '\n if empty DO_BACKGROUND is set to False regardless of '
-                      'its value')
+                      'its value. '
+                      'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # do background correction - must have BKGFILE defined to do this
 CDict.add('DO_BACKGROUND', value=False, dtype=bool, tex_arg = True,
@@ -200,17 +201,20 @@ CDict.add('DO_BACKGROUND', value=False, dtype=bool, tex_arg = True,
 CDict.add('FLATFILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Flat field file, leave as None if there is no '
-                      'flat field available for the mode')
+                      'flat field available for the mode. '
+                      'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # trace position file
 CDict.add('POS_FILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='Trace position file')
+          description='Trace position file. '
+                      'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # wavelength calibration
 CDict.add('WAVE_FILE', value=None, dtype=str,
           source=__NAME__, user=True, active=True, group=cgroup,
-          description='Wavelength calibration file')
+          description='Wavelength calibration file. '
+                      'Must be placed in the "calibration directory"')
 # -----------------------------------------------------------------------------
 # Wavelength calibration file type
 CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,

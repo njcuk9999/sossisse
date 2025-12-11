@@ -1713,24 +1713,29 @@ class Instrument:
         raise NotImplementedError('optimize_trace_mask() must be implemented in '
                                   'child Instrument class')
 
-    def get_trace_positions(self, log: bool = True):
+    def get_trace_positions(self, med: np.ndarray = None,
+                            cube: np.ndarray = None,  log: bool = True):
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
 
         :return: np.ndarray, the trace position map
         """
-        _ = self, log
+        _ = self, med, cube, log
         raise NotImplementedError('get_trace_pos() must be implemented in '
                                   'child Instrument class')
 
-    def get_trace_mask(self, log: bool = True, no_plot: bool = True,
-                       images: Optional[List[np.ndarray]] = None,
-                       labels: Optional[List[str]] = None) -> np.ndarray:
+    def get_trace_mask(self, med: np.ndarray = None, cube: np.ndarray = None,
+                       log: bool = True, no_plot: bool = True,
+                       plot_frames: Optional[List[int]] = None) -> np.ndarray:
         """
         Get the trace mask (True where the trace is, False otherwise)
         This is a combined map of all orders.
 
+        :param med: np.ndarray, median image to plot the trace mask on
+                    can be None if cube is supplied
+        :param cube: np.ndarray, cube to plot the trace mask on
+                     can be None if med is supplied
         :param log: bool, if True print progress
         :param no_plot: bool, if True do not plot the trace mask
         :param images: list of np.ndarray, images to overplot the trace mask on
@@ -1754,7 +1759,7 @@ class Instrument:
             return trace_mask
         # ---------------------------------------------------------------------
         # get the trace map (instrument dependent)
-        trace_mask = self.get_trace_positions()
+        trace_mask = self.get_trace_positions(med=med, cube=cube)
         # ---------------------------------------------------------------------
         # deal with wavelength domain cut down
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
@@ -1775,6 +1780,17 @@ class Instrument:
         # ---------------------------------------------------------------------
         # plot the trace mask
         if not no_plot:
+            # get the images to plot
+            if plot_frames is not None:
+                if cube is None:
+                    images = [med]
+                    labels = ['Median image']
+                else:
+                    images = [cube[it] for it in plot_frames]
+                    labels = [f'Frame{it}' for it in plot_frames]
+            else:
+                images, labels = None, None
+            # plot the trace mask
             plots.plot_trace_mask(self, trace_mask, images, labels)
         # ---------------------------------------------------------------------
         # return the trace_mask
@@ -2528,7 +2544,7 @@ class Instrument:
         best_sum = 0
         # re-gen the trace map (without logging) using new x/y trace
         #  offset
-        trace_mask = self.get_trace_mask(log=False)
+        trace_mask = self.get_trace_mask(med=med, log=False)
         # re-get the trace_mask as floats
         tmask = np.array(trace_mask, dtype=float)
         # loop around dxs and dys
@@ -2542,7 +2558,7 @@ class Instrument:
                 wlc_gen_params['Y_TRACE_OFFSET'] = dys[iy]
                 # re-gen the trace map (without logging) using new x/y trace
                 #  offset
-                trace_mask = self.get_trace_mask(log=False)
+                trace_mask = self.get_trace_mask(med=med, log=False)
                 # re-get the trace_mask as floats
                 tmask = np.array(trace_mask, dtype=float)
                 # get the sum of the median image in the trace
@@ -2586,7 +2602,7 @@ class Instrument:
         plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, ymax, loss_ppt,
                                    trace_mask, med, best_dx, best_dy)
         # return the updated trace map
-        return self.get_trace_mask()
+        return self.get_trace_mask(med=med)
 
     def get_fit_params(self, med: np.ndarray,
                        no_plot: bool = False) -> List[np.ndarray]:
@@ -3129,7 +3145,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_effective_wavelength()'
         # get the trace_mask
-        trace_mask = self.get_trace_mask()
+        trace_mask = self.get_trace_mask(med=med)
         # get the wave grid
         wavegrid = self.get_wavegrid(order_num=1)
         # ---------------------------------------------------------------------
@@ -3319,7 +3335,7 @@ class Instrument:
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # load the trace_mask
-        trace_mask = self.get_trace_mask()
+        trace_mask = self.get_trace_mask(med=med)
         # ---------------------------------------------------------------------
         # the model starts as the recon
         model = np.array(recon)
