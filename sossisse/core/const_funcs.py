@@ -142,7 +142,8 @@ def get_parameters(no_yaml: bool = False,
             # create the tmp path
             tmp_path = os.path.join(tmp_path, params['INPUTS.YAML_NAME'])
         # re-create the yaml
-        param_file = create_yaml(params, log=False, outpath=tmp_path)
+        param_file = create_yaml(params, log=False, outpath=tmp_path,
+                                 force=True)
     # otherwise we should display an error that we require a param file
     elif param_file is None:
         emsg = ('No parameter file defined - must be defined in '
@@ -185,24 +186,6 @@ def get_parameters(no_yaml: bool = False,
         # ask for data download
         load_functions.download_data(params)
     # -------------------------------------------------------------------------
-    # copy parameter file to other path
-    # -------------------------------------------------------------------------
-    if not only_create:
-        param_file_basename = os.path.basename(param_file)
-        param_file_csv = str(os.path.join(params['PATHS.OTHER_PATH'],
-                                          param_file_basename))
-        io.copy_file(param_file, param_file_csv)
-    # re-create the yaml with updated parameters but at the new path
-    if no_yaml:
-        _ = create_yaml(params, log=False, outpath=tmp_path)
-    # create the yaml file in the directory
-    if only_create:
-        outpath = str(os.path.join(params['PATHS.YAMLPATH'],
-                                   os.path.basename(tmp_path)))
-        _ = create_yaml(params, log=False, outpath=outpath)
-        # update param file path
-        params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
-    # -------------------------------------------------------------------------
     # copy pos file to FITS path
     if params['GENERAL.POS_FILE'] is not None:
         posfile = params['GENERAL.POS_FILE']
@@ -216,12 +199,46 @@ def get_parameters(no_yaml: bool = False,
         # update pos file path
         params['GENERAL.POS_FILE'] = os.path.abspath(posfile_out)
         params['GENERAL'].set_source('POS_FILE', func_name)
+
     # -------------------------------------------------------------------------
-    # create a copy of the yaml file in the object path
-    _ = create_yaml(params, log=False)
+    # If we didn't have a yaml to start with create it now
+    # re-create the yaml with updated parameters but at the new path
+    if no_yaml:
+        _ = create_yaml(params, log=False, outpath=tmp_path)
     # -------------------------------------------------------------------------
-    # create hash file (for quick check on SUBDIRECTORY
-    create_hash(params)
+    # copy parameter file to other path (as a record of what was actually used)
+    #  we only do this if we are running data (i.e. only_create is False)
+    # -------------------------------------------------------------------------
+    if not only_create:
+        # we use the tmp file path to create the backup name
+        param_bname = os.path.basename(tmp_path)
+        # remove the yaml ending if it exists
+        if param_bname.endswith('.yaml'):
+            param_bname = param_bname[:-len('.yaml')]
+        # Backup file should be:
+        #   SOSSISSE_<input yaml basename>_asrun.yaml
+        #   POGOS_<input yaml basename>_asrun.yaml
+        param_oname = '{0}_{1}_asrun.yaml'
+        pbargs = [params['__SOURCE__'], param_bname]
+        param_oname = param_oname.format(*pbargs)
+        param_file_csv = os.path.join(params['PATHS.OTHER_PATH'], param_oname)
+        # copy file
+        io.copy_file(param_file, str(param_file_csv))
+    # -------------------------------------------------------------------------
+    # If we are creating and running SOSSISSE we need to create the yaml at
+    #  its proper path
+    # -------------------------------------------------------------------------
+    # create the yaml file in the directory for SOSSISSE
+    else:
+        if params['__SOURCE__'] == 'SOSSISSE':
+            outpath = str(os.path.join(params['PATHS.YAMLPATH'],
+                                       os.path.basename(tmp_path)))
+            _ = create_yaml(params, log=False, outpath=outpath)
+            # update param file path
+            params['INPUTS.PARAM_FILE'] = os.path.abspath(outpath)
+            # remove the previous tmp file
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
     # -------------------------------------------------------------------------
     # now we load the instrument specific parameters
     instrument = load_instrument(params)
@@ -258,63 +275,45 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # lets create the sossiopath directory if it doesn't exist
     io.create_directory(inputs['SOSSIOPATH'])
     # -------------------------------------------------------------------------
-    # all data for this instrument mode will be stored under this directory
-    if paths['MODEPATH'] is None:
-        paths['MODEPATH'] = os.path.join(inputs['SOSSIOPATH'],
-                                         inputs['INSTRUMENTMODE'])
-        paths.set_source('MODEPATH', func_name)
-    # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
-    if paths['CALIBPATH'] is None:
-        paths['CALIBPATH'] = os.path.join(paths['MODEPATH'], 'calibration')
-        paths.set_source('CALIBPATH', func_name)
-    io.create_directory(paths['CALIBPATH'])
-    # -------------------------------------------------------------------------
-    # the calibration path is where we store all calibration files
-    if paths['YAMLPATH'] is None:
-        paths['YAMLPATH'] = os.path.join(paths['MODEPATH'], 'yamls')
-        paths.set_source('YAMLPATH', func_name)
-    io.create_directory(paths['YAMLPATH'])
-    # -------------------------------------------------------------------------
-    # the raw path is where we store all the raw data
-    if paths['RAWPATH'] is None:
-        paths['RAWPATH'] = os.path.join(paths['MODEPATH'], inputs['OBJECTNAME'],
-                                        'rawdata')
-        paths.set_source('RAWPATH', func_name)
-    io.create_directory(paths['RAWPATH'])
-    # -------------------------------------------------------------------------
-    # the object path is where we store all the object data
-    #   note we add the sid to the path for multiple reductions
-    if paths['OBJECTPATH'] is None:
-        paths['OBJECTPATH'] = os.path.join(paths['MODEPATH'],
-                                           inputs['OBJECTNAME'])
-        paths.set_source('OBJECTPATH', func_name)
-    io.create_directory(paths['OBJECTPATH'])
+    if params['__SOURCE__'] == 'SOSSISSE':
+        if paths['YAMLPATH'] is None:
+            paths['YAMLPATH'] = os.path.join(paths['MODEPATH'], 'yamls')
+            paths.set_source('YAMLPATH', func_name)
+        io.create_directory(paths['YAMLPATH'])
     # -------------------------------------------------------------------------
     # deal with the SUBDIRECTORY
     # -------------------------------------------------------------------------
     # get the sossisse unique id (sid) for this run
     if inputs['SUBDIRECTORY'] is None:
-        # check whether we have a hash that matches the current yaml file
-        # if so this gives us our SUBDIRECTORY
-        sid = hash_match(params)
-        # deal with having a yaml that matches a previous run
-        if sid is None:
-            inputs['SUBDIRECTORY'] = misc.sossice_unique_id(inputs['PARAM_FILE'])
-            inputs.set_source('SUBDIRECTORY', func_name)
-        else:
-            inputs['SUBDIRECTORY'] = sid
-            inputs.set_source('SUBDIRECTORY', func_name)
+        sid = misc.sossice_unique_id(inputs['PARAM_FILE'])
+        imode = inputs['INSTRUMENTMODE']
+        oname = inputs['OBJECTNAME']
+        inputs['SUBDIRECTORY'] = f'{imode}_{oname}_{sid}'
+        inputs.set_source('SUBDIRECTORY', func_name)
     # -------------------------------------------------------------------------
     # set up other paths
     # -------------------------------------------------------------------------
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
     if paths['SUBDIRECTORY_PATH'] is None:
-        paths['SUBDIRECTORY_PATH'] = os.path.join(paths['OBJECTPATH'],
+        paths['SUBDIRECTORY_PATH'] = os.path.join(paths['SOSSIOPATH'],
                                                   inputs['SUBDIRECTORY'])
         paths.set_source('SUBDIRECTORY_PATH', func_name)
     io.create_directory(paths['SUBDIRECTORY_PATH'])
+    # -------------------------------------------------------------------------
+    # the raw path is where we store all the raw data
+    if paths['RAWPATH'] is None:
+        paths['RAWPATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'inputs')
+        paths.set_source('RAWPATH', func_name)
+    io.create_directory(paths['RAWPATH'])
+    # -------------------------------------------------------------------------
+    # the calibration path is where we store all calibration files
+    if paths['CALIBPATH'] is None:
+        paths['CALIBPATH'] = os.path.join(paths['SUBDIRECTORY_PATH'],
+                                          'calibration')
+        paths.set_source('CALIBPATH', func_name)
+    io.create_directory(paths['CALIBPATH'])
     # -------------------------------------------------------------------------
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
@@ -344,7 +343,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # the out paths
     if paths['OUT_PATH'] is None:
-        paths['OUT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'out')
+        paths['OUT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'outputs')
         paths.set_source('OUT_PATH', func_name)
     io.create_directory(paths['OUT_PATH'])
     # -------------------------------------------------------------------------
@@ -420,7 +419,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
 
 
 def create_yaml(params: ParamDict, log: bool = True,
-                outpath: str = None) -> str:
+                outpath: str = None, force: bool = False) -> str:
     """
     Create a yaml file from input parameters
 
@@ -432,8 +431,11 @@ def create_yaml(params: ParamDict, log: bool = True,
     # get the output path
     if outpath is None:
         if params['__SOURCE__'] == 'POGOS':
-            outpath = os.path.join(params['PATHS.OTHER_PATH'],
-                                   'params_backup_sossisse.yaml')
+            if force:
+                outpath = os.path.join(params['PATHS.OTHER_PATH'],
+                                       'params_backup_sossisse.yaml')
+            else:
+                return ''
         else:
             outpath = os.path.join(params['PATHS.OTHER_PATH'],
                                    'params_backup.yaml')
@@ -474,106 +476,6 @@ def prearg_check(args: List[str]) -> bool:
                 return True
     # if we get here return False
     return False
-
-
-def create_hash(params: ParamDict):
-    """
-    Create a hash file for the current run
-
-    :param params: dict, the parameters dictionary
-
-    :return: None writes hashlist file
-    """
-    # get the hash file path
-    hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
-    # get the current SUBDIRECTORY
-    sid = params['INPUTS.SUBDIRECTORY']
-    # get the current yaml file path
-    yaml_file = params['INPUTS.PARAM_FILE']
-    # we load the yaml file
-    with open(yaml_file, "r") as yamlfile:
-        yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    # remove SUBDIRECTORY from yaml_dict (we can't compare this)
-    for key in EXCLUDED_HASH_KEYS:
-        if key in yaml_dict:
-            del yaml_dict[key]
-    # create a jason string
-    yaml_string = json.dumps(yaml_dict, sort_keys=True)
-    # get the hash
-    hashvalue = io.get_hash(yaml_string)
-    # read the current hash list
-    if os.path.exists(hashpath):
-        with open(hashpath, "r") as hashfile:
-            hashlist = hashfile.readlines()
-    else:
-        hashlist = []
-    # add the new line to the hash
-    hashlist.append(f'{sid} {hashvalue}\n')
-    # wait for lock to release
-    io.lock_wait(hashpath)
-    # try to remove hash file
-    try:
-        # remove old hash file
-        if os.path.exists(hashpath):
-            os.remove(hashpath)
-        # write the new hash file
-        with open(hashpath, "w") as hashfile:
-            hashfile.writelines(hashlist)
-    finally:
-        # unlock hash list file
-        io.lock_wait(hashpath, unlock=True)
-
-
-def hash_match(params: ParamDict) -> Union[str, None]:
-    """
-    Look for a match between the current yaml file and the hash list of
-    previous runs SUBDIRECTORYs and hashes
-
-    :param params: Dict[str, Any], the input parameters
-
-    :return: None if SUBDIRECTORY or hashlist.txt not found,
-             otherwise returns the SUBDIRECTORY
-    """
-    # get the hash file path
-    hashpath = os.path.join(params['PATHS.OBJECTPATH'], 'hashlist.txt')
-    # get the current yaml file path
-    yaml_file = params['INPUTS.PARAM_FILE']
-    # if we don't have a current yaml file return
-    if not os.path.exists(yaml_file):
-        return None
-    # we load the yaml file
-    with open(yaml_file, "r") as yamlfile:
-        yaml_dict = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    # deal with a POGOs yaml_dict (need to get the SOSSSISE nested dictionary)
-    if 'SOSSISSE' in yaml_dict:
-        yaml_dict = yaml_dict['SOSSISSE']
-    # remove SUBDIRECTORY from yaml_dict (we can't compare this)
-    if 'SUBDIRECTORY' in yaml_dict['INPUTS']:
-        del yaml_dict['INPUTS']['SUBDIRECTORY']
-    # create a jason string
-    yaml_string = json.dumps(yaml_dict, sort_keys=True)
-    # get the hash for this file
-    hashvalue = io.get_hash(yaml_string)
-    # if we don't have a hash file return None (this is a new run)
-    if not os.path.exists(hashpath):
-        return None
-    else:
-        # wait for lock to release
-        io.lock_wait(hashpath)
-        # try to read hash list file
-        try:
-            with open(hashpath, "r") as hashfile:
-                hashlist = hashfile.readlines()
-        finally:
-            # unlock hash list file
-            io.lock_wait(hashpath, unlock=True)
-    # look for sid in the hast list
-    for line in hashlist:
-        sid, hashline = line.split(' ')
-        if hashline == hashvalue:
-            return sid
-    # if we get to here we don't have a match --> return None
-    return None
 
 
 # =============================================================================

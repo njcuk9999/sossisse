@@ -266,12 +266,6 @@ CDict.add_group(cgroup, description='Definition of paths (normally created '
                                     'at run time but can be overridden)',
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
-# all data for this instrument mode will be stored under this directory
-CDict.add('MODEPATH', value=None, dtype=str,
-          source=__NAME__, active=False, user=False, group=cgroup,
-          description='All data for this instrument mode will be stored '
-                      'under this directory')
-# -----------------------------------------------------------------------------
 # the calibration path is where we store all calibration files
 CDict.add('CALIBPATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
@@ -287,12 +281,6 @@ CDict.add('YAMLPATH', value=None, dtype=str,
 CDict.add('RAWPATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
           description='The raw path is where we store all the raw data')
-# -----------------------------------------------------------------------------
-# the object path is where we store all the object data
-CDict.add('OBJECTPATH', value=None, dtype=str,
-          source=__NAME__, active=False, user=False, group=cgroup,
-          description='The object path is where we store all the object '
-                      'data')
 # -----------------------------------------------------------------------------
 # the object path is where we store all the object data
 CDict.add('SUBDIRECTORY_PATH', value=None, dtype=str,
