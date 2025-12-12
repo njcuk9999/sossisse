@@ -116,8 +116,7 @@ CDict.add('OBJECTNAME', value=None, dtype=str, not_none=True,
           source=__NAME__, user=True, active=True,
           cmd_arg='objname',
           group=cgroup,
-          description='Name of the object (must match the object '
-                      'directory name)')
+          description='Name of the astrophysical object')
 # -----------------------------------------------------------------------------
 # Instrument mode i.e. JWST.NIRISS.SOSS or JWST.NIRISS.PRISM
 CDict.add('INSTRUMENTMODE', value=None, dtype=str, not_none=True,
