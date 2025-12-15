@@ -1874,8 +1874,8 @@ class Instrument:
                 if np.isnan(posmax[ix_pix]):
                     continue
                 # get the top and bottom of the trace
-                bottom = int(posmax[ix_pix] - trace_wid_mask // 2)
-                top = int(posmax[ix_pix] + trace_wid_mask // 2)
+                bottom = int(posmax[ix_pix] - trace_wid_mask // 2) + 1
+                top = int(posmax[ix_pix] + trace_wid_mask // 2) + 1
                 # deal with edge cases
                 bottom = max(0, bottom)
                 top = min(ysize - 1, top)
