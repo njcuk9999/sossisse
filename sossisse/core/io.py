@@ -445,7 +445,7 @@ def load_wave_ext1d(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
             eargs = [filepath]
             raise exceptions.SossisseFileException(emsg.format(*eargs))
         if len(wavevector.shape) == 2:
-            wavevector = wavevector[:, 0]
+            wavevector = wavevector[0, :]
 
     except Exception as e:
         emsg = 'Could not read wavelength from EXT1D file: {0}\n\t{1}:{2}'
