@@ -42,7 +42,7 @@ sossisse_setup = "sossisse.recipes.run_setup:run"
 sossisse_run = "sossisse.recipes.run_sossisse:run"
 
 [project.optional-dependencies]
-full = ["aperocore @ git+https://github.com/njcuk9999/apero-drs.git@v0.8.003#subdirectory=apero-core"]
+full = ["aperocore @ git+https://github.com/njcuk9999/apero-drs.git@v0.8.running#subdirectory=apero-core"]
 dev = ["aperocore"]
 
 
