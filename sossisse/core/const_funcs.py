@@ -183,8 +183,12 @@ def get_parameters(no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # deal with downloading the data (setup mode only)
     if setup_mode:
+        # get the demo local value
+        demolocal = params.get('GLOBAL.LOCAL_DOWNLOAD_DATA', None)
+        demosymlink = params.get('GLOBAL.DEMO_SYMLINK_DATA', False)
         # ask for data download
-        load_functions.download_data(params)
+        load_functions.download_data(params, demolocal=demolocal,
+                                     demosymlink=demosymlink)
     # -------------------------------------------------------------------------
     # copy pos file to FITS path
     if params['GENERAL.POS_FILE'] is not None:
