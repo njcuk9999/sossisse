@@ -176,6 +176,22 @@ def copy_file(inpath: str, outpath: str):
         raise SossisseIOException(emsg.format(*eargs))
 
 
+def compare_yaml_files(file1: str, file2: str) -> bool:
+    """
+    Compare two yaml files by their hash
+
+    :param file1: str, the path to the first file
+    :param file2: str, the path to the second file
+
+    :return: bool, True if the files are the same, False if they are different
+    """
+    # get the hash of each file
+    hash1 = get_hash(open(file1).read())
+    hash2 = get_hash(open(file2).read())
+    # compare the hashes
+    return hash1 == hash2
+
+
 def load_fits(filename: str, ext: int = None, extname: str = None,
               hdufix: bool = False):
     """
