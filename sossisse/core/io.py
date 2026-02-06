@@ -269,6 +269,17 @@ def load_table(filename: str, fmt: Union[int, str] = None,
 
     :return: data, the loaded data
     """
+    # deal with more specific format options
+    if fmt is not None:
+        if fmt == 'file:fits':
+            fmt = 'fits'
+        elif fmt == 'file.ecsv':
+            fmt = 'ecsv'
+        elif fmt == 'file:csv':
+            fmt = 'csv'
+        elif fmt == 'file:txt':
+            fmt = 'ascii'
+    # try to load table
     try:
         if fmt == 'fits' or hdu is not None:
             table = Table.read(filename, format=fmt, hdu=hdu)
