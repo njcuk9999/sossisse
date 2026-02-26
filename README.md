@@ -37,7 +37,7 @@ we recommend a new clean environment to avoid module conflicts.
 
 
 ```bash
-conda create --name sossisse-env python=3.11
+conda create --name sossisse-env python=3.12
 ```
 
 ```bash
@@ -286,7 +286,7 @@ For dev mode (editable install of both apero-core and sossisse) please run the f
 
 ```bash
 
-git clone git@github.com:njcuk9999/apero-drs.git -b v0.8.003
+git clone git@github.com:njcuk9999/apero-drs.git -b v0.8.running
 git clone git@github.com:njcuk9999/sossisse.git -b developer
 
 pip install -U -e './apero-drs/apero-core'
