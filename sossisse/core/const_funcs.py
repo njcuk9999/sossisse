@@ -7,29 +7,19 @@ Created on 2024-08-13
 
 @author: cook
 """
-import getpass
-import sys
-import json
 import os
-from typing import Dict, List, Union
-
-import yaml
+import sys
+from typing import List
 
 from aperocore.constants import load_functions
-from aperocore.core import drs_log
-from aperocore.constants import param_functions
 from aperocore.constants.param_functions import ParamDict
-from aperocore.constants.param_functions import SubParamDict
-from aperocore.constants.constant_functions import ConstantsDict
-
-
+from aperocore.core import drs_log
 from sossisse.core import base
 from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
 from sossisse.instruments import load_instrument, Instrument
-
 
 # =============================================================================
 # Define variables
@@ -376,6 +366,8 @@ def run_time_params(params: ParamDict, only_create: bool = False
             misc.printc(f'File {abspath} exists', msg_type='debug')
             # push into params
             general['FILES'][b_it] = abspath
+        # deal with creating a common file prefix
+        general['PREFIX'] = load_functions.common_prefix(general['FILES'])
     # -------------------------------------------------------------------------
     # set some file paths
     # -------------------------------------------------------------------------

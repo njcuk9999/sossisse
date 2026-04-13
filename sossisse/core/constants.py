@@ -179,6 +179,11 @@ CDict.add('FILES', value=None, dtype=list, dtypei=str, not_none=False,
           source=__NAME__, user=True, active=True, group=cgroup,
           description=fdesc)
 # -----------------------------------------------------------------------------
+# The common prefix based on the raw files
+CDict.add('PREFIX', value=None, dtype=str, not_none=False,
+          source=__NAME__, user=False, active=False, group=cgroup,
+          description='The common prefix based on the raw files (set in code)')
+# -----------------------------------------------------------------------------
 # background file --> leave as None if the is no background available for
 #                     the mode - if empty DO_BACKGROUND is set to False
 #                     regardless of the value

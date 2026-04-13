@@ -401,6 +401,10 @@ class Instrument:
         fitspath = self.params['PATHS.FITS_PATH']
         outpath = self.params['PATHS.OUT_PATH']
         # ---------------------------------------------------------------------
+        # Whatever happens raw input files must exist
+        # ---------------------------------------------------------------------
+
+        # ---------------------------------------------------------------------
         # construct temporary file names
         # ---------------------------------------------------------------------
         # amplitude file
@@ -490,13 +494,13 @@ class Instrument:
         eureka_file = 'spectra_ord{trace_order}.h5'
         eureka_file = os.path.join(fitspath, eureka_file)
         # ---------------------------------------------------------------------
-        out_spec_lc_file = 'spectroscopy_light_curves.fits'
+        out_spec_lc_file = '{prefix}_slc.fits'
         out_spec_lc_file = os.path.join(outpath, out_spec_lc_file)
         # ---------------------------------------------------------------------
-        out_wlc_file = 'white_light_curve.fits'
+        out_wlc_file = '{prefix}_wlc.fits'
         out_wlc_file = os.path.join(outpath, out_wlc_file)
         # ---------------------------------------------------------------------
-        out_tex_file = 'sossisse_params.tex'
+        out_tex_file = '{prefix}_sossisse.tex'
         out_tex_file = os.path.join(outpath, out_tex_file)
         # ---------------------------------------------------------------------
         # temp files
@@ -3789,6 +3793,7 @@ class Instrument:
         datanames.append('PARAMS')
         # construct the fits filename
         filename = self.get_variable('OUT_SPEC_LC_FILE', func_name)
+        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
         # save the fits file
         io.save_fits(filename, datalist=datalist, datatypes=datatypes,
                      datanames=datanames, meta=meta_data)
@@ -3832,6 +3837,7 @@ class Instrument:
         datanames.append('PARAMS')
         # construct the fits filename
         filename = self.get_variable('OUT_WLC_FILE', func_name)
+        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
         # Add the pogos modes
         meta_data['POGOS_EM'] = ('SOSSISSE', 'POGOS extraction module')
         meta_data['POGOS_V'] = ('N/A', 'POGOS Version')
@@ -3851,6 +3857,7 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.out_tex_file()'
         # construct the fits filename
         filename = self.get_variable('OUT_TEX_FILE', func_name)
+        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
         # get tex file snapshot table
         tsnapshot = self.params.out_tex_file()
         # write to latex table
