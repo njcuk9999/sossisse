@@ -196,7 +196,7 @@ CDict.add('BKGFILE', value=None, dtype=str,
                       'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # do background correction - must have BKGFILE defined to do this
-CDict.add('DO_BACKGROUND', value=False, dtype=bool, tex_arg = True,
+CDict.add('DO_BACKGROUND', value=False, dtype=bool, tex_arg=True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Do background correction - must have BKGFILE '
                       'defined to do this')
