@@ -91,6 +91,8 @@ def get_parameters(no_yaml: bool = False,
             params = _params.as_param_dict()
         else:
             params = _params
+        # using __YAML_DICT__ implies noyaml (for sossisse)
+        no_yaml = True
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
