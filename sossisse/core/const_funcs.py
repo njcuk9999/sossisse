@@ -452,7 +452,7 @@ def create_yaml(params: ParamDict, log: bool = True,
     cdict = constants.CDict
     # save the constants dictionary to yaml file
     cdict.save_yaml(params, outpath=outpath, log=log,
-                    mode=params['INSTRUMENTMODE'])
+                    mode=params['INPUTS.INSTRUMENTMODE'])
     # -------------------------------------------------------------------------
     # return the yaml file path
     return outpath
