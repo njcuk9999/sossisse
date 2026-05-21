@@ -86,7 +86,7 @@ def get_parameters(no_yaml: bool = False,
     # deal with yaml dict passed
     if '__YAML_DICT__' in kwargs:
         params = kwargs['__YAML_DICT__']
-        params.set('__SOURCE__', 'POGOS', source=func_name)
+        params.set('__SOURCE__', 'POGOS', source=func_name, instance=None)
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
