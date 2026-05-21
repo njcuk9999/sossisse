@@ -85,7 +85,7 @@ def get_parameters(no_yaml: bool = False,
     inputs = INPUTARGS.get(kwargs['__NAME__'], None)
     # deal with yaml dict passed
     if '__YAML_DICT__' in kwargs:
-        params = kwargs['__YAML_DICT__']
+        params = kwargs['__YAML_DICT__'].as_param_dict()
         params.set('__SOURCE__', 'POGOS', source=func_name, instance=None)
     else:
         # get parameters
