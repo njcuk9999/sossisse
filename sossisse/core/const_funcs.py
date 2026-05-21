@@ -87,7 +87,10 @@ def get_parameters(no_yaml: bool = False,
     if '__YAML_DICT__' in kwargs:
         _params = kwargs['__YAML_DICT__']
         _params.set('__SOURCE__', 'POGOS', source=func_name, instance=None)
-        params = _params.as_param_dict()
+        if hasattr(_params, 'as_param_dict'):
+            params = _params.as_param_dict()
+        else:
+            params = _params
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
