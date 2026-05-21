@@ -3837,7 +3837,7 @@ class Instrument:
         datanames.append('PARAMS')
         # construct the fits filename
         filename = self.get_variable('OUT_WLC_FILE', func_name)
-        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
+        filename = filename.format(prefix=self.params['GENERAL.PREFIX'])
         # Add the pogos modes
         meta_data['POGOS_EM'] = ('SOSSISSE', 'POGOS extraction module')
         meta_data['POGOS_V'] = ('N/A', 'POGOS Version')
@@ -3857,7 +3857,7 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.out_tex_file()'
         # construct the fits filename
         filename = self.get_variable('OUT_TEX_FILE', func_name)
-        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
+        filename = filename.format(prefix=self.params['GENERAL.PREFIX'])
         # get tex file snapshot table
         tsnapshot = self.params.out_tex_file()
         # write to latex table
