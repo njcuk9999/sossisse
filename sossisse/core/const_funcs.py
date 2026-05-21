@@ -95,6 +95,9 @@ def get_parameters(no_yaml: bool = False,
         no_yaml = True
         # similarly we are not doing a setup if using __YAML_DICT__
         only_create = False
+        # print param source
+        msg = 'param source: POGOS (no_yaml=True, only_create=False)'
+        misc.printc(msg, msg_type='info')
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
