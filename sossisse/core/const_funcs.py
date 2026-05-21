@@ -93,6 +93,8 @@ def get_parameters(no_yaml: bool = False,
             params = _params
         # using __YAML_DICT__ implies noyaml (for sossisse)
         no_yaml = True
+        # similarly we are not doing a setup if using __YAML_DICT__
+        only_create = False
     else:
         # get parameters
         params = load_functions.get_all_params(name=__NAME__,
