@@ -3793,7 +3793,7 @@ class Instrument:
         datanames.append('PARAMS')
         # construct the fits filename
         filename = self.get_variable('OUT_SPEC_LC_FILE', func_name)
-        filename = filename.format(prefix=self.params['GENERAL']['PREFIX'])
+        filename = filename.format(prefix=self.params['GENERAL.PREFIX'])
         # save the fits file
         io.save_fits(filename, datalist=datalist, datatypes=datatypes,
                      datanames=datanames, meta=meta_data)
