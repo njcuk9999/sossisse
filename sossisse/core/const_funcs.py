@@ -87,6 +87,8 @@ def get_parameters(no_yaml: bool = False,
     if '__YAML_DICT__' in kwargs:
         _params = kwargs['__YAML_DICT__']
         _params.set('__SOURCE__', 'POGOS', source=func_name, instance=None)
+        # deal with being passed a SubParamDict
+        # (convert to parameter dictionary)
         if hasattr(_params, 'as_param_dict'):
             params = _params.as_param_dict()
         else:
@@ -203,7 +205,7 @@ def get_parameters(no_yaml: bool = False,
             io.copy_file(posfile, posfile_out)
         # update pos file path
         params['GENERAL.POS_FILE'] = os.path.abspath(posfile_out)
-        params['GENERAL'].set_source('POS_FILE', func_name)
+        params.set_source('GENERAL.POS_FILE', func_name)
 
     # -------------------------------------------------------------------------
     # If we didn't have a yaml to start with create it now
@@ -418,9 +420,12 @@ def run_time_params(params: ParamDict, only_create: bool = False
             general.set_source('DO_BACKGROUND', func_name)
     # -------------------------------------------------------------------------
     # make sure sub-dicts are pushed back to params
-    params['INPUTS'] = inputs
-    params['GENERAL'] = general
-    params['PATHS'] = paths
+    for key in inputs.keys():
+        params[f'INPUTS.{key}'] = inputs[key]
+    for key in general.keys():
+        params[f'GENERAL.{key}'] = general[key]
+    for key in paths.keys():
+        params[f'PATHS.{key}'] = paths[key]
     # return the updated parameters
     return params
 
