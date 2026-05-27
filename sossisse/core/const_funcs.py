@@ -186,7 +186,7 @@ def get_parameters(no_yaml: bool = False,
     params = run_time_params(params, only_create=only_create)
     # -------------------------------------------------------------------------
     # deal with downloading the data (setup mode only)
-    if setup_mode:
+    if setup_mode and params['__SOURCE__'] == 'SOSSISSE':
         # get the demo local value
         demolocal = params.get('GLOBAL.LOCAL_DOWNLOAD_DATA', None)
         demosymlink = params.get('GLOBAL.DEMO_SYMLINK_DATA', False)
