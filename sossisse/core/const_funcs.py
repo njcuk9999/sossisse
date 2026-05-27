@@ -96,7 +96,8 @@ def get_parameters(no_yaml: bool = False,
         # using __YAML_DICT__ implies noyaml (for sossisse)
         no_yaml = True
         # similarly we are not doing a setup if using __YAML_DICT__
-        only_create = False
+        if not setup_mode:
+            only_create = False
         # print param source
         msg = 'param source: POGOS (no_yaml=True, only_create=False)'
         misc.printc(msg, msg_type='info')

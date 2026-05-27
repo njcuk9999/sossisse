@@ -299,6 +299,27 @@ pip install -U -e './pastasoss'
 pip install -U -e './sossisse[dev]'
 ```
 
+### For Alliance:
+
+```bash
+module load StdEnv/2023 python/3.12 hdf5 cmake/3.31.0 gcc opencv/4.13.0
+mkdir sossisse-bin
+cd sossisse-bin
+virtualenv  sossisse-env
+pip install --no-index --upgrade pip
+
+source sossisse-env/bin/activate
+
+git clone git@github.com:njcuk9999/apero-drs.git -b v0.8.running
+git clone git@github.com:njcuk9999/pastasoss.git
+git clone git@github.com:njcuk9999/sossisse.git -b developer
+
+pip install -U -e './apero-drs/apero-core'
+pip install -U -e './pastasoss'
+pip install -U -e './sossisse[dev]'
+
+```
+
 
 [Back to top](#table-of-contents)
 
