@@ -113,8 +113,8 @@ def get_parameters(no_yaml: bool = False,
         # set source from SOSSISSE
         params.set('__SOURCE__', 'SOSSISSE', source=func_name)
     # -------------------------------------------------------------------------
-    # deal with start point (setup only)
-    if setup_mode:
+    # deal with start point (setup only) but not for pogos
+    if setup_mode and params['__SOURCE__'] == 'SOSSISSE':
         # only load this if we are in setup mode
         from sossisse.resources import demos as demo_mod
         # ask user to start from demo or blank
