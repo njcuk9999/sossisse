@@ -13,7 +13,7 @@ readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = 'LICENSE'}
 requires-python = "==3.12.*"
 dependencies = [
-    "jwst==1.20.2",
+    "jwst==2.0.1",
     # "crds==12.1.1",
     "numpy==2.3.3",
     "astropy==7.2.0",
@@ -43,7 +43,8 @@ sossisse_run = "sossisse.recipes.run_sossisse:run"
 [project.optional-dependencies]
 full = ["aperocore @ git+https://github.com/njcuk9999/apero-drs.git@v0.8.running#subdirectory=apero-core",
         "pastasoss @ git+https://github.com/njcuk9999/pastasoss.git"]
-dev = ["aperocore", "pastasoss"]
+# install aperocore and pastasoss before installing pogos
+dev = []
 
 
 [tool.setuptools]
