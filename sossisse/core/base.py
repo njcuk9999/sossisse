@@ -42,10 +42,10 @@ CONSOLE_WIDTH = 120
 # JWST NIRISS SOSS
 INSTRUMENTS = ['JWST.NIRISS.SOSS',
                'JWST.NIRISS.FGS',
-               'JWST.NIRSPEC.PRISM',
-               'JWST.NIRSPEC.G395',
-               'JWST.NIRSPEC.G253',
-               'JWST.NIRSPEC.G140']
+               'JWST.NIRSPEC.BOTS.PRISM',
+               'JWST.NIRSPEC.BOTS.G395',
+               'JWST.NIRSPEC.BOTS.G253',
+               'JWST.NIRSPEC.BOTS.G140']
 
 
 # =============================================================================

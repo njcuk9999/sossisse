@@ -28,11 +28,11 @@ for instrument in base.INSTRUMENTS:
 # # JWST.NIRISS.SOSS Trappist-1 demo
 # DEMOS['JWST.NIRISS.SOSS']['TRAPPIST 1b'] = niriss_soss_trappist1b
 #
-# # JWST.NIRSPEC.PRISM WASP 39b
-# DEMOS['JWST.NIRSPEC.PRISM']['WASP 39b'] = nirspec_prism_wasp39b
+# # JWST.NIRSPEC.BOTS.PRISM WASP 39b
+# DEMOS['JWST.NIRSPEC.BOTS.PRISM']['WASP 39b'] = nirspec_prism_wasp39b
 #
-# # JWST.NIRSPEC.G395 WASP 39b
-# DEMOS['JWST.NIRSPEC.G395']['WASP 39b'] = nirspec_g395_wasp39b
+# # JWST.NIRSPEC.BOTS.G395 WASP 39b
+# DEMOS['JWST.NIRSPEC.BOTS.G395']['WASP 39b'] = nirspec_g395_wasp39b
 
 
 # =============================================================================

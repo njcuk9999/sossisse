@@ -160,7 +160,7 @@ class JWST_NIRSPEC_PRISM(JWST_NIRSPEC):
         # get the default parameters
         super(JWST_NIRSPEC_PRISM, self).__init__(params)
         # set name
-        self.name = 'JWST.NIRSPEC.PRISM'
+        self.name = 'JWST.NIRSPEC.BOTS.PRISM'
         # set up the instrument
         self.param_override()
 
@@ -175,7 +175,7 @@ class JWST_NIRSPEC_GRATING(JWST_NIRSPEC):
         # get the default parameters
         super(JWST_NIRSPEC_GRATING, self).__init__(params)
         # set name
-        self.name = 'JWST.NIRSPEC.GRATING'
+        self.name = 'JWST.NIRSPEC.BOTS.GRATING'
         # set up the instrument
         self.param_override()
 
@@ -190,7 +190,7 @@ class JWST_NIRSPEC_G395(JWST_NIRSPEC_GRATING):
         # get the default parameters
         super(JWST_NIRSPEC_G395, self).__init__(params)
         # set name
-        self.name = 'JWST.NIRSPEC.G395'
+        self.name = 'JWST.NIRSPEC.BOTS.G395'
         # set up the instrument
         self.param_override()
 
@@ -205,7 +205,7 @@ class JWST_NIRSPEC_G235(JWST_NIRSPEC_GRATING):
         # get the default parameters
         super(JWST_NIRSPEC_G235, self).__init__(params)
         # set name
-        self.name = 'JWST.NIRSPEC.G235'
+        self.name = 'JWST.NIRSPEC.BOTS.G235'
         # set up the instrument
         self.param_override()
 
@@ -220,7 +220,7 @@ class JWST_NIRSPEC_G140(JWST_NIRSPEC_GRATING):
         # get the default parameters
         super(JWST_NIRSPEC_G140, self).__init__(params)
         # set name
-        self.name = 'JWST.NIRSPEC.G140'
+        self.name = 'JWST.NIRSPEC.BOTS.G140'
         # set up the instrument
         self.param_override()
 
