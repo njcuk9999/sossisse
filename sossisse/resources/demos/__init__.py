@@ -10,9 +10,6 @@ Created on 2025-03-25 at 09:57
 @author: cook
 """
 from sossisse.core import base
-from sossisse.resources.demos import niriss_soss_trappist1b
-from sossisse.resources.demos import nirspec_prism_wasp39b
-from sossisse.resources.demos import nirspec_g395_wasp39b
 
 # =============================================================================
 # Define storage
