@@ -43,9 +43,12 @@ CONSOLE_WIDTH = 120
 INSTRUMENTS = ['JWST.NIRISS.SOSS',
                'JWST.NIRISS.FGS',
                'JWST.NIRSPEC.BOTS.PRISM',
-               'JWST.NIRSPEC.BOTS.G395',
-               'JWST.NIRSPEC.BOTS.G253',
-               'JWST.NIRSPEC.BOTS.G140']
+               'JWST.NIRSPEC.BOTS.G395M',
+               'JWST.NIRSPEC.BOTS.G253M',
+               'JWST.NIRSPEC.BOTS.G140M',
+               'JWST.NIRSPEC.BOTS.G395H',
+               'JWST.NIRSPEC.BOTS.G253H',
+               'JWST.NIRSPEC.BOTS.G140H']
 
 
 # =============================================================================
