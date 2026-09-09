@@ -24,11 +24,11 @@ dependencies = [
     "tqdm==4.67.3",
     "h5py==3.15.1",
     "ruamel.yaml==0.19.1",
-    "wpca==0.1",
     "scikit-image==0.26.0",
     "scikit-learn==1.8.0",
     "statsmodels==0.14.6",
-
+    # required as wpca doesn't support python 3.12 or skikit-learn
+    "wpca @ git+https://github.com/atrettin/wpca.git",
     "astraeus-io @ git+https://github.com/kevin218/Astraeus.git"
 ]
 
