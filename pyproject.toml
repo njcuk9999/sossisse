@@ -28,7 +28,7 @@ dependencies = [
     "scikit-learn==1.8.0",
     "statsmodels==0.14.6",
     # required as wpca doesn't support python 3.12 or skikit-learn
-    "wpca @ git+https://github.com/atrettin/wpca.git",
+    "wpca @ git+https://github.com/atrettin/wpca.git@compatibility2026",
     "astraeus-io @ git+https://github.com/kevin218/Astraeus.git"
 ]
 
