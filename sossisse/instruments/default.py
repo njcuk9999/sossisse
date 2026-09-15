@@ -82,6 +82,13 @@ class Instrument:
         self.name = 'Default'
         # set the parameters from input
         self.params = copy.deepcopy(params)
+        # jump processing context.  Empty suffix/slice is the normal path.
+        # This suffix is appended to temporary and output filenames per chunk.
+        self._jump_suffix = ''
+        # This slice defines the active global integration range for a chunk.
+        self._jump_slice = None
+        # This string is written to FITS headers so products record jump use.
+        self._jump_ints_header = 'No jumps'
         # set up the instrument
         self.param_override()
         # variables to keep in memory and pass around with class
@@ -388,7 +395,170 @@ class Instrument:
             meta_data['ENER_WMN'] = (ener_wmn, 'Energy weighted mean in um')
         # ---------------------------------------------------------------------
         # push meta data to variables
+        # Record which jumps were used in every FITS product header.
+        meta_data['JUMPINTS'] = (self._jump_ints_header,
+                                 'SOSSISSE jump integrations')
+        # Cache the metadata for the save routines.
         self.set_variable('META', meta_data)
+
+    def set_jump_context(self, start: Optional[int] = None,
+                         stop: Optional[int] = None, suffix: str = '',
+                         jump_ints: Optional[List[int]] = None):
+        """
+        Set the current jump-processing context for filenames and time slicing.
+
+        :param start: int, first integration to include
+        :param stop: int, first integration after this chunk
+        :param suffix: str, suffix to add to output filenames
+        :param jump_ints: list, all user-supplied jump integrations
+        :return: None
+        """
+        # set the filename suffix
+        # Empty suffix means normal no-jump product names.
+        self._jump_suffix = suffix
+        # set the time slice
+        # A missing start or stop disables time slicing.
+        if start is None or stop is None:
+            self._jump_slice = None
+        else:
+            # Store stop as exclusive, matching Python slicing rules.
+            self._jump_slice = (int(start), int(stop))
+        # update the header representation if supplied
+        # jump_ints is None when only the suffix/slice is being changed.
+        if jump_ints is not None:
+            # Keep the no-jump header human-readable.
+            if len(jump_ints) == 0:
+                self._jump_ints_header = 'No jumps'
+            else:
+                # Store jump integrations in a compact FITS-header string.
+                self._jump_ints_header = ','.join(map(str, jump_ints))
+        # cached baseline/meta values depend on the active chunk
+        # Clear these so they are recomputed for the new chunk context.
+        for key in ['HAS_BASELINE', 'BASELINE_INTS', 'BASELINE_DOMAIN', 'META']:
+            self._variables[key] = None
+
+    def add_jump_suffix(self, filename: str) -> str:
+        """
+        Add the active jump suffix to a filename.
+
+        :param filename: str, input filename
+        :return: str, filename with active suffix before the extension
+        """
+        # Do not change filenames when no jump chunk is active.
+        if self._jump_suffix == '':
+            return filename
+        # Split the extension so residual.fits becomes residual_jump000.fits.
+        root, ext = os.path.splitext(filename)
+        # Rebuild the filename with the active suffix inserted before ext.
+        return root + self._jump_suffix + ext
+
+    def slice_jump_data(self, *arrays: np.ndarray) -> Tuple[np.ndarray, ...]:
+        """
+        Slice time-dependent arrays to the active jump context.
+
+        :param arrays: np.ndarray, arrays to slice along axis 0
+        :return: tuple, sliced arrays
+        """
+        # In the normal path, leave every array unchanged.
+        if self._jump_slice is None:
+            return arrays
+        # Unpack the active global integration range.
+        start, stop = self._jump_slice
+        # Slice every supplied array on axis 0 to keep time products aligned.
+        return tuple(array[start:stop] for array in arrays)
+
+    def get_input_n_frames(self) -> int:
+        """
+        Count the number of binned integrations in the input data.
+
+        :return: int, number of frames
+        """
+        # Accumulate the binned frame count over all input segments.
+        nframes = 0
+        # Read each science extension just far enough to know its binned shape.
+        for filename in self.params['GENERAL.FILES']:
+            # Load the raw science data for this input file.
+            tmp_data = self.load_data(filename, extname='SCI')
+            # Ask bin_cube for the post-binning shape without keeping the cube.
+            bin_shape = self.bin_cube(tmp_data, get_shape=True)
+            # Add this file's number of binned integrations to the total.
+            nframes += bin_shape[0]
+            # Drop the raw data before moving to the next segment.
+            del tmp_data
+        # Return the frame count used to validate JUMP_INTS.
+        return nframes
+
+    def localize_frame_domains(self, raw_domains: Union[None, List],
+                               param_name: str) -> List[List[int]]:
+        """
+        Convert global frame domains into active-chunk frame domains.
+
+        :param raw_domains: list, input frame domains
+        :param param_name: str, parameter name for errors
+        :return: list, chunk-local frame domains
+        """
+        # Missing domains mean there is nothing to localize.
+        if raw_domains is None:
+            return []
+        # Domains must arrive as a list so we can parse start/end pairs.
+        if not isinstance(raw_domains, list):
+            emsg = f'{param_name} must be a list of frame domains'
+            raise exceptions.SossisseConstantException(emsg)
+        # Empty lists are allowed and simply have no overlap.
+        if len(raw_domains) == 0:
+            return []
+        # Preferred yaml shape is already a list of [start, end] rows.
+        if isinstance(raw_domains[0], list):
+            domains = raw_domains
+        else:
+            # Flat lists must have an even number of start/end entries.
+            if len(raw_domains) % 2 != 0:
+                emsg = f'{param_name} must contain start/end pairs'
+                raise exceptions.SossisseConstantException(emsg)
+            # Build the normalized list-of-lists representation.
+            domains = []
+            # Walk over each start/end pair in the flat list.
+            for it in range(len(raw_domains) // 2):
+                # Store this pair as [start, end].
+                domains.append([raw_domains[2 * it], raw_domains[2 * it + 1]])
+        # Store domains after clipping them to the active chunk.
+        localized = []
+        # Validate and localize each input domain independently.
+        for row, domain in enumerate(domains):
+            # Each domain must be exactly a start and an end value.
+            if len(domain) != 2:
+                emsg = f'{param_name}[{row}] must be a list of length 2'
+                raise exceptions.SossisseConstantException(emsg)
+            # Convert yaml values to integers before comparing or slicing.
+            try:
+                start = int(domain[0])
+                end = int(domain[1])
+            # Raise a parameter error if either value is not integer-like.
+            except Exception as _:
+                emsg = f'{param_name}[{row}] must contain integers'
+                raise exceptions.SossisseConstantException(emsg)
+            # Accept reversed ranges by sorting the endpoints.
+            if start > end:
+                start, end = end, start
+            # When chunking, convert global frame numbers into chunk-local ones.
+            if self._jump_slice is not None:
+                # Get the active chunk range in global frame coordinates.
+                chunk_start, chunk_stop = self._jump_slice
+                # Clip the domain start to the first frame in this chunk.
+                start = max(start, chunk_start)
+                # Clip the domain end to the last included frame in this chunk.
+                end = min(end, chunk_stop - 1)
+                # Skip domains that do not intersect the active chunk.
+                if start > end:
+                    continue
+                # Translate from global frame numbers to local chunk numbers.
+                start -= chunk_start
+                # Translate the domain end by the same chunk offset.
+                end -= chunk_start
+            # Keep this localized domain for baseline or reject-domain logic.
+            localized.append([start, end])
+        # Return domains in the shape expected by process_baseline_ints.
+        return localized
 
     def define_filenames(self):
         # set function name
@@ -502,6 +672,40 @@ class Instrument:
         # ---------------------------------------------------------------------
         out_tex_file = '{prefix}_sossisse.tex'
         out_tex_file = os.path.join(outpath, out_tex_file)
+        # ---------------------------------------------------------------------
+        # add active jump suffixes to all products produced in this context
+        tmp_amp_file = self.add_jump_suffix(tmp_amp_file)
+        clean_cube_file = self.add_jump_suffix(clean_cube_file)
+        tmp_pcas = self.add_jump_suffix(tmp_pcas)
+        temp_clean_nan = self.add_jump_suffix(temp_clean_nan)
+        temp_clean_nan_err = self.add_jump_suffix(temp_clean_nan_err)
+        temp_ini_cube = self.add_jump_suffix(temp_ini_cube)
+        temp_ini_err = self.add_jump_suffix(temp_ini_err)
+        temp_ini_dq = self.add_jump_suffix(temp_ini_dq)
+        temp_ff_cube = self.add_jump_suffix(temp_ff_cube)
+        temp_ff_err = self.add_jump_suffix(temp_ff_err)
+        temp_ff_dq = self.add_jump_suffix(temp_ff_dq)
+        temp_cube_post_cosmics = self.add_jump_suffix(temp_cube_post_cosmics)
+        tmp_ini_cube_bkgrnd = self.add_jump_suffix(tmp_ini_cube_bkgrnd)
+        tmp_ini_err_bkgrnd = self.add_jump_suffix(tmp_ini_err_bkgrnd)
+        tmp_ini_cube_lowpass = self.add_jump_suffix(tmp_ini_cube_lowpass)
+        tmp_ini_err_lowpass = self.add_jump_suffix(tmp_ini_err_lowpass)
+        median_image_file = self.add_jump_suffix(median_image_file)
+        errfile = self.add_jump_suffix(errfile)
+        resfile = self.add_jump_suffix(resfile)
+        reconfile = self.add_jump_suffix(reconfile)
+        ltbl_file = self.add_jump_suffix(ltbl_file)
+        sed_table = self.add_jump_suffix(sed_table)
+        res_no_grey_ord = self.add_jump_suffix(res_no_grey_ord)
+        res_grey_ord = self.add_jump_suffix(res_grey_ord)
+        spectra_ord = self.add_jump_suffix(spectra_ord)
+        waveord_file = self.add_jump_suffix(waveord_file)
+        tspec_ord = self.add_jump_suffix(tspec_ord)
+        tspec_ord_bin = self.add_jump_suffix(tspec_ord_bin)
+        eureka_file = self.add_jump_suffix(eureka_file)
+        out_spec_lc_file = self.add_jump_suffix(out_spec_lc_file)
+        out_wlc_file = self.add_jump_suffix(out_wlc_file)
+        out_tex_file = self.add_jump_suffix(out_tex_file)
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
@@ -677,6 +881,9 @@ class Instrument:
                 int_times = np.append(int_times, bjd_times)
             # make sure tmp data is deleted
             del tmp_data
+        # slice to the active jump chunk if requested
+        if self._jump_slice is not None:
+            int_times = self.slice_jump_data(int_times)[0]
         return int_times
 
     def load_data_with_dq(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -753,6 +960,8 @@ class Instrument:
         # ---------------------------------------------------------------------
         # load and bin the cube
         cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds)
+        # slice to the active jump chunk if requested
+        cube, err, dq = self.slice_jump_data(cube, err, dq)
         # ---------------------------------------------------------------------
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', cube.shape[2])
@@ -2162,6 +2371,11 @@ class Instrument:
             baseline_ints = [[0, data_n_frames]]
         # otherwise we need a list of lists(length 2 or 4)
         elif isinstance(raw_baseline_ints, list):
+            raw_baseline_ints = self.localize_frame_domains(raw_baseline_ints,
+                                                            'BASELINE_INTS')
+            if len(raw_baseline_ints) == 0:
+                emsg = 'BASELINE_INTS has no overlap with this jump chunk'
+                raise exceptions.SossisseConstantException(emsg)
             # output transit integrations
             baseline_ints = []
             # loop around raw transit integrations
@@ -2223,6 +2437,7 @@ class Instrument:
         baseline_ints = self.process_baseline_ints(raw_baseline_ints)
         # get the rejection domain
         rej_domain = self.params['WLC.INPUTS.REJECT_DOMAIN']
+        rej_domain = self.localize_frame_domains(rej_domain, 'REJECT_DOMAIN')
         # ---------------------------------------------------------------------
         # get the valid out of transit domain
         # ---------------------------------------------------------------------
@@ -2234,14 +2449,14 @@ class Instrument:
             # set the baseline frames to True
             valid_baseline[cframe[0]:cframe[1] + 1] = True
             # deal with the rejection of domain
-            if rej_domain is not None:
+            if len(rej_domain) > 0:
                 # get the rejection domain
-                for ireject in range(len(rej_domain) // 2):
+                for ireject in range(len(rej_domain)):
                     # get the start and end of the domain to reject
-                    start = rej_domain[ireject * 2]
-                    end = rej_domain[ireject * 2 + 1]
+                    start = rej_domain[ireject][0]
+                    end = rej_domain[ireject][1]
                     # set to False in valid_baseline
-                    valid_baseline[start:end] = False
+                    valid_baseline[start:end + 1] = False
         # ---------------------------------------------------------------------
         # set flag
         self.set_variable('HAS_BASELINE', has_baseline)

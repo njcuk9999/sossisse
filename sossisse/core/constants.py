@@ -422,6 +422,14 @@ CDict.add('BASELINE_INTS', value=None, dtype=list, dtypei=list,
                       '\n            - [0, 89]'
                       '\n           - [111, 230]')
 # -----------------------------------------------------------------------------
+# Integrations flagged as a jump in the data.
+CDict.add('JUMP_INTS', value=None, dtype=list, dtypei=int,
+          source=__NAME__, user=True, active=True, not_none=False,
+          group=cgroup, tex_arg = True,
+          description='Integrations flagged as a jump in the data. '
+                      'Used to separate the data into chunks that are '
+                      'analysed individually and separately.')
+# -----------------------------------------------------------------------------
 # used to reject bits of domain from the analysis
 # you can reject frames 0-600 with the values
 #
