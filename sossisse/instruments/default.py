@@ -196,9 +196,10 @@ class Instrument:
         self.vsources['HAS_BASELINE'] = f'{self.name}.get_baseline_params()'
         # meta data
         self.vsources['META'] = f'{self.name}.update_meta_data()'
-        self.vsources['OUTPUT_NAMES'] = f'{self.name}.setup_linear_reconstruction()'
-        self.vsources['OUTPUT_UNITS'] = f'{self.name}.setup_linear_reconstruction()'
-        self.vsources['OUTPUT_FACTOR'] = f'{self.name}.setup_linear_reconstruction()'
+        output_meta_func = f'{self.name}.set_linear_output_metadata()'
+        self.vsources['OUTPUT_NAMES'] = output_meta_func
+        self.vsources['OUTPUT_UNITS'] = output_meta_func
+        self.vsources['OUTPUT_FACTOR'] = output_meta_func
         # simple vectors
         self.vsources['BASELINE_INTS'] = f'{self.name}.get_baseline_params()'
         self.vsources['BASELINE_DOMAIN'] = f'{self.name}.get_baseline_params()'
@@ -2909,6 +2910,58 @@ class Instrument:
         # return the mask trace positions
         return [mask_trace_pos, x_order0, y_order0, x_trace_pos, y_trace_pos]
 
+    def set_linear_output_metadata(self, include_pca: bool = True):
+        """
+        Set output column names, units, and plotting scale factors.
+
+        This state is normally created while constructing the linear model,
+        but must also be restored when temporary products skip that work.
+
+        :param include_pca: bool, include configured PCA output columns
+        :return: None
+        """
+        # Start with the amplitude term, which is always fitted.
+        output_names: List[str] = ['amplitude']
+        output_units: List[str] = ['flux']
+        output_factor: List[float] = [1.0]
+        # Read the switches that control the remaining fitted terms.
+        lm_params = self.params.get('WLC.LMODEL')
+        # Add horizontal trace motion metadata when that term is enabled.
+        if lm_params['FIT_DX']:
+            output_names.append('dx')
+            output_units.append('mpix')
+            output_factor.append(1e3)
+        # Add vertical trace motion metadata when that term is enabled.
+        if lm_params['FIT_DY']:
+            output_names.append('dy')
+            output_units.append('mpix')
+            output_factor.append(1e3)
+        # Add trace rotation metadata when that term is enabled.
+        if lm_params['FIT_ROTATION']:
+            output_names.append('theta')
+            output_units.append('mpix')
+            output_factor.append(129600 / (2 * np.pi))
+        # Add the constant zero-point metadata when that term is enabled.
+        if lm_params['FIT_ZERO_POINT_OFFSET']:
+            output_names.append('zeropoint')
+            output_units.append('flux')
+            output_factor.append(1.0)
+        # Add second-derivative metadata when that term is enabled.
+        if lm_params['FIT_DDY']:
+            output_names.append('ddy')
+            output_units.append('mpix$^2$')
+            output_factor.append(1e6)
+        # Add one metadata entry for every configured PCA component.
+        if lm_params['FIT_PCA'] and include_pca:
+            for icomp in range(lm_params['FIT_N_PCA']):
+                output_names.append(f'PCA{icomp + 1}')
+                output_units.append('ppm')
+                output_factor.append(1.0)
+        # Cache all three lists for coefficient handling and stability plots.
+        self.set_variable('OUTPUT_NAMES', output_names)
+        self.set_variable('OUTPUT_UNITS', output_units)
+        self.set_variable('OUTPUT_FACTOR', output_factor)
+
     def setup_linear_reconstruction(self, med: np.ndarray, dx: np.ndarray,
                                     dy: np.ndarray, rotxy: np.ndarray,
                                     ddy: np.ndarray, pca: np.ndarray,
@@ -2945,68 +2998,40 @@ class Instrument:
         """
         # vector is the median ravelled
         vector = [med.ravel()]
-        # output parameters
-        output_names: List[str] = []
-        output_units: List[str] = []
-        output_factor: List[float] = []
-        # add the amplitude
-        output_names.append('amplitude')
-        output_units.append('flux')
-        output_factor.append(1.0)
         # get the linear model params
         lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
         # deal with fit dx
         if lm_params['FIT_DX']:
             vector.append(dx.ravel())
-            output_names.append('dx')
-            output_units.append('mpix')
-            output_factor.append(1e3)
         # ---------------------------------------------------------------------
         # deal with fix dy
         if lm_params['FIT_DY']:
             vector.append(dy.ravel())
-            output_names.append('dy')
-            output_units.append('mpix')
-            output_factor.append(1e3)
         # ---------------------------------------------------------------------
         # deal with fit rotation
         if lm_params['FIT_ROTATION']:
             vector.append(rotxy.ravel())
-            output_names.append('theta')
-            output_units.append('mpix')
-            output_factor.append(129600 / (2 * np.pi))
         # ---------------------------------------------------------------------
         # deal with zero point offset fit
         if lm_params['FIT_ZERO_POINT_OFFSET']:
             vector.append(np.ones_like(dx.ravel()))
-            output_names.append('zeropoint')
-            output_units.append('flux')
-            output_factor.append(1.0)
         # ---------------------------------------------------------------------
         # deal with fit second derivative
         if lm_params['FIT_DDY']:
             vector.append(ddy.ravel())
-            output_names.append('ddy')
-            output_units.append('mpix$^2$')
-            output_factor.append(1e6)
         # ---------------------------------------------------------------------
         # deal with fit pca
         if lm_params['FIT_PCA'] and pca is not None:
             n_comp = lm_params['FIT_N_PCA']
             for icomp in range(n_comp):
                 vector.append(pca[icomp].ravel())
-                output_names.append(f'PCA{icomp + 1}')
-                output_units.append('ppm')
-                output_factor.append(1.0)
         # ---------------------------------------------------------------------
         # convert vector to numpy array
         vector = np.array(vector)
         # ---------------------------------------------------------------------
-        # push into variables
-        self.set_variable('OUTPUT_NAMES', output_names)
-        self.set_variable('OUTPUT_UNITS', output_units)
-        self.set_variable('OUTPUT_FACTOR', output_factor)
+        # Set metadata independently so temporary cache hits can restore it.
+        self.set_linear_output_metadata(include_pca=pca is not None)
         # return the vector
         return vector
 

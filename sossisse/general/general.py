@@ -53,6 +53,9 @@ def linear_recon_init(inst):
     if os.path.exists(wlc_ltbl_file) and inst.params['GENERAL.USE_TEMPORARY']:
         msg = 'File {0} exists we skip linear reconstruction step'
         misc.printc(msg.format(wlc_ltbl_file), 'info')
+        # A fresh instrument does not have the fitted-column metadata in memory.
+        # Restore it from the current model configuration before merging/plotting.
+        inst.set_linear_output_metadata()
         return True
     # if we've got here return false
     return False
@@ -168,6 +171,9 @@ def merge_linear_recon(inst: Instrument, wlc_files: list,
     ltable = vstack(ltables)
     # Switch filenames to the final merged product namespace.
     inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
+    # The last chunk left DATA_N_FRAMES set to its local number of frames.
+    # Reset it to the full table length before rebuilding baseline domains.
+    inst.set_variable('DATA_N_FRAMES', len(ltable))
     # Recompute filenames so save_wlc_results writes *_jumpmerged products.
     inst.define_filenames()
     # Save merged WLC files in the same format as the normal no-jump products.
@@ -441,6 +447,11 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     storage = merge_spectral_extraction(storages)
     # Switch filenames to the final merged product namespace.
     inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
+    # The last chunk left DATA_N_FRAMES set to its local number of frames.
+    # Reset it from the merged light-curve table before final plots and files.
+    trace_orders = list(storage.keys())
+    merged_nframes = len(storage[trace_orders[0]]['ltable'])
+    inst.set_variable('DATA_N_FRAMES', merged_nframes)
     # Recompute filenames so spectral products are saved with _jumpmerged.
     inst.define_filenames()
     # Save merged per-order spectral products for users who inspect them directly.
@@ -482,7 +493,8 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     # loop around trace orders
     for trace_order in trace_orders:
         # print progress
-        misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
+        if len(trace_orders) > 1:
+            misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
         # ---------------------------------------------------------------------
         # load data for this trace order
         indata = inst.load_input_spec_data(trace_order)
