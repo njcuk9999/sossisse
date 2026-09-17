@@ -195,6 +195,36 @@ class JWST_NIRSPEC_G395(JWST_NIRSPEC_GRATING):
         self.param_override()
 
 
+class JWST_NIRSPEC_G395M(JWST_NIRSPEC_G395):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G395M, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G395M'
+        # set up the instrument
+        self.param_override()
+
+
+class JWST_NIRSPEC_G395H(JWST_NIRSPEC_G395):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G395H, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G395H'
+        # set up the instrument
+        self.param_override()
+
+
 class JWST_NIRSPEC_G235(JWST_NIRSPEC_GRATING):
     def __init__(self, params):
         """
@@ -210,6 +240,36 @@ class JWST_NIRSPEC_G235(JWST_NIRSPEC_GRATING):
         self.param_override()
 
 
+class JWST_NIRSPEC_G235M(JWST_NIRSPEC_G235):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G235M, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G235M'
+        # set up the instrument
+        self.param_override()
+
+
+class JWST_NIRSPEC_G235H(JWST_NIRSPEC_G235):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G235H, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G235H'
+        # set up the instrument
+        self.param_override()
+
+
 class JWST_NIRSPEC_G140(JWST_NIRSPEC_GRATING):
     def __init__(self, params):
         """
@@ -221,6 +281,36 @@ class JWST_NIRSPEC_G140(JWST_NIRSPEC_GRATING):
         super(JWST_NIRSPEC_G140, self).__init__(params)
         # set name
         self.name = 'JWST.NIRSPEC.BOTS.G140'
+        # set up the instrument
+        self.param_override()
+
+
+class JWST_NIRSPEC_G140M(JWST_NIRSPEC_G140):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G140M, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G140M'
+        # set up the instrument
+        self.param_override()
+
+
+class JWST_NIRSPEC_G140H(JWST_NIRSPEC_G140):
+    def __init__(self, params):
+        """
+        Construct the instrument class
+
+        :param params: dict, the parameters for the instrument
+        """
+        # get the default parameters
+        super(JWST_NIRSPEC_G140H, self).__init__(params)
+        # set name
+        self.name = 'JWST.NIRSPEC.BOTS.G140H'
         # set up the instrument
         self.param_override()
 

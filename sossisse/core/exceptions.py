@@ -33,7 +33,8 @@ class SossisseException(Exception):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseException: {0}'.format(self.message)
+        message = 'SossisseException: {0}'.format(self.message)
+        return base.format_exception(message)
 
 
 class SossisseConstantException(SossisseException):
@@ -45,7 +46,8 @@ class SossisseConstantException(SossisseException):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseConstantException: {0}'.format(self.message)
+        message = 'SossisseConstantException: {0}'.format(self.message)
+        return base.format_exception(message)
 
 
 class SossisseFileException(SossisseException):
@@ -57,7 +59,8 @@ class SossisseFileException(SossisseException):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseFileException: {0}'.format(self.message)
+        message = 'SossisseFileException: {0}'.format(self.message)
+        return base.format_exception(message)
 
 
 class SossisseIOException(SossisseException):
@@ -69,7 +72,8 @@ class SossisseIOException(SossisseException):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseIOException: {0}'.format(self.message)
+        message = 'SossisseIOException: {0}'.format(self.message)
+        return base.format_exception(message)
 
 
 class SossisseInstException(SossisseException):
@@ -82,8 +86,9 @@ class SossisseInstException(SossisseException):
         self.message = message
 
     def __str__(self) -> str:
-        return 'SossisseInstException[{0}]: {1}'.format(self.classname,
-                                                        self.message)
+        message = 'SossisseInstException[{0}]: {1}'.format(self.classname,
+                                                           self.message)
+        return base.format_exception(message)
 
 # =============================================================================
 # Start of code

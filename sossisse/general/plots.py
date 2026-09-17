@@ -150,7 +150,7 @@ def add_footer_text(fig, text, fontsize=10, pad=0.02):
 def plot_file(params: Dict[str, Any], outname: str, title,
               description: str = 'No description',
               func_name = 'Unknown'):
-    # get plot file
+    # get plot file (outname is expected to already carry the jump suffix)
     plotfile = os.path.join(params['PATHS.PLOT_PATH'], 'plots.yaml')
     # read yaml file
     if os.path.exists(plotfile):
@@ -171,16 +171,19 @@ def plot_file(params: Dict[str, Any], outname: str, title,
 
 
 # TODO: same function in pogos.core.plots -> move to aperocore
-def save_show_plot(params: Dict[str, Any], outname: str, title: str = '',
+def save_show_plot(inst: Any, outname: str, title: str = '',
                    description: str = 'No description',
                    func_name='Unknown'):
     """
     Save and show the plot
-    :param params: dict, the parameters for the instrument
+    :param inst: Instrument instance
     :param outname: str, the output name for the plot
 
     :return:
     """
+    params = inst.params
+    # add the active jump suffix so chunked runs don't overwrite each other
+    outname = inst.add_jump_suffix(outname)
     # save to yaml file (for html writing)
     plot_file(params, outname, title, description, func_name)
     # loop around figure types
@@ -270,7 +273,7 @@ def pca_plot(inst: Any, n_comp: int, pcas: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'file_temporary_pcas', title, description,
+    save_show_plot(inst, 'file_temporary_pcas', title, description,
                    func_name)
 
 
@@ -352,7 +355,7 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'derivatives', title, description,
+    save_show_plot(inst, 'derivatives', title, description,
                    func_name)
 
 
@@ -442,7 +445,7 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     add_footer_text(fig, ntext, fontsize=8, pad=0.02)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'subtract_1f_scorr', title, description,
+    save_show_plot(inst, 'subtract_1f_scorr', title, description,
                    func_name)
 
 
@@ -482,7 +485,7 @@ def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'subtract_1f_comp', title, description,
+    save_show_plot(inst, 'subtract_1f_comp', title, description,
                    func_name)
 
 
@@ -529,7 +532,7 @@ def mask_order0_plot(inst: Any, diff0: np.ndarray, diff1: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'masking_order0', title, description,
+    save_show_plot(inst, 'masking_order0', title, description,
                    func_name)
 
 
@@ -581,7 +584,7 @@ def plot_trace_mask(inst: Any, trace_map: np.ndarray,
     add_footer_text(fig, ntext, fontsize=8, pad=0.01)
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'trace_mask', title, description, func_name)
+    save_show_plot(inst, 'trace_mask', title, description, func_name)
 
 def trace_correction_sample(inst: Any, iframe: int,
                             cube: np.ndarray, recon: np.ndarray,
@@ -639,7 +642,7 @@ def trace_correction_sample(inst: Any, iframe: int,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'residual_to_linear_recon_{0}'.format(iframe),
+    save_show_plot(inst, 'residual_to_linear_recon_{0}'.format(iframe),
                    title, description, func_name)
 
 
@@ -689,7 +692,7 @@ def aperture_correction_plot(inst: Any, outputs: Dict[str, Any],
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'aperture_correction', title, description,
+    save_show_plot(inst, 'aperture_correction', title, description,
                    func_name)
 
 
@@ -740,7 +743,7 @@ def plot_trace_flux_loss(inst: Any, sums: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'trace_flux_loss', title, description,
+    save_show_plot(inst, 'trace_flux_loss', title, description,
                    func_name)
 
 
@@ -767,7 +770,7 @@ def plot_fancy_centering1(inst: Any, xpix: np.ndarray, tracepos: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'fancy_centering1', title, description,
+    save_show_plot(inst, 'fancy_centering1', title, description,
                    func_name)
 
 
@@ -803,7 +806,7 @@ def plot_fancy_centering2(inst: Any, med: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'fancy_centering2', title, description,
+    save_show_plot(inst, 'fancy_centering2', title, description,
                    func_name)
 
 
@@ -857,7 +860,7 @@ def plot_background(inst, frame0_before, frame0_after):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'background_corr', title, description,
+    save_show_plot(inst, 'background_corr', title, description,
                    func_name)
 
 
@@ -908,7 +911,7 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'lowpass_corr', title, description,
+    save_show_plot(inst, 'lowpass_corr', title, description,
                    func_name)
 
 
@@ -948,7 +951,7 @@ def plot_flat_field(inst, frame0_before, frame0_after):
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'flatfield', title, description,
+    save_show_plot(inst, 'flatfield', title, description,
                    func_name)
 
 
@@ -1012,7 +1015,7 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
     plt.tight_layout(rect=(0.0, 0.03, 1.0, 1.0))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, outname, title, description, func_name)
+    save_show_plot(inst, outname, title, description, func_name)
 
 
 def plot_pixels(inst: Any, pixel_dict: Dict[int, np.ndarray],
@@ -1039,7 +1042,7 @@ def plot_pixels(inst: Any, pixel_dict: Dict[int, np.ndarray],
     frame.set(title=title.format(*targs))
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'isolated_pixel_corr_stamps',
+    save_show_plot(inst, 'isolated_pixel_corr_stamps',
                    title, description, func_name)
 
 def plot_stability(inst: Any, table: Table):
@@ -1155,7 +1158,7 @@ def plot_stability(inst: Any, table: Table):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'stability', title, description, func_name)
+    save_show_plot(inst, 'stability', title, description, func_name)
 
 
 # def plot_transit(inst: Any, table: Table):
@@ -1276,7 +1279,7 @@ def plot_stability(inst: Any, table: Table):
 #     plt.tight_layout()
 #     # -------------------------------------------------------------------------
 #     # standard save/show plot for SOSSISSE
-#     save_show_plot(inst.params, 'transit')
+#     save_show_plot(inst, 'transit')
 
 def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # set function name
@@ -1317,7 +1320,7 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, f'spectral_timeseries_ord{trace_order}',
+    save_show_plot(inst, f'spectral_timeseries_ord{trace_order}',
                    title, description, func_name)
 
 def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
@@ -1347,7 +1350,7 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'sed_{0}_ord{1}'.format(objname, trace_order),
+    save_show_plot(inst, 'sed_{0}_ord{1}'.format(objname, trace_order),
                    title, description, func_name)
 
 
@@ -1389,7 +1392,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst.params, 'sed_{0}'.format(objname), title, description,
+    save_show_plot(inst, 'sed_{0}'.format(objname), title, description,
                    func_name)
 
 

@@ -18,6 +18,7 @@ from sossisse.core import base
 from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
+from sossisse.core import input_validation
 from sossisse.core import misc
 from sossisse.instruments import load_instrument, Instrument
 
@@ -380,6 +381,9 @@ def run_time_params(params: ParamDict, only_create: bool = False
             misc.printc(f'File {abspath} exists', msg_type='debug')
             # push into params
             general['FILES'][b_it] = abspath
+        # All files now exist and have absolute paths; validate their headers.
+        input_validation.check_input_data_headers(inputs['INSTRUMENTMODE'],
+                                                  general['FILES'])
         # deal with creating a common file prefix
         general['PREFIX'] = load_functions.common_prefix(general['FILES'])
     # -------------------------------------------------------------------------
