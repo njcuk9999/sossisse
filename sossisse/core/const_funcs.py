@@ -195,11 +195,11 @@ def get_parameters(no_yaml: bool = False,
         load_functions.download_data(params, demolocal=demolocal,
                                      demosymlink=demosymlink)
     # -------------------------------------------------------------------------
-    # copy pos file to FITS path
+    # copy pos file to TEMP path
     if params['GENERAL.POS_FILE'] is not None:
         posfile = params['GENERAL.POS_FILE']
         posfile_basename = os.path.basename(posfile)
-        posfile_out = str(os.path.join(params['PATHS.FITS_PATH'],
+        posfile_out = str(os.path.join(params['PATHS.TEMP_PATH'],
                                        posfile_basename))
         # only copy pos file if it, exists (otherwise we just update the
         # filename - this is fine as we can create this file sometimes)
@@ -343,12 +343,6 @@ def run_time_params(params: ParamDict, only_create: bool = False
         paths['OTHER_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'other')
         paths.set_source('OTHER_PATH', func_name)
     io.create_directory(paths['OTHER_PATH'])
-    # -------------------------------------------------------------------------
-    # the fits paths
-    if paths['FITS_PATH'] is None:
-        paths['FITS_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'fits')
-        paths.set_source('FITS_PATH', func_name)
-    io.create_directory(paths['FITS_PATH'])
     # -------------------------------------------------------------------------
     # the out paths
     if paths['OUT_PATH'] is None:

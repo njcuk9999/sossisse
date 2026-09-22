@@ -569,7 +569,6 @@ class Instrument:
         # get file paths
         temppath = self.params['PATHS.TEMP_PATH']
         otherpath = self.params['PATHS.OTHER_PATH']
-        fitspath = self.params['PATHS.FITS_PATH']
         outpath = self.params['PATHS.OUT_PATH']
         # ---------------------------------------------------------------------
         # Whatever happens raw input files must exist
@@ -632,7 +631,7 @@ class Instrument:
         tmp_ini_err_lowpass = os.path.join(temppath, tmp_ini_err_lowpass)
         # ---------------------------------------------------------------------
         median_image_file = 'median.fits'
-        median_image_file = os.path.join(fitspath, median_image_file)
+        median_image_file = os.path.join(temppath, median_image_file)
         # ---------------------------------------------------------------------
         errfile = os.path.join(temppath, 'errormap.fits')
         # ---------------------------------------------------------------------
@@ -645,16 +644,16 @@ class Instrument:
         sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace_order}.csv')
         # ---------------------------------------------------------------------
         res_no_grey_ord = 'residual_no_grey_ord{trace_order}.fits'
-        res_no_grey_ord = os.path.join(fitspath, res_no_grey_ord)
+        res_no_grey_ord = os.path.join(temppath, res_no_grey_ord)
         # ---------------------------------------------------------------------
         res_grey_ord = 'residual_grey_ord{trace_order}.fits'
-        res_grey_ord = os.path.join(fitspath, res_grey_ord)
+        res_grey_ord = os.path.join(temppath, res_grey_ord)
         # ---------------------------------------------------------------------
         spectra_ord = 'spectra_ord{trace_order}.fits'
-        spectra_ord = os.path.join(fitspath, spectra_ord)
+        spectra_ord = os.path.join(temppath, spectra_ord)
         # ---------------------------------------------------------------------
         waveord_file = 'wavelength_ord{trace_order}.fits'
-        waveord_file = os.path.join(fitspath, waveord_file)
+        waveord_file = os.path.join(temppath, waveord_file)
         # ---------------------------------------------------------------------
         tspec_ord = 'tspec_ord{trace_order}.csv'
         tspec_ord = os.path.join(otherpath, tspec_ord)
@@ -663,7 +662,7 @@ class Instrument:
         tspec_ord_bin = os.path.join(otherpath, tspec_ord_bin)
         # ---------------------------------------------------------------------
         eureka_file = 'spectra_ord{trace_order}.h5'
-        eureka_file = os.path.join(fitspath, eureka_file)
+        eureka_file = os.path.join(temppath, eureka_file)
         # ---------------------------------------------------------------------
         out_spec_lc_file = '{prefix}_slc.fits'
         out_spec_lc_file = os.path.join(outpath, out_spec_lc_file)
@@ -1917,16 +1916,6 @@ class Instrument:
 
         return images, bad_table
 
-    def optimize_trace_mask(self, log: bool = True):
-        """
-        Optimize the trace position and save a new pos mask file
-
-        :return: None
-        """
-        _ = self, log
-        raise NotImplementedError('optimize_trace_mask() must be implemented in '
-                                  'child Instrument class')
-
     def get_trace_positions(self, med: np.ndarray = None,
                             cube: np.ndarray = None,  log: bool = True):
         """
@@ -2011,7 +2000,7 @@ class Instrument:
         return trace_mask
 
     def get_trace_pos(self, map2d: bool = False,
-                      order_num: int = 1, round_pos: bool = True,
+                      order_num: Optional[int] = None, round_pos: bool = True,
                       ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Get the trace position
@@ -2033,6 +2022,12 @@ class Instrument:
         xoffset = wlc_gen_params['X_TRACE_OFFSET']
         yoffset = wlc_gen_params['Y_TRACE_OFFSET']
         trace_wid_mask = wlc_gen_params['TRACE_WIDTH_MASKING']
+        # check that that pos file exists
+        if not os.path.exists(gen_params['POS_FILE']):
+            emsg = ('The trace position file {0} does not exist. '
+                    'Please check the config file and set POS_FILE')
+            eargs = [gen_params['POS_FILE']]
+            raise exceptions.SossisseConstantException(emsg.format(*eargs))
         # load the trace position
         tbl_ref = self.load_table(gen_params['POS_FILE'], ext=order_num)
         # ---------------------------------------------------------------------
@@ -2101,12 +2096,16 @@ class Instrument:
             # return the trace position
             return posmax, throughput
 
-    def get_wavegrid(self, order_num: Union[int, None] = None,
+    def get_wavegrid(self, order_num: Optional[int] = None,
                      return_xpix: bool = False,
                      source: Optional[str] = None
                      ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
         """
         Get the wave grid for the instrument
+
+        Here we assume this is not order dependent
+           Insturments with order dependent wavelength solutions should
+           override this function
 
         :param order_num: int, the order number to use (if source is pos)
         :param return_xpix: bool, if True return xpix as well as wave
@@ -2122,21 +2121,27 @@ class Instrument:
         # get x size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         # ---------------------------------------------------------------------
-        # if order_num is set currently we have to get wavelength solution from
-        # the position file (this may change in the future)
-        if order_num is not None:
-            source = 'pos'
+        # Here we assume this is not order dependent
+        #   Instruments with order dependent wavelength solutions should
+        #   override this function
+        # ---------------------------------------------------------------------
+        # These are only used in order dependent cases
+        _ = order_num, source
+
         # if we have a wave file set and a wave type set then we should
         # be loading from wavefile
-        elif source is None and wave_file is not None and wave_type is not None:
+        if wave_file is not None and wave_type is not None:
             source = 'wavefile'
             # deal with base wave type
             if wave_type not in ['ext1d', 'fits', 'hdf5']:
                 emsg = f'WAVE_TYPE must be ext1d, fits or hdf5'
                 raise exceptions.SossisseConstantException(emsg)
-        # if source is still None set it to "pos"
-        if source is None:
-            source = 'pos'
+        else:
+            emsg = ('WAVE_FILE and WAVE_TYPE must be set in the config '
+                    'file for {0}')
+            eargs = [self.name]
+            raise exceptions.SossisseConstantException(emsg.format(*eargs))
+
         # ---------------------------------------------------------------------
         # Deal with ext1d wave file - by default not valid
         if wave_type == 'ext1d' and source == 'wavefile':
@@ -2178,7 +2183,7 @@ class Instrument:
                 xtraceoffset = self.params['WLC.GENERAL.X_TRACE_OFFSET']
                 # get the trace position file
                 tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
-                                          ext=order_num)
+                                          ext=None)
                 xpix, wavevector = io.load_wave_posfile(tbl_ref, xsize,
                                                         xtraceoffset)
         # ---------------------------------------------------------------------
@@ -3465,7 +3470,7 @@ class Instrument:
     # ==========================================================================
     # Spectral Extraction functionality
     # ==========================================================================
-    def get_trace_orders(self) -> List[int]:
+    def get_trace_orders(self) -> List[Union[int, None]]:
         """
         Get the trace orders
         If None this is set to [0]
@@ -3474,12 +3479,13 @@ class Instrument:
         trace_orders = self.params['GENERAL.TRACE_ORDERS']
         # deal with no trace orders set (or none needed)
         if trace_orders is None:
-            return [0]
+            return [None]
         else:
             return trace_orders
 
 
-    def load_input_spec_data(self, trace_order: int = 0) -> List[np.ndarray]:
+    def load_input_spec_data(self, trace_order: Optional[int] = None
+                             ) -> List[np.ndarray]:
         """
         Load input data for this trace order for the spectral extraction
 
@@ -3775,7 +3781,8 @@ class Instrument:
         # return the updated spec and ltable
         return ltable
 
-    def save_spe_results(self, storage: Dict[str, Any], trace_order: int):
+    def save_spe_results(self, storage: Dict[str, Any],
+                         trace_order: Optional[int] = None):
         """
         Save the results to disk
         """
@@ -3806,6 +3813,10 @@ class Instrument:
         # wave_bin = storage['wave_bin']
         # flux_bin = storage['flux_bin']
         # flux_bin_err = storage['flux_bin_err']
+
+        # deal with no trace order
+        if trace_order is None:
+            trace_order = ''
         # ---------------------------------------------------------------------
         # Save the SED table
         # ---------------------------------------------------------------------
@@ -3940,7 +3951,11 @@ class Instrument:
             # -----------------------------------------------------------------
             # get the filename
             filename = self.get_variable('EUREKA_FILE', func_name)
-            filename = filename.format(trace_order=trace_order)
+            # set filename (Dealing with trace order or lack of orders)
+            if trace_order is None:
+                filename = filename.format(trace_order='')
+            else:
+                filename = filename.format(trace_order=trace_order)
             # -----------------------------------------------------------------
             # save eureka format file
             io.save_eureka(filename, flux, flux_err, wavegrid, time_arr)
@@ -4023,10 +4038,15 @@ class Instrument:
             # push into data list
             datalist.extend([wavegrid, spec2, spec_err, int_times])
             datatypes.extend(['image', 'image', 'image', 'image'])
-            datanames.extend([f'WAVELENGTH_{trace_order}',
-                              f'RELFLUX_{trace_order}',
-                              f'RELFLUX_ERROR_{trace_order}',
-                              f'BJD_{trace_order}'])
+            # Deal with not having trace orders
+            if trace_order is None:
+                datanames.extend(['WAVELENGTH', 'RELFLUX', 'RELFLUX_ERROR',
+                                  'BJD'])
+            else:
+                datanames.extend([f'WAVELENGTH_{trace_order}',
+                                  f'RELFLUX_{trace_order}',
+                                  f'RELFLUX_ERROR_{trace_order}',
+                                  f'BJD_{trace_order}'])
         # add the param table
         datalist.append(psnapshot)
         datatypes.append('table')
@@ -4061,6 +4081,7 @@ class Instrument:
         datanames = []
         # get the linear fit table from storage for this trace order
         #   note the linear fit table is the same for all orders used
+        #   so even when we don't have orders we use trace_orders[0]
         ltable = storage[trace_orders[0]]['ltable']
         # get columns names to keep
         rtable = Table()

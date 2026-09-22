@@ -1286,9 +1286,15 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     func_name = f'{__NAME__}.plot_spectral_timeseries()'
     # set title and description
     title = 'Spectral time series'
-    description = (f'Spectral time series for trace order {trace_order}. '
-                   'Each row is a different integration, each column is a '
-                   'different pixel in the spectral direction.')
+
+    if trace_order is None:
+        description = ('Spectral time series. Each row is a different '
+                       'integration, each column is a different pixel in the '
+                       'spectral direction.')
+    else:
+        description = (f'Spectral time series for trace order {trace_order}. '
+                       'Each row is a different integration, each column is a '
+                       'different pixel in the spectral direction.')
     # get the image normalization
     vlims = inst.params['SPEC_PLOT.FRAME_VLIM']
     vtype = inst.params['SPEC_PLOT.FRAME_VLIM_TYPE']
@@ -1314,24 +1320,34 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     plt.colorbar(frame.images[0], ax=frame, orientation='vertical',
                  label='Rel. flux')
     # construct title
-    title = f'{objname} -- {suffix} spectral time series order {trace_order}'
+    if trace_order is None:
+        title = f'{objname} -- {suffix} spectral time series'
+    else:
+        title = f'{objname} -- {suffix} spectral time series order {trace_order}'
     frame.set(title=title)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst, f'spectral_timeseries_ord{trace_order}',
-                   title, description, func_name)
+    if trace_order is None:
+        outname = f'spectral_timeseries'
+    else:
+        outname = f'spectral_timeseries_ord{trace_order}'
+
+    save_show_plot(inst, outname, title, description, func_name)
 
 def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
              trace_order: int):
     # set function name
     func_name = f'{__NAME__}.plot_sed()'
-    # set title and description
-    title = 'Spectral energy distribution'
-    description = (f'Spectral energy distribution for trace order '
-                   f'{trace_order}. This is the flux as a function of '
-                   'wavelength, corrected for the instrument throughput.')
+    if trace_order is None:
+        description = ('Spectral energy distribution. This is the flux as a '
+                       'function of wavelength, corrected for the instrument '
+                       'throughput.')
+    else:
+        description = (f'Spectral energy distribution for trace order '
+                       f'{trace_order}. This is the flux as a function of '
+                       'wavelength, corrected for the instrument throughput.')
     # -------------------------------------------------------------------------
     # get object name and suffix
     objname = inst.params['INPUTS.OBJECTNAME']
@@ -1341,7 +1357,10 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     # plot the SED
     frame.plot(wavegrid, sed)
     # construct title
-    title = f'{objname} -- {suffix} order={trace_order}'
+    if trace_order is None:
+        title = objname
+    else:
+        title = f'{objname} -- {suffix} order={trace_order}'
     # set the axis labels
     frame.set(xlabel='Wavelength [nm]',
               ylabel='Flux\nthroughput-corrected',
@@ -1350,8 +1369,12 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    save_show_plot(inst, 'sed_{0}_ord{1}'.format(objname, trace_order),
-                   title, description, func_name)
+    if trace_order is None:
+        outname = f'sed_{objname}'
+    else:
+        outname = f'sed_{objname}_ord{trace_order}'
+
+    save_show_plot(inst, outname, title, description, func_name)
 
 
 def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):

@@ -309,11 +309,6 @@ CDict.add('OTHER_PATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
           description='Other data is stored in this path')
 # -----------------------------------------------------------------------------
-# the fits path
-CDict.add('FITS_PATH', value=None, dtype=str,
-          source=__NAME__, active=False, user=False, group=cgroup,
-          description='The fits path')
-# -----------------------------------------------------------------------------
 # the out path
 CDict.add('OUT_PATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,

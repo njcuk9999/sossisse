@@ -275,11 +275,6 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     cube = inst.remove_cosmic_rays(cube)
 
     # =========================================================================
-    # optimize trace position
-    # =========================================================================
-    inst.optimize_trace_mask()
-
-    # =========================================================================
     # get the trace map
     # =========================================================================
     trace_mask = inst.get_trace_mask(cube=cube, no_plot=False,
@@ -493,7 +488,7 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     # loop around trace orders
     for trace_order in trace_orders:
         # print progress
-        if len(trace_orders) > 1:
+        if len(trace_orders) is not None:
             misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
         # ---------------------------------------------------------------------
         # load data for this trace order
