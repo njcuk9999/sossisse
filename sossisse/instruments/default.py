@@ -268,6 +268,7 @@ class Instrument:
         """
         # set function name
         # func_name = f'{__NAME__}.update_meta_data()'
+        do_background = self.params.rget('GENERAL.DO_BACKGROUND', required=True)
         # set up storage
         meta_data = dict()
         # get wlc general properties
@@ -314,9 +315,7 @@ class Instrument:
         # deal with background correction
         # ---------------------------------------------------------------------
         # deal with DO_BACKGROUND set
-        if self.params['GENERAL.DO_BACKGROUND']:
-            # get variable
-            do_background = self.params['GENERAL.DO_BACKGROUND']
+        if do_background:
             # add to meta data
             meta_data['DO_BKG'] = (int(do_background),
                                    'Background was removed')
@@ -474,10 +473,11 @@ class Instrument:
 
         :return: int, number of frames
         """
+        input_files = self.params.rget('GENERAL.FILES', required=True)
         # Accumulate the binned frame count over all input segments.
         nframes = 0
         # Read each science extension just far enough to know its binned shape.
-        for filename in self.params['GENERAL.FILES']:
+        for filename in input_files:
             # Load the raw science data for this input file.
             tmp_data = self.load_data(filename, extname='SCI')
             # Ask bin_cube for the post-binning shape without keeping the cube.
@@ -564,12 +564,12 @@ class Instrument:
     def define_filenames(self):
         # set function name
         func_name = f'{__NAME__}.define_filenames()'
+        # get file paths
+        temppath = self.params.rget('PATHS.TEMP_PATH', required=True, func=func_name)
+        otherpath = self.params.rget('PATHS.OTHER_PATH', required=True, func=func_name)
+        outpath = self.params.rget('PATHS.OUT_PATH', required=True, func=func_name)
         # update meta data
         self.update_meta_data()
-        # get file paths
-        temppath = self.params['PATHS.TEMP_PATH']
-        otherpath = self.params['PATHS.OTHER_PATH']
-        outpath = self.params['PATHS.OUT_PATH']
         # ---------------------------------------------------------------------
         # Whatever happens raw input files must exist
         # ---------------------------------------------------------------------
@@ -784,6 +784,7 @@ class Instrument:
     def load_cube(self, n_slices: int, image_shape: List[int],
                   flag_cds: bool
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
         cube = np.zeros([n_slices, image_shape[0], image_shape[1]])
@@ -794,7 +795,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # loop around files and push them into the cube/err/dq
         # ---------------------------------------------------------------------
-        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
+        for ifile, filename in enumerate(input_files):
             # load the data
             with fits.open(filename) as hdul:
                 # get data from CDS format
@@ -861,8 +862,9 @@ class Instrument:
         Get the integration times (BJD: Barycentric Julian Day)
         :return: np.ndarray, the integration times
         """
+        input_files = self.params.rget('GENERAL.FILES', required=True)
         int_times = np.array([])
-        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
+        for ifile, filename in enumerate(input_files):
             # get the raw files
             tmp_data = self.load_data(filename, extname='INT_TIMES')
             # TODO: Known jwst pipeline bug where MJD = BJD
@@ -894,8 +896,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.load_data_with_dq()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
@@ -929,7 +931,9 @@ class Instrument:
                 return cube, err, dq
         # ---------------------------------------------------------------------
         # deal with no files
-        if len(self.params['GENERAL.FILES']) == 0:
+        input_files = self.params.rget('GENERAL.FILES', required=True,
+                          func=func_name)
+        if len(input_files) == 0:
             emsg = 'No files defined in yaml. Please set the FILES parameter.'
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
@@ -939,7 +943,7 @@ class Instrument:
         raw_shapes = []
         # handling the files with their varying sizes. We read and count slices
         # TODO: Should be replaced with header keys
-        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
+        for ifile, filename in enumerate(input_files):
             # get the raw files
             tmp_data = self.load_data(filename, extname='SCI')
             # get the shape of the bins
@@ -978,8 +982,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.apply_flat_field()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_ff_cube = self.get_variable('TEMP_FF_CUBE', func_name)
         temp_ff_err = self.get_variable('TEMP_FF_ERR', func_name)
@@ -1086,16 +1090,20 @@ class Instrument:
             image_shapes.append(tuple(raw_shape[1:]))
         # ---------------------------------------------------------------------
         # check if all image shapes are the same
-        if len(set(image_shapes)) != 1:
+        inconsistent_shapes = len(set(image_shapes)) != 1
+        inconsistent_cds = len(set(all_cds)) != 1
+        if inconsistent_shapes or inconsistent_cds:
+            input_files = self.params.rget('GENERAL.FILES', required=True)
+        if inconsistent_shapes:
             emsg = 'Inconsistent image shapes:'
-            for f_it, filename in enumerate(self.params['GENERAL.FILES']):
+            for f_it, filename in enumerate(input_files):
                 emsg += f'\n\t{filename}: {image_shapes[f_it]}'
             raise exceptions.SossisseFileException(emsg)
         # ---------------------------------------------------------------------
         # check that all are CDS or all are not CDS
-        if len(set(all_cds)) != 1:
+        if inconsistent_cds:
             emsg = 'Inconsistent CDS format (Eiher all CDS or not):'
-            for f_it, filename in enumerate(self.params['GENERAL.FILES']):
+            for f_it, filename in enumerate(input_files):
                 emsg += f'\n\t{filename}: {raw_shapes[f_it]}'
             raise exceptions.SossisseFileException(emsg)
         else:
@@ -1120,22 +1128,23 @@ class Instrument:
         """
         # get function name
         func_name = f'{__NAME__}.bin_cube()'
-        # get the linear model parameters
         lm_params = self.params.get('WLC.LMODEL')
+        bin_time = lm_params.rget('DATA_BIN_TIME', required=True,
+                      func=func_name)
         # don't bin if user doesn't want to bin
-        if not lm_params['DATA_BIN_TIME']:
+        if not bin_time:
             if get_shape:
                 return list(cube.shape)
             else:
                 return cube
         # don't bin if the number of frames in each bin is 1
-        if lm_params['DATA_BIN_SIZE'] == 1:
+        bin_size = lm_params.rget('DATA_BIN_SIZE', required=True,
+                      func=func_name)
+        if bin_size == 1:
             if get_shape:
                 return list(cube.shape)
             else:
                 return cube
-        # get the bin size
-        bin_size = lm_params['DATA_BIN_SIZE']
         # we can only bin certain types of files
         if bin_type not in ['Flux', 'Error', 'DQ']:
             emsg = 'Cannot bin cube of type: {0}. \n\tFunction={1}'
@@ -1208,8 +1217,10 @@ class Instrument:
         """
         # get function name
         func_name = f'{__NAME__}.remove_cosmic_rays()'
+        remove_cosmics = self.params.rget('WLC.GENERAL.REMOVE_COSMIC_RAYS',
+                         required=True, func=func_name)
         # see if user wants to remove cosmics
-        if not self.params['WLC.GENERAL.REMOVE_COSMIC_RAYS']:      
+        if not remove_cosmics:
             # print message that we are not removing cosmic rays
             msg = ('WLC.GENERAL.REMOVE_COSMIC_RAYS=False. '
                    'Not removing cosmic rays')
@@ -1218,8 +1229,8 @@ class Instrument:
             return cube
 
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_postcosic = self.get_variable('TEMP_CUBE_POST_COSMICS', func_name)
         # ---------------------------------------------------------------------
@@ -1234,6 +1245,8 @@ class Instrument:
                 # return
                 return cube
         # ---------------------------------------------------------------------
+            sig_cut = self.params.rget('WLC.GENERAL.COSMIC_RAY_SIGMA',
+                           required=True, func=func_name)
         # print progress
         msg = 'We remove cosmisc rays'
         misc.printc(msg, 'info')
@@ -1250,8 +1263,6 @@ class Instrument:
         # get the sigma and mean
         sigma = (p84 - p16) / 2
         mean = (p84 + p16) / 2
-        # get the sig cut
-        sig_cut = self.params['WLC.GENERAL.COSMIC_RAY_SIGMA']
         # storage for heat map
         heat_map = np.zeros(cube.shape[1:], dtype=float)
         # store the first frame from before
@@ -1303,9 +1314,10 @@ class Instrument:
         """
         # get wlc_params
         wlc_params = self.params.get('WLC')
+        apply_dq_flags = wlc_params.rget('INPUTS.APPLY_DQ_FLAGS', required=True)
         # ---------------------------------------------------------------------
         # deal with user not wanting to apply dq flags
-        if not wlc_params['INPUTS.APPLY_DQ_FLAGS']:
+        if not apply_dq_flags:
             # print message that we are not patching isolated bad pixels
             msg = 'WLC.INPUTS.APPLY_DQ_FLAGS = False. Not applying DQ flags'
             misc.printc(msg, 'info')
@@ -1350,8 +1362,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_background()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
@@ -1369,10 +1381,12 @@ class Instrument:
                 err = self.load_data(temp_ini_err)
                 # return
                 return cube, err
+            do_background = self.params.rget('GENERAL.DO_BACKGROUND',
+                             required=True, func=func_name)
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
         # deal with not doing background correction
-        if not self.params['GENERAL.DO_BACKGROUND']:
+        if not do_background:
             # print progress
             msg = 'We do not clean background. GENERAL.DO_BACKGROUND=False'
             misc.printc(msg, 'warning')
@@ -1495,8 +1509,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_background()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE_LOWPASS', func_name)
         temp_ini_err = self.get_variable('TEMP_INI_ERR_LOWPASS', func_name)
@@ -1582,17 +1596,18 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.patch_isolated_bads()'
+        wlc_params = self.params.get('WLC.GENERAL')
+        patch_isolated_bads = wlc_params.rget('PATCH_ISOLATED_BADS',
+                             required=True, func=func_name)
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # construct temporary file names
         temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
         temp_clean_nan_err = self.get_variable('TEMP_CLEAN_NAN_ERR', func_name)
-        # get WLC.GENERAL parameters
-        wlc_params = self.params.get('WLC.GENERAL')
         # ---------------------------------------------------------------------
         # deal with no patching isolated bad pixels
-        if not wlc_params['PATCH_ISOLATED_BADS']:
+        if not patch_isolated_bads:
             # print message that we are not patching isolated bad pixels
             msg = ('WLC.GENERAL.PATCH_ISOLATED_BADS=False. Not patching '
                    'isolated bad pixels')
@@ -1613,6 +1628,8 @@ class Instrument:
                 err = self.load_data(temp_clean_nan_err)
                 return cube, err
         # ---------------------------------------------------------------------
+            bad_pixel_stamp_size = wlc_params.rget('PATCH_IBADS_SSIZE',
+                                   required=True, func=func_name)
         # print progress
         msg = ' Removing isolated NaNs'
         misc.printc(msg, 'info')
@@ -1622,11 +1639,11 @@ class Instrument:
         bad_pixels_before = dict()
         bad_pixels_after = dict()
         # get the size of the bad pixel stamps
-        if wlc_params['PATCH_IBADS_SSIZE'] % 2 == 0:
+        if bad_pixel_stamp_size % 2 == 0:
             emsg = 'WLC.GENERAL.PATCH_IBADS_SSIZE must be odd'
             raise exceptions.SossisseConstantException(emsg)
         else:
-            bpixel_ssize = (wlc_params['PATCH_IBADS_SSIZE'] - 1) // 2
+            bpixel_ssize = (bad_pixel_stamp_size - 1) // 2
         # ---------------------------------------------------------------------
         # store cube[0] before (for plot)
         iframe_before = np.array(cube[0])
@@ -1817,7 +1834,8 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.Instrument.create_stamp_images()'
         # calculate the size of the stamps
-        ssize = self.params['WLC.GENERAL.PATCH_IBADS_SSIZE']
+        ssize = self.params.rget('WLC.GENERAL.PATCH_IBADS_SSIZE', required=True,
+                     func=func_name)
         # storage of output images
         images = dict()
         # position of the bad pixels
@@ -1948,6 +1966,8 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.get_trace_mask()'
+        trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
+                           required=True, func=func_name)
         # print progress
         if log:
             misc.printc('Getting the trace mask', 'info')
@@ -1955,7 +1975,7 @@ class Instrument:
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         # deal with no trace map required
-        if self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH'] < 1:
+        if trace_width < 1:
             # set the trace masm to ones
             trace_mask = np.ones((ysize, xsize), dtype=bool)
             # return the trace_mask
@@ -2016,12 +2036,15 @@ class Instrument:
         # get wlc generation parameters
         gen_params = self.params.get('GENERAL')
         wlc_gen_params = self.params.get('WLC.GENERAL')
+        xoffset = wlc_gen_params.rget('X_TRACE_OFFSET', required=True,
+                          func=func_name)
+        yoffset = wlc_gen_params.rget('Y_TRACE_OFFSET', required=True,
+                          func=func_name)
+        trace_wid_mask = wlc_gen_params.rget('TRACE_WIDTH_MASKING',
+                             required=True, func=func_name)
         # get x and y size from cube
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
         xsize = self.get_variable('DATA_X_SIZE', func_name)
-        xoffset = wlc_gen_params['X_TRACE_OFFSET']
-        yoffset = wlc_gen_params['Y_TRACE_OFFSET']
-        trace_wid_mask = wlc_gen_params['TRACE_WIDTH_MASKING']
         # check that that pos file exists
         if not os.path.exists(gen_params['POS_FILE']):
             emsg = ('The trace position file {0} does not exist. '
@@ -2136,6 +2159,9 @@ class Instrument:
             if wave_type not in ['ext1d', 'fits', 'hdf5']:
                 emsg = f'WAVE_TYPE must be ext1d, fits or hdf5'
                 raise exceptions.SossisseConstantException(emsg)
+            calibration_path = self.params.rget('PATHS.CALIBPATH', required=True,
+                                                func=func_name)
+            wavepath = os.path.join(calibration_path, wave_file)
         else:
             emsg = ('WAVE_FILE and WAVE_TYPE must be set in the config '
                     'file for {0}')
@@ -2145,23 +2171,16 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Deal with ext1d wave file - by default not valid
         if wave_type == 'ext1d' and source == 'wavefile':
-            # get the full path to wave file
-            wavepath = os.path.join(self.params['PATHS.CALIBPATH'], wave_file)
             # use the default function to load the wave fits file
             xpix, wavevector = io.load_wave_ext1d(str(wavepath))
         # ---------------------------------------------------------------------
         # Deal with fits file wave file
         elif wave_type == 'fits' and source == 'wavefile':
-            # get the full path to wave file
-            wavepath = os.path.join(self.params['PATHS.CALIBPATH'], wave_file)
             # use the default function to load the wave fits file
             xpix, wavevector = io.load_wave_fits(str(wavepath))
         # ---------------------------------------------------------------------
         # Deal with hdf5 fits file wave file
         elif wave_type == 'hdf5' and source == 'wavefile':
-            # get the full path to wave file
-            wavepath = os.path.join(self.params['PATHS.CALIBPATH'],
-                                    wave_file)
             # use the default function to load the wave fits file
             xpix, wavevector = io.load_wave_hdf5(str(wavepath), xsize)
         # ---------------------------------------------------------------------
@@ -2180,12 +2199,13 @@ class Instrument:
             # otherwise we use POS_FILE
             else:
                 # get x trace offset
-                xtraceoffset = self.params['WLC.GENERAL.X_TRACE_OFFSET']
+                x_trace_offset = self.params.rget('WLC.GENERAL.X_TRACE_OFFSET',
+                                                  required=True, func=func_name)
                 # get the trace position file
                 tbl_ref = self.load_table(self.params['GENERAL.POS_FILE'],
                                           ext=None)
                 xpix, wavevector = io.load_wave_posfile(tbl_ref, xsize,
-                                                        xtraceoffset)
+                                                        x_trace_offset)
         # ---------------------------------------------------------------------
         # return the wave grid
         if return_xpix:
@@ -2206,8 +2226,8 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
@@ -2219,11 +2239,13 @@ class Instrument:
         # ---------------------------------------------------------------------
         # if we are allowed temporary files and are using them then load them
         if allow_temp and use_temp:
+            fit_pca = self.params.rget('WLC.LMODEL.FIT_PCA', required=True,
+                                       func=func_name)
             # make sure all required files exist
             cond = os.path.exists(median_image_file)
             cond &= os.path.exists(clean_cube_file)
             # only look for fit pca file if we are fitting pca
-            if self.params['WLC.LMODEL.FIT_PCA']:
+            if fit_pca:
                 cond &= os.path.exists(tmp_pcas)
             # if all conditions are satisfied we load the files
             if cond:
@@ -2253,7 +2275,8 @@ class Instrument:
         has_baseline = self.get_variable('HAS_BASELINE', func_name)
         baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # get flag for median out of transit
-        med_baseline = self.params['WLC.GENERAL.MEDIAN_BASELINE']
+        med_baseline = self.params.rget('WLC.GENERAL.MEDIAN_BASELINE', required=True,
+                        func=func_name)
         # ---------------------------------------------------------------------
         # deal with creating median
         with warnings.catch_warnings(record=True) as _:
@@ -2303,18 +2326,19 @@ class Instrument:
                           trace_mask: np.ndarray) -> np.ndarray:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # get the conditions for allowing and using temporary files
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
+        apply_1f_corr = self.params.rget('WLC.INPUTS.APPLY_1F_CORR',
+                        required=True, func=func_name)
         # ---------------------------------------------------------------------
         # save these for later
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        # ---------------------------------------------------------------------
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
         # Dealing with user turning this off
-        if not self.params['WLC.INPUTS.APPLY_1F_CORR']:
+        if not apply_1f_corr:
             # print message that we are not removing cosmic rays
             msg = ('WLC.INPUTS.APPLY_1F_CORR=False. '
                    'Not applying 1/f correction')
@@ -2497,10 +2521,11 @@ class Instrument:
         """
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        # get the degree for the 1/f polynomial fit
+        degree_1f_corr = self.params.rget('WLC.GENERAL.DEGREE_1F_CORR', required=True,
+                                         func=func_name)
         # print progress
         misc.printc('\tSubtracting 1/f noise', 'info')
-        # get the degree for the 1/f polynomial fit
-        degree_1f_corr = self.params['WLC.GENERAL.DEGREE_1F_CORR']
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
@@ -2576,20 +2601,22 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
+        temp_path = self.params.rget('PATHS.TEMP_PATH', required=True,
+                         func=func_name)
+        flag_fit_pca = self.params.rget('WLC.LMODEL.FIT_PCA', required=True,
+                        func=func_name)
+        n_comp = self.params.rget('WLC.LMODEL.FIT_N_PCA', required=True,
+                      func=func_name)
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params['GENERAL.ALLOW_TEMPORARY']
-        use_temp = self.params['GENERAL.USE_TEMPORARY']
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
         # update meta data
         self.update_meta_data()
         # make sure we have a pca file
         tmp_pcas = 'temporary_pcas.fits'
-        tmp_pcas = os.path.join(self.params['PATHS.TEMP_PATH'], tmp_pcas)
+        tmp_pcas = os.path.join(temp_path, tmp_pcas)
         self.set_variable('TEMP_PCA_FILE', tmp_pcas)
-        # ---------------------------------------------------------------------
-        # get whether to fit pca and the number of fit components
-        flag_fit_pca = self.params['WLC.LMODEL.FIT_PCA']
-        n_comp = self.params['WLC.LMODEL.FIT_N_PCA']
         # ---------------------------------------------------------------------
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
@@ -2732,13 +2759,26 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.recenter_trace_position()'
 
         wlc_gen_params = self.params.get('WLC.GENERAL')
+        recenter_trace = wlc_gen_params.rget('RECENTER_TRACE_POSITION',
+                            required=True, func=func_name)
         # deal with not wanting to recenter trace position
-        if not wlc_gen_params['RECENTER_TRACE_POSITION']:
+        if not recenter_trace:
             # print message that we are not removing cosmic rays
             msg = ('WLC.GENERAL.RECENTER_TRACE_POSITION=False. '
                    'Not recentering trace position')
             misc.printc(msg, 'info')
             return trace_mask
+        trace_width = wlc_gen_params.rget('TRACE_WIDTH_MASKING', required=True,
+                                          func=func_name)
+        width_current = float(trace_width)
+        trace_x_scale = wlc_gen_params.rget('TRACE_X_SCALE', required=True,
+                                            func=func_name)
+        trace_y_scale = wlc_gen_params.rget('TRACE_Y_SCALE', required=True,
+                                            func=func_name)
+        y_trace_offset = wlc_gen_params.rget('Y_TRACE_OFFSET', required=True,
+                                             func=func_name)
+        x_trace_offset = wlc_gen_params.rget('X_TRACE_OFFSET', required=True,
+                                             func=func_name)
         # print progress
         msg = 'Recentering trace position'
         misc.printc(msg, 'info')
@@ -2749,19 +2789,14 @@ class Instrument:
         # print what we are doing
         msg = '\tScan to optimize position of trace mask to maximize flux'
         misc.printc(msg, 'info')
-        # save the current width (we will reset it later
-        width_current = float(wlc_gen_params['TRACE_WIDTH_MASKING'])
         # force a trace width masking
         wlc_gen_params['TRACE_WIDTH_MASKING'] = 20
         wlc_gen_params.set_source('TRACE_WIDTH_MASKING', func_name)
-        # get the trace x and y scales
-        trace_x_scale = wlc_gen_params['TRACE_X_SCALE']
-        trace_y_scale = wlc_gen_params['TRACE_Y_SCALE']
         # get a range of dys and dxs to scan over for best trace position
         dys = np.arange(-nbypix // trace_y_scale, nbypix // trace_y_scale + 1)
-        dys += wlc_gen_params['Y_TRACE_OFFSET']
+        dys += y_trace_offset
         dxs = np.arange(-nbypix // trace_x_scale, nbypix // trace_x_scale + 1)
-        dxs += wlc_gen_params['X_TRACE_OFFSET']
+        dxs += x_trace_offset
         sums = np.zeros([len(dxs), len(dys)], dtype=float)
         # storage for best dx and dy
         best_dx = 0
@@ -2892,12 +2927,13 @@ class Instrument:
                        3. the y order 0 positions, 4. the x trace positions,
                        5. the y trace positions
         """
+        wlc_gen_params = self.params.get('WLC.GENERAL')
+        trace_width_masking = wlc_gen_params.rget('TRACE_WIDTH_MASKING',
+                             required=True)
         # set up the mask trace (all true to start)
         mask_trace_pos = np.ones_like(med, dtype=int)
-        # get the wlc general params
-        wlc_gen_params = self.params.get('WLC.GENERAL')
         # ---------------------------------------------------------------------
-        if wlc_gen_params['TRACE_WIDTH_MASKING'] != 0:
+        if trace_width_masking != 0:
             mask_trace_pos[~trace_mask] = 0
             # define a box for binary dilation
             box = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
@@ -2925,40 +2961,47 @@ class Instrument:
         :param include_pca: bool, include configured PCA output columns
         :return: None
         """
+        lm_params = self.params.get('WLC.LMODEL')
+        fit_dx = lm_params.rget('FIT_DX', required=True)
+        fit_dy = lm_params.rget('FIT_DY', required=True)
+        fit_rotation = lm_params.rget('FIT_ROTATION', required=True)
+        fit_zero_point_offset = lm_params.rget('FIT_ZERO_POINT_OFFSET',
+                               required=True)
+        fit_ddy = lm_params.rget('FIT_DDY', required=True)
+        fit_pca = lm_params.rget('FIT_PCA', required=True)
         # Start with the amplitude term, which is always fitted.
         output_names: List[str] = ['amplitude']
         output_units: List[str] = ['flux']
         output_factor: List[float] = [1.0]
-        # Read the switches that control the remaining fitted terms.
-        lm_params = self.params.get('WLC.LMODEL')
         # Add horizontal trace motion metadata when that term is enabled.
-        if lm_params['FIT_DX']:
+        if fit_dx:
             output_names.append('dx')
             output_units.append('mpix')
             output_factor.append(1e3)
         # Add vertical trace motion metadata when that term is enabled.
-        if lm_params['FIT_DY']:
+        if fit_dy:
             output_names.append('dy')
             output_units.append('mpix')
             output_factor.append(1e3)
         # Add trace rotation metadata when that term is enabled.
-        if lm_params['FIT_ROTATION']:
+        if fit_rotation:
             output_names.append('theta')
             output_units.append('mpix')
             output_factor.append(129600 / (2 * np.pi))
         # Add the constant zero-point metadata when that term is enabled.
-        if lm_params['FIT_ZERO_POINT_OFFSET']:
+        if fit_zero_point_offset:
             output_names.append('zeropoint')
             output_units.append('flux')
             output_factor.append(1.0)
         # Add second-derivative metadata when that term is enabled.
-        if lm_params['FIT_DDY']:
+        if fit_ddy:
             output_names.append('ddy')
             output_units.append('mpix$^2$')
             output_factor.append(1e6)
         # Add one metadata entry for every configured PCA component.
-        if lm_params['FIT_PCA'] and include_pca:
-            for icomp in range(lm_params['FIT_N_PCA']):
+        if fit_pca and include_pca:
+            n_comp = lm_params.rget('FIT_N_PCA', required=True)
+            for icomp in range(n_comp):
                 output_names.append(f'PCA{icomp + 1}')
                 output_units.append('ppm')
                 output_factor.append(1.0)
@@ -3001,34 +3044,40 @@ class Instrument:
                  (M x N) where N is the dx.ravel() and M is the options which
                  are switched on
         """
+        lm_params = self.params.get('WLC.LMODEL')
+        fit_dx = lm_params.rget('FIT_DX', required=True)
+        fit_dy = lm_params.rget('FIT_DY', required=True)
+        fit_rotation = lm_params.rget('FIT_ROTATION', required=True)
+        fit_zero_point_offset = lm_params.rget('FIT_ZERO_POINT_OFFSET',
+                               required=True)
+        fit_ddy = lm_params.rget('FIT_DDY', required=True)
+        fit_pca = lm_params.rget('FIT_PCA', required=True)
         # vector is the median ravelled
         vector = [med.ravel()]
-        # get the linear model params
-        lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
         # deal with fit dx
-        if lm_params['FIT_DX']:
+        if fit_dx:
             vector.append(dx.ravel())
         # ---------------------------------------------------------------------
         # deal with fix dy
-        if lm_params['FIT_DY']:
+        if fit_dy:
             vector.append(dy.ravel())
         # ---------------------------------------------------------------------
         # deal with fit rotation
-        if lm_params['FIT_ROTATION']:
+        if fit_rotation:
             vector.append(rotxy.ravel())
         # ---------------------------------------------------------------------
         # deal with zero point offset fit
-        if lm_params['FIT_ZERO_POINT_OFFSET']:
+        if fit_zero_point_offset:
             vector.append(np.ones_like(dx.ravel()))
         # ---------------------------------------------------------------------
         # deal with fit second derivative
-        if lm_params['FIT_DDY']:
+        if fit_ddy:
             vector.append(ddy.ravel())
         # ---------------------------------------------------------------------
         # deal with fit pca
-        if lm_params['FIT_PCA'] and pca is not None:
-            n_comp = lm_params['FIT_N_PCA']
+        if fit_pca and pca is not None:
+            n_comp = lm_params.rget('FIT_N_PCA', required=True)
             for icomp in range(n_comp):
                 vector.append(pca[icomp].ravel())
         # ---------------------------------------------------------------------
@@ -3077,10 +3126,11 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.apply_amp_recon()'
+        zpoint = self.params.rget('WLC.LMODEL.FIT_ZERO_POINT_OFFSET',
+                      required=True, func=func_name)
         # get parameters
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         output_names = self.get_variable('OUTPUT_NAMES', func_name)
-        zpoint = self.params['WLC.LMODEL.FIT_ZERO_POINT_OFFSET']
         # vectors to keep track of the rotation/amplitudes/dx/dy
         all_recon = np.zeros_like(cube)
         # starting point of the residual cube is the cube 
@@ -3260,7 +3310,8 @@ class Instrument:
             return cube
         # ---------------------------------------------------------------------
         # get the polynomial degree for the transit baseline
-        poly_order = self.params['WLC.GENERAL.TRANSIT_BASELINE_POLYORD']
+        poly_order = self.params.rget('WLC.GENERAL.TRANSIT_BASELINE_POLYORD',
+                          required=True, func=func_name)
         # ---------------------------------------------------------------------
         # print progress
         msg = 'Correcting the per pixel baseline'
@@ -3546,12 +3597,12 @@ class Instrument:
                    trace_order: int) -> np.ndarray:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_sed()'
+        trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
+                           required=True, func=func_name)
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', residual.shape[2], func_name)
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
         self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
-        # get the trace width extraction
-        trace_width = self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH']
         # ---------------------------------------------------------------------
         # construct the sed
         sp_sed = np.zeros(med.shape[1])
@@ -3617,13 +3668,13 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.ratio_residual_to_trace()'
+        trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
+                           required=True, func=func_name)
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
-        # get the trace width extraction
-        trace_width = self.params['WLC.GENERAL.LINRECON_TRACE_WIDTH']
         # ---------------------------------------------------------------------
         # print progress
         misc.printc('Finding the ratio of residuals to the trace', '')
@@ -3722,12 +3773,12 @@ class Instrument:
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_trend_spec()'
+        polydeg = self.params.rget('WLC.GENERAL.TRACE_BASELINE_POLYORD',
+                       required=True, func=func_name)
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
         nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        # get the polynomial degree for trace baseline
-        polydeg = self.params['WLC.GENERAL.TRACE_BASELINE_POLYORD']
         # get the out-of-transit domain
         self.get_baseline_params()
         baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
@@ -3788,8 +3839,10 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_results()'
+        save_results = self.params.rget('GENERAL.SAVE_RESULTS', required=True,
+                        func=func_name)
         # deal with not saving results --> return
-        if not self.params['GENERAL.SAVE_RESULTS']:
+        if not save_results:
             # print message saving results are not saved 
             msg = 'Results not saved as SAVE_RESUILTS is False'
             misc.printc(msg, 'info')
@@ -3975,11 +4028,11 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_final_outputs()'
+        output_dir = self.params.rget('PATHS.OUT_PATH', required=True,
+                          func=func_name)
         # print progress
         msg = 'Saving final outputs'
         misc.printc(msg, 'info')
-        # get output directory
-        output_dir = self.params['PATHS.OUT_PATH']
         # check output directory
         if not os.path.exists(output_dir):
             msg = f'Output directory {output_dir} does not exist'

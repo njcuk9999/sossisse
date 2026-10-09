@@ -228,6 +228,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
 
     def load_cube(self, n_slices: int, image_shape: List[int],
                   flag_cds: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
         cube = np.zeros([n_slices, image_shape[0], image_shape[1]])
@@ -238,7 +239,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         # ---------------------------------------------------------------------
         # loop around files and push them into the cube/err/dq
         # ---------------------------------------------------------------------
-        for ifile, filename in enumerate(self.params['GENERAL.FILES']):
+        for ifile, filename in enumerate(input_files):
             # load the data
             with fits.open(filename) as hdul:
                 # get data from CDS format

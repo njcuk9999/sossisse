@@ -169,16 +169,23 @@ def get_parameters(no_yaml: bool = False,
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
     lm_params = params.get('WLC.LMODEL')
+    fit_zero_point_offset = lm_params.rget('FIT_ZERO_POINT_OFFSET',
+                                           required=True, func=func_name)
     # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
-    if lm_params['FIT_ZERO_POINT_OFFSET'] and lm_params['FIT_QUAD_TERM']:
-        emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
-        raise exceptions.SossisseConstantException(emsg)
+    if fit_zero_point_offset:
+        fit_quad_term = lm_params.rget('FIT_QUAD_TERM', required=True,
+                                       func=func_name)
+        if fit_quad_term:
+            emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
+            raise exceptions.SossisseConstantException(emsg)
     # -------------------------------------------------------------------------
     # force global log level to match
     if log_level is not None:
         misc.LOC_LEVEL = str(log_level).upper()
     else:
-        misc.LOG_LEVEL = str(params['INPUTS.LOG_LEVEL']).upper()
+        input_log_level = params.rget('INPUTS.LOG_LEVEL', required=True,
+                                      func=func_name)
+        misc.LOG_LEVEL = str(input_log_level).upper()
     # -------------------------------------------------------------------------
     # finally add the param file to the params
     params['INPUTS.PARAM_FILE'] = os.path.abspath(param_file)
@@ -196,11 +203,12 @@ def get_parameters(no_yaml: bool = False,
                                      demosymlink=demosymlink)
     # -------------------------------------------------------------------------
     # copy pos file to TEMP path
-    if params['GENERAL.POS_FILE'] is not None:
-        posfile = params['GENERAL.POS_FILE']
+    posfile = params['GENERAL.POS_FILE']
+    if posfile is not None:
+        temp_path = params.rget('PATHS.TEMP_PATH', required=True,
+                                func=func_name)
         posfile_basename = os.path.basename(posfile)
-        posfile_out = str(os.path.join(params['PATHS.TEMP_PATH'],
-                                       posfile_basename))
+        posfile_out = str(os.path.join(temp_path, posfile_basename))
         # only copy pos file if it, exists (otherwise we just update the
         # filename - this is fine as we can create this file sometimes)
         if os.path.exists(posfile):
@@ -219,6 +227,8 @@ def get_parameters(no_yaml: bool = False,
     #  we only do this if we are running data (i.e. only_create is False)
     # -------------------------------------------------------------------------
     if not only_create:
+        other_path = params.rget('PATHS.OTHER_PATH', required=True,
+                                 func=func_name)
         # we use the tmp file path to create the backup name
         param_bname = os.path.basename(tmp_path)
         # remove the yaml ending if it exists
@@ -230,7 +240,7 @@ def get_parameters(no_yaml: bool = False,
         param_oname = '{0}_{1}_asrun.yaml'
         pbargs = [params['__SOURCE__'], param_bname]
         param_oname = param_oname.format(*pbargs)
-        param_file_csv = os.path.join(params['PATHS.OTHER_PATH'], param_oname)
+        param_file_csv = os.path.join(other_path, param_oname)
         # copy file
         io.copy_file(param_file, str(param_file_csv))
     # -------------------------------------------------------------------------
@@ -272,22 +282,28 @@ def run_time_params(params: ParamDict, only_create: bool = False
     inputs = params.get('INPUTS')
     general = params.get('GENERAL')
     paths = params.get('PATHS')
+    instrument_mode = None
+    show_plot = params.rget('PLOTS.SHOW', required=True, func=func_name)
+    sossisse_path = inputs.rget('SOSSIOPATH', required=True, func=func_name)
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
-    if not params['PLOTS.SHOW']:
+    if not show_plot:
+        user_show = params.rget('PLOTS.USER_SHOW', required=True,
+                                func=func_name)
         username = misc.safe_getuser()
-        params['PLOTS.SHOW'] = username in params['PLOTS.USER_SHOW']
+        params['PLOTS.SHOW'] = username in user_show
         params.set_source('PLOTS.SHOW', func_name)
     # -------------------------------------------------------------------------
     # set up core paths
     # -------------------------------------------------------------------------
     # lets create the sossiopath directory if it doesn't exist
-    io.create_directory(inputs['SOSSIOPATH'])
+    io.create_directory(sossisse_path)
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
     if params['__SOURCE__'] == 'SOSSISSE':
         if paths['YAMLPATH'] is None:
-            paths['YAMLPATH'] = os.path.join(paths['MODEPATH'], 'yamls')
+            mode_path = paths.rget('MODEPATH', required=True, func=func_name)
+            paths['YAMLPATH'] = os.path.join(mode_path, 'yamls')
             paths.set_source('YAMLPATH', func_name)
         io.create_directory(paths['YAMLPATH'])
     # -------------------------------------------------------------------------
@@ -295,10 +311,11 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # get the sossisse unique id (sid) for this run
     if inputs['SUBDIRECTORY'] is None:
+        instrument_mode = inputs.rget('INSTRUMENTMODE', required=True,
+                                      func=func_name)
+        object_name = inputs.rget('OBJECTNAME', required=True, func=func_name)
         sid = misc.sossice_unique_id(inputs['PARAM_FILE'])
-        imode = inputs['INSTRUMENTMODE']
-        oname = inputs['OBJECTNAME']
-        inputs['SUBDIRECTORY'] = f'{imode}_{oname}_{sid}'
+        inputs['SUBDIRECTORY'] = f'{instrument_mode}_{object_name}_{sid}'
         inputs.set_source('SUBDIRECTORY', func_name)
     # -------------------------------------------------------------------------
     # set up other paths
@@ -306,7 +323,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # the object path is where we store all the object data
     #   note we add the sid to the path for multiple reductions
     if paths['SUBDIRECTORY_PATH'] is None:
-        paths['SUBDIRECTORY_PATH'] = os.path.join(inputs['SOSSIOPATH'],
+        paths['SUBDIRECTORY_PATH'] = os.path.join(sossisse_path,
                                                   inputs['SUBDIRECTORY'])
         paths.set_source('SUBDIRECTORY_PATH', func_name)
     io.create_directory(paths['SUBDIRECTORY_PATH'])
@@ -376,7 +393,9 @@ def run_time_params(params: ParamDict, only_create: bool = False
             # push into params
             general['FILES'][b_it] = abspath
         # All files now exist and have absolute paths; validate their headers.
-        input_validation.check_input_data_headers(inputs['INSTRUMENTMODE'],
+        if instrument_mode is None:
+            instrument_mode = inputs['INSTRUMENTMODE']
+        input_validation.check_input_data_headers(instrument_mode,
                                                   general['FILES'])
         # deal with creating a common file prefix
         general['PREFIX'] = load_functions.common_prefix(general['FILES'])
@@ -443,13 +462,13 @@ def create_yaml(params: ParamDict, log: bool = True,
     if outpath is None:
         if params['__SOURCE__'] == 'POGOS':
             if force:
-                outpath = os.path.join(params['PATHS.OTHER_PATH'],
-                                       'params_backup_sossisse.yaml')
+                backup_name = 'params_backup_sossisse.yaml'
             else:
                 return ''
         else:
-            outpath = os.path.join(params['PATHS.OTHER_PATH'],
-                                   'params_backup.yaml')
+            backup_name = 'params_backup.yaml'
+        other_path = params.rget('PATHS.OTHER_PATH', required=True)
+        outpath = os.path.join(other_path, backup_name)
     # -------------------------------------------------------------------------
     # print progress
     if log:

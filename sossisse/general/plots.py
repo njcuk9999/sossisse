@@ -182,23 +182,29 @@ def save_show_plot(inst: Any, outname: str, title: str = '',
     :return:
     """
     params = inst.params
+    figure_types = params.rget('PLOTS.FIGURE_TYPES', required=True,
+                               func=func_name)
+    show_plot = params.rget('PLOTS.SHOW', required=True, func=func_name)
     # add the active jump suffix so chunked runs don't overwrite each other
     outname = inst.add_jump_suffix(outname)
     # save to yaml file (for html writing)
     plot_file(params, outname, title, description, func_name)
+    if figure_types:
+        plot_directory = params.rget('PATHS.PLOT_PATH', required=True,
+                                     func=func_name)
     # loop around figure types
-    for figtype in params['PLOTS.FIGURE_TYPES']:
+    for figtype in figure_types:
         # construct the basename with extension
         basename = f'{outname}.{figtype}'
         # contstruct the full path
-        abspath = os.path.join(params['PATHS.PLOT_PATH'], basename)
+        abspath = os.path.join(plot_directory, basename)
         # say that we are plotting graph
         msg = f'Plotting graph: {basename}'
         misc.printc(msg, msg_type='info')
         # save the figure
         plt.savefig(abspath)
     # if we want to show the plot do it now
-    if params['PLOTS.SHOW']:
+    if show_plot:
         # deal with description
         if len(description) > 0:
             misc.printc(f'PLOT: {title}', 'plot')
@@ -291,15 +297,17 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
     """
     # set function name
     func_name = f'{__NAME__}.gradient_plot()'
+    vlims = inst.params.rget('WLC.PLOT.GRADIENT_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.GRADIENT_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.GRADIENT_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = 'Gradients of median trace image'
     description = ('Gradients of the median trace image used to model '
                    'the white light curve flux variations.')
-    # get the image normalization
-    vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
-    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.GRADIENT_INTERVAL']
-    stretch = inst.params['WLC.PLOT.GRADIENT_STRETCH']
     # set up figure
     fig, frames = plt.subplots(nrows=5, ncols=1, sharex='all', sharey='all',
                                figsize=[12, 12])
@@ -362,6 +370,13 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
 def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_scorr()'
+    vlims = inst.params.rget('WLC.PLOT.GRADIENT_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.GRADIENT_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.GRADIENT_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = '1/f noise correction values'
     description = ('1/f noise correction values used to correct the data. '
@@ -382,11 +397,6 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     mean_scorr = np.nanmean(scorr, axis=0)
     mean_scorr_collapse = np.nanmean(mean_scorr, axis=0)
 
-    # get the image normalization
-    vlims = inst.params['WLC.PLOT.GRADIENT_VLIM']
-    vtype = inst.params['WLC.PLOT.GRADIENT_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.GRADIENT_INTERVAL']
-    stretch = inst.params['WLC.PLOT.GRADIENT_STRETCH']
     # get normaliz
     ntexts = dict()
     norm1, ntext1 = plot_normalization(scorr[0], interval=interval,
@@ -452,6 +462,13 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
 def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_comp()'
+    vlims = inst.params.rget('WLC.PLOT.SUB1F_COMP_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.SUB1F_COMP_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.SUB1F_COMP_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.SUB1F_COMP_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = '1/f noise correction example'
     description = ('Example of the 1/f noise correction on integration 0. '
@@ -459,11 +476,6 @@ def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
                    'correction.')
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
-    # get the image normalization parameters
-    vlims = inst.params['WLC.PLOT.SUB1F_COMP_VLIM']
-    vtype = inst.params['WLC.PLOT.SUB1F_COMP_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.SUB1F_COMP_INTERVAL']
-    stretch = inst.params['WLC.PLOT.SUB1F_COMP_STRETCH']
     # choose the frame to plot
     iframe = 0
     # use same normalization for both plots
@@ -823,10 +835,12 @@ def plot_background(inst, frame0_before, frame0_after):
     inst.params['WLC.PLOT.BACKGROUND_INTERVAL'] = 'zscale'
 
     # get the image normalization
-    vlims = inst.params['WLC.PLOT.BACKGROUND_VLIM']
+    vlims = inst.params.rget('WLC.PLOT.BACKGROUND_VLIM', required=True, func=func_name)
     vtype = inst.params['WLC.PLOT.BACKGROUND_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.BACKGROUND_INTERVAL']
-    stretch = inst.params['WLC.PLOT.BACKGROUND_STRETCH']
+    interval = inst.params.rget('WLC.PLOT.BACKGROUND_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.BACKGROUND_STRETCH', required=True,
+                               func=func_name)
     norm1, ntext1 = plot_normalization(frame0_before, interval=interval,
                                        stretch=stretch, vlims=vlims, vtype=vtype)
     norm2, ntext2 = plot_normalization(frame0_after, interval=interval,
@@ -867,6 +881,13 @@ def plot_background(inst, frame0_before, frame0_after):
 def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
     # set function name
     func_name = f'{__NAME__}.plot_lowpass()'
+    vlims = inst.params.rget('WLC.PLOT.LOWPASS_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.LOWPASS_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.LOWPASS_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.LOWPASS_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = 'Low pass filter correction'
     description = ('Example of the low pass filter correction on integration 0. '
@@ -874,11 +895,6 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
                    'after low pass correction, bottom panel is the average '
                    'low pass filter corrections applied to all integrations.')
     # -------------------------------------------------------------------------
-    # get the image normalization
-    vlims = inst.params['WLC.PLOT.LOWPASS_VLIM']
-    vtype = inst.params['WLC.PLOT.LOWPASS_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.LOWPASS_INTERVAL']
-    stretch = inst.params['WLC.PLOT.LOWPASS_STRETCH']
     norm, ntext = plot_normalization(frame0_before, interval=interval, 
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -918,17 +934,19 @@ def plot_lowpass(inst, frame0_before, frame0_after, sum_cube_tile):
 def plot_flat_field(inst, frame0_before, frame0_after):
     # set function name
     func_name = f'{__NAME__}.plot_flat_field()'
+    vlims = inst.params.rget('WLC.PLOT.FLAT_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.FLAT_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.FLAT_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.FLAT_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = 'Flat field correction'
     description = ('Example of the flat field correction on integration 0. '
                    'Top panel is before flat field correction, bottom panel is '
                    'after flat field correction.')
     # -------------------------------------------------------------------------
-    # get the image normalization
-    vlims = inst.params['WLC.PLOT.FLAT_VLIM']
-    vtype = inst.params['WLC.PLOT.FLAT_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.FLAT_INTERVAL']
-    stretch = inst.params['WLC.PLOT.FLAT_STRETCH']
     norm, ntext = plot_normalization(frame0_before, interval=interval, 
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -971,6 +989,13 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
     """
     # set function name
     func_name = f'{__NAME__}.plot_heatmap()'
+    vlims = inst.params.rget('WLC.PLOT.FRAME_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['WLC.PLOT.FRAME_VLIM_TYPE']
+    interval = inst.params.rget('WLC.PLOT.FRAME_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('WLC.PLOT.FRAME_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     description = (f'Top panel is the heat map of {title}. '
                    f'Middle panel is a comparison frame before '
@@ -979,11 +1004,6 @@ def plot_heatmap(inst: Any, heat_map: np.ndarray, iframe_before: np.ndarray,
     # set up figure
     fig, frames = plt.subplots(ncols=1, nrows=3, figsize=(12, 12))
     # -------------------------------------------------------------------------
-    # get the image normalization
-    vlims = inst.params['WLC.PLOT.FRAME_VLIM']
-    vtype = inst.params['WLC.PLOT.FRAME_VLIM_TYPE']
-    interval = inst.params['WLC.PLOT.FRAME_INTERVAL']
-    stretch = inst.params['WLC.PLOT.FRAME_STRETCH']
     norm, ntext = plot_normalization(iframe_before, interval=interval,
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -1284,6 +1304,13 @@ def plot_stability(inst: Any, table: Table):
 def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # set function name
     func_name = f'{__NAME__}.plot_spectral_timeseries()'
+    vlims = inst.params.rget('SPEC_PLOT.FRAME_VLIM', required=True,
+                             func=func_name)
+    vtype = inst.params['SPEC_PLOT.FRAME_VLIM_TYPE']
+    interval = inst.params.rget('SPEC_PLOT.FRAME_INTERVAL', required=True,
+                                func=func_name)
+    stretch = inst.params.rget('SPEC_PLOT.FRAME_STRETCH', required=True,
+                               func=func_name)
     # set title and description
     title = 'Spectral time series'
 
@@ -1295,12 +1322,6 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
         description = (f'Spectral time series for trace order {trace_order}. '
                        'Each row is a different integration, each column is a '
                        'different pixel in the spectral direction.')
-    # get the image normalization
-    vlims = inst.params['SPEC_PLOT.FRAME_VLIM']
-    vtype = inst.params['SPEC_PLOT.FRAME_VLIM_TYPE']
-    interval = inst.params['SPEC_PLOT.FRAME_INTERVAL']
-    stretch = inst.params['SPEC_PLOT.FRAME_STRETCH']
-
     norm, ntext = plot_normalization(spec2, interval=interval,
                                      stretch=stretch, vlims=vlims, vtype=vtype)
     # -------------------------------------------------------------------------
@@ -1380,6 +1401,9 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
 def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     # set function name
     func_name = f'{__NAME__}.plot_full_sed()'
+    objname = inst.params.rget('INPUTS.OBJECTNAME', required=True,
+                               func=func_name)
+    suffix = inst.params['INPUTS.SUFFIX']
     # set title and description
     title = 'Full Spectral energy distribution'
     description = ('Full spectral energy distribution for all trace orders. '
@@ -1388,9 +1412,6 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     # -------------------------------------------------------------------------
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
-    # get object name and suffix
-    objname = inst.params['INPUTS.OBJECTNAME']
-    suffix = inst.params['INPUTS.SUFFIX']
     # loop around tarce orders
     for trace_order in plot_storage.keys():
         # get this trace orders parameters

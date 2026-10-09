@@ -34,6 +34,7 @@ def main(**kwargs) -> Union[Instrument, None]:
     # deal with command line parameters - do not comment out this line
     # ----------------------------------------------------------------------
     inst = sossisse.get_parameters(__NAME__=__NAME__, **kwargs)
+    run_linear_recon = inst.params.rget('RUN.LINEAR_RECON', required=True)
 
     # print instrument + mode
     misc.modeart(inst.name)
@@ -41,13 +42,15 @@ def main(**kwargs) -> Union[Instrument, None]:
     # ----------------------------------------------------------------------
     # white light curve
     # ----------------------------------------------------------------------
-    if inst.params['RUN.LINEAR_RECON']:
+    if run_linear_recon:
         inst = sossisse.linear_recon(inst)
 
     # ----------------------------------------------------------------------
     # spectral extraction
     # ----------------------------------------------------------------------
-    if inst.params['RUN.SPECTRAL_EXTRACTION']:
+    run_spectral_extraction = inst.params.rget('RUN.SPECTRAL_EXTRACTION',
+                                             required=True)
+    if run_spectral_extraction:
         inst = sossisse.spectral_extraction(inst)
 
     # -------------------------------------------------------------------------

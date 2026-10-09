@@ -32,13 +32,16 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------
     # white light curve
     # ----------------------------------------------------------------------
-    if inst.params['RUN.LINEAR_RECON']:
+    run_linear_recon = inst.params.rget('RUN.LINEAR_RECON', required=True)
+    if run_linear_recon:
         sossisse.white_light_curve(inst)
 
     # ----------------------------------------------------------------------
     # spectral extraction
     # ----------------------------------------------------------------------
-    if inst.params['RUN.SPECTRAL_EXTRACTION']:
+    run_spectral_extraction = inst.params.rget('RUN.SPECTRAL_EXTRACTION',
+                                             required=True)
+    if run_spectral_extraction:
         sossisse.spectral_extraction(inst)
 
 

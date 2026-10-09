@@ -668,7 +668,8 @@ def plots_to_html(params: ParamDict, plot_path: str):
     :return:
     """
     # get plot file
-    plotfile = os.path.join(params[plot_path], 'plots.yaml')
+    plot_directory = params.rget(plot_path, required=True)
+    plotfile = os.path.join(plot_directory, 'plots.yaml')
     # read yaml file
     plotdict = aperobase.load_yaml(plotfile)
     # define the html string
@@ -681,7 +682,7 @@ def plots_to_html(params: ParamDict, plot_path: str):
     # loop around all png files
     for png_file in plotdict:
         # get the filename
-        abspath =os.path.join(params[plot_path], f'{png_file}.png')
+        abspath = os.path.join(plot_directory, f'{png_file}.png')
         # skip files that don't exist
         if not os.path.exists(abspath):
             continue
@@ -720,7 +721,7 @@ def files_to_html(params: ParamDict, file_path: str):
     :return:
     """
     # get sid path
-    filepath = params[file_path]
+    filepath = params.rget(file_path, required=True)
     # get all files in SUBDIRECTORY path
     files = []
     # walk through the directory
@@ -780,6 +781,7 @@ def summary_html(params: ParamDict, module: str, plot_path: str,
 
     :return:
     """
+    plot_directory = params.rget(plot_path, required=True)
     # read the html template
     with open(HTML_TEMPLATE_FILE, 'r') as template_file:
         template = Template(template_file.read())
@@ -803,7 +805,7 @@ def summary_html(params: ParamDict, module: str, plot_path: str,
     # Substitute variables in the template
     rendered_html = template.safe_substitute(data)
     # construct filename for html file
-    html_file = os.path.join(params[plot_path], 'index.html')
+    html_file = os.path.join(plot_directory, 'index.html')
     # write the html file
     with open(html_file, 'w') as html_file:
         html_file.write(rendered_html)

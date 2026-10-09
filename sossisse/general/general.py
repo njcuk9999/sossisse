@@ -37,10 +37,10 @@ __authors__ = base.__authors__
 def linear_recon_init(inst):
     # set the function name
     func_name = f'{__NAME__}.linear_recon'
+    objname = inst.params.rget('INPUTS.OBJECTNAME', required=True,
+                               func=func_name)
     # print the splash
     misc.sossart()
-    # get parameters from instrumental parameters
-    objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
     print(misc.art('Linear Recon ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------
@@ -50,13 +50,16 @@ def linear_recon_init(inst):
     # get the stabiblity table file name
     wlc_ltbl_file = inst.get_variable('WLC_LTBL_FILE', func_name)
     # return if we have the soss_stablity file
-    if os.path.exists(wlc_ltbl_file) and inst.params['GENERAL.USE_TEMPORARY']:
-        msg = 'File {0} exists we skip linear reconstruction step'
-        misc.printc(msg.format(wlc_ltbl_file), 'info')
-        # A fresh instrument does not have the fitted-column metadata in memory.
-        # Restore it from the current model configuration before merging/plotting.
-        inst.set_linear_output_metadata()
-        return True
+    if os.path.exists(wlc_ltbl_file):
+        use_temporary = inst.params.rget('GENERAL.USE_TEMPORARY',
+                                         required=True, func=func_name)
+        if use_temporary:
+            msg = 'File {0} exists we skip linear reconstruction step'
+            misc.printc(msg.format(wlc_ltbl_file), 'info')
+            # A fresh instrument does not have the fitted-column metadata in memory.
+            # Restore it from the current model configuration before merging/plotting.
+            inst.set_linear_output_metadata()
+            return True
     # if we've got here return false
     return False
 
@@ -465,13 +468,12 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     :param inst: Instrument, the instrument object
     :return: dict, spectral extraction storage
     """
+    objname = inst.params.rget('INPUTS.OBJECTNAME', required=True)
     # print the splash
     misc.sossart()
     # =========================================================================
     # Spectral extraction setup
     # =========================================================================
-    # get parameters from instrumental parameters
-    objname = inst.params['INPUTS.OBJECTNAME']
     # print the white light curve splash
     print(misc.art('Spectral timeseries ' + objname, 'blue', 'CYAN'))
     # -------------------------------------------------------------------------

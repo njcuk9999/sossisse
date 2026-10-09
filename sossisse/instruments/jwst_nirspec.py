@@ -90,14 +90,15 @@ class JWST_NIRSPEC(default.Instrument):
         wlc_gen_params = self.params.get('WLC.GENERAL')
         # deal with no trace pos file for prism
         if not os.path.exists(gen_params['POS_FILE']):
+            xoffset = wlc_gen_params.rget('X_TRACE_OFFSET', required=True,
+                                         func=func_name)
+            yoffset = wlc_gen_params.rget('Y_TRACE_OFFSET', required=True,
+                                         func=func_name)
             # log that we don't have a POS_FILE and are creating one
             if log:
                 msg = 'No POS_FILE defined for mode={0} - creating trace map'
                 margs = [self.name]
                 misc.printc(msg.format(*margs), msg_type='warning')
-            # get trace offset in x and y
-            xoffset = wlc_gen_params['X_TRACE_OFFSET']
-            yoffset = wlc_gen_params['Y_TRACE_OFFSET']
             # get the wave grid from the parameters
             xpix, wavegrid = self.get_wavegrid(return_xpix=True)
             # -----------------------------------------------------------------
