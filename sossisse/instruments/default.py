@@ -1381,8 +1381,9 @@ class Instrument:
                 err = self.load_data(temp_ini_err)
                 # return
                 return cube, err
-            do_background = self.params.rget('GENERAL.DO_BACKGROUND',
-                             required=True, func=func_name)
+        # get the do background parameter
+        do_background = self.params.rget('GENERAL.DO_BACKGROUND',
+                                         required=True, func=func_name)
         # force the cube to be floats (it should be)
         cube = cube.astype(float)
         # deal with not doing background correction
