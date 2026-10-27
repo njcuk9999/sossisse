@@ -1245,8 +1245,8 @@ class Instrument:
                 # return
                 return cube
         # ---------------------------------------------------------------------
-            sig_cut = self.params.rget('WLC.GENERAL.COSMIC_RAY_SIGMA',
-                           required=True, func=func_name)
+        sig_cut = self.params.rget('WLC.GENERAL.COSMIC_RAY_SIGMA',
+                                   required=True, func=func_name)
         # print progress
         msg = 'We remove cosmisc rays'
         misc.printc(msg, 'info')
@@ -1629,8 +1629,8 @@ class Instrument:
                 err = self.load_data(temp_clean_nan_err)
                 return cube, err
         # ---------------------------------------------------------------------
-            bad_pixel_stamp_size = wlc_params.rget('PATCH_IBADS_SSIZE',
-                                   required=True, func=func_name)
+        bad_pixel_stamp_size = wlc_params.rget('PATCH_IBADS_SSIZE',
+                               required=True, func=func_name)
         # print progress
         msg = ' Removing isolated NaNs'
         misc.printc(msg, 'info')
@@ -2033,14 +2033,14 @@ class Instrument:
         :return:
         """
         # set function name
-        func_name = f'{__NAME__}.get_wavegrid()'
+        func_name = f'{__NAME__}.get_trace_pos()'
         # get wlc generation parameters
         gen_params = self.params.get('GENERAL')
         wlc_gen_params = self.params.get('WLC.GENERAL')
         xoffset = wlc_gen_params.rget('X_TRACE_OFFSET', required=True,
-                          func=func_name)
+                                          func=func_name)
         yoffset = wlc_gen_params.rget('Y_TRACE_OFFSET', required=True,
-                          func=func_name)
+                                          func=func_name)
         trace_wid_mask = wlc_gen_params.rget('TRACE_WIDTH_MASKING',
                              required=True, func=func_name)
         # get x and y size from cube
@@ -2227,8 +2227,10 @@ class Instrument:
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
+                                      func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
         # get the number of frames
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         # ---------------------------------------------------------------------
@@ -2276,8 +2278,8 @@ class Instrument:
         has_baseline = self.get_variable('HAS_BASELINE', func_name)
         baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
         # get flag for median out of transit
-        med_baseline = self.params.rget('WLC.GENERAL.MEDIAN_BASELINE', required=True,
-                        func=func_name)
+        med_baseline = self.params.rget('WLC.GENERAL.MEDIAN_BASELINE',
+                                        required=True, func=func_name)
         # ---------------------------------------------------------------------
         # deal with creating median
         with warnings.catch_warnings(record=True) as _:
@@ -2328,8 +2330,10 @@ class Instrument:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
+                                      func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
         apply_1f_corr = self.params.rget('WLC.INPUTS.APPLY_1F_CORR',
                         required=True, func=func_name)
         # ---------------------------------------------------------------------
@@ -2523,8 +2527,8 @@ class Instrument:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # get the degree for the 1/f polynomial fit
-        degree_1f_corr = self.params.rget('WLC.GENERAL.DEGREE_1F_CORR', required=True,
-                                         func=func_name)
+        degree_1f_corr = self.params.rget('WLC.GENERAL.DEGREE_1F_CORR',
+                                          required=True, func=func_name)
         # print progress
         misc.printc('\tSubtracting 1/f noise', 'info')
         # get the number of frames
@@ -2610,8 +2614,10 @@ class Instrument:
                       func=func_name)
         # ---------------------------------------------------------------------
         # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
+        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
+                                      func=func_name)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
         # update meta data
         self.update_meta_data()
         # make sure we have a pca file
@@ -3128,7 +3134,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.apply_amp_recon()'
         zpoint = self.params.rget('WLC.LMODEL.FIT_ZERO_POINT_OFFSET',
-                      required=True, func=func_name)
+                                  required=True, func=func_name)
         # get parameters
         nframes = self.get_variable('DATA_N_FRAMES', func_name)
         output_names = self.get_variable('OUTPUT_NAMES', func_name)
@@ -3312,7 +3318,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get the polynomial degree for the transit baseline
         poly_order = self.params.rget('WLC.GENERAL.TRANSIT_BASELINE_POLYORD',
-                          required=True, func=func_name)
+                                      required=True, func=func_name)
         # ---------------------------------------------------------------------
         # print progress
         msg = 'Correcting the per pixel baseline'
@@ -3599,7 +3605,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_sed()'
         trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
-                           required=True, func=func_name)
+                                       required=True, func=func_name)
         # for future reference in the code, we keep track of data size
         self.set_variable('DATA_X_SIZE', residual.shape[2], func_name)
         self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
@@ -3670,7 +3676,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.ratio_residual_to_trace()'
         trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
-                           required=True, func=func_name)
+                                       required=True, func=func_name)
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
@@ -3775,7 +3781,7 @@ class Instrument:
         # set function name
         func_name = f'{__NAME__}.{self.name}.remove_trend_spec()'
         polydeg = self.params.rget('WLC.GENERAL.TRACE_BASELINE_POLYORD',
-                       required=True, func=func_name)
+                                   required=True, func=func_name)
         # get the number of frames
         nbframes = self.get_variable('DATA_N_FRAMES', func_name)
         # get the number of x and y pixels
@@ -3841,7 +3847,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_results()'
         save_results = self.params.rget('GENERAL.SAVE_RESULTS', required=True,
-                        func=func_name)
+                                        func=func_name)
         # deal with not saving results --> return
         if not save_results:
             # print message saving results are not saved 
@@ -4030,7 +4036,7 @@ class Instrument:
         # set the function name
         func_name = f'{__NAME__}.{self.name}.save_final_outputs()'
         output_dir = self.params.rget('PATHS.OUT_PATH', required=True,
-                          func=func_name)
+                                      func=func_name)
         # print progress
         msg = 'Saving final outputs'
         misc.printc(msg, 'info')
