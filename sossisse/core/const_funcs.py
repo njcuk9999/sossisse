@@ -39,6 +39,7 @@ DESCRIPTIONS['sossisse.recipes.run_setup'] = 'Setup up SOSSISSE directories/yaml
 INPUTARGS = dict()
 INPUTARGS['sossisse.recipes.run_setup'] = ['INPUTS.PARAM_FILE',
                                            'INPUTS.SOSSIOPATH',
+                                           'INPUTS.PROJECT_NAME',
                                            'INPUTS.OBJECTNAME',
                                            'INPUTS.INSTRUMENTMODE',
                                            'INPUTS.YAML_NAME',
@@ -47,7 +48,7 @@ INPUTARGS['sossisse.recipes.run_sossisse'] = ['INPUTS.PARAM_FILE']
 
 
 # list of constants to exlucde from hash
-EXCLUDED_HASH_KEYS = ['SUBDIRECTORY']
+EXCLUDED_HASH_KEYS = ['PROJECT_NAME']
 
 # =============================================================================
 # Define functions that use CDICT
@@ -249,7 +250,7 @@ def get_parameters(no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # create the yaml file in the directory for SOSSISSE
     else:
-        if params['__SOURCE__'] == 'SOSSISSE':
+        if no_yaml and params['__SOURCE__'] == 'SOSSISSE':
             outpath = str(os.path.join(params['PATHS.YAMLPATH'],
                                        os.path.basename(tmp_path)))
             _ = create_yaml(params, log=False, outpath=outpath)
@@ -285,6 +286,12 @@ def run_time_params(params: ParamDict, only_create: bool = False
     instrument_mode = None
     show_plot = params.rget('PLOTS.SHOW', required=True, func=func_name)
     sossisse_path = inputs.rget('SOSSIOPATH', required=True, func=func_name)
+    project_name = inputs.rget('PROJECT_NAME', required=True, func=func_name)
+    if (not isinstance(project_name, str) or not project_name.strip()
+            or project_name in ('.', '..')
+            or os.path.basename(project_name) != project_name):
+        raise exceptions.SossisseConstantException(
+            'INPUTS.PROJECT_NAME must be a non-empty directory name')
     # -------------------------------------------------------------------------
     # we show or don't show the plots based on the user
     if not show_plot:
@@ -298,45 +305,28 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # -------------------------------------------------------------------------
     # lets create the sossiopath directory if it doesn't exist
     io.create_directory(sossisse_path)
+    if paths['RUN_PATH'] is None:
+        paths['RUN_PATH'] = os.path.abspath(os.path.join(
+            sossisse_path, 'projects', project_name, 'sossisse'))
+        paths.set_source('RUN_PATH', func_name)
+    io.create_directory(paths['RUN_PATH'])
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
     if params['__SOURCE__'] == 'SOSSISSE':
         if paths['YAMLPATH'] is None:
-            mode_path = paths.rget('MODEPATH', required=True, func=func_name)
-            paths['YAMLPATH'] = os.path.join(mode_path, 'yamls')
+            paths['YAMLPATH'] = os.path.join(paths['RUN_PATH'], 'yamls')
             paths.set_source('YAMLPATH', func_name)
         io.create_directory(paths['YAMLPATH'])
     # -------------------------------------------------------------------------
-    # deal with the SUBDIRECTORY
-    # -------------------------------------------------------------------------
-    # get the sossisse unique id (sid) for this run
-    if inputs['SUBDIRECTORY'] is None:
-        instrument_mode = inputs.rget('INSTRUMENTMODE', required=True,
-                                      func=func_name)
-        object_name = inputs.rget('OBJECTNAME', required=True, func=func_name)
-        sid = misc.sossice_unique_id(inputs['PARAM_FILE'])
-        inputs['SUBDIRECTORY'] = f'{instrument_mode}_{object_name}_{sid}'
-        inputs.set_source('SUBDIRECTORY', func_name)
-    # -------------------------------------------------------------------------
-    # set up other paths
-    # -------------------------------------------------------------------------
-    # the object path is where we store all the object data
-    #   note we add the sid to the path for multiple reductions
-    if paths['SUBDIRECTORY_PATH'] is None:
-        paths['SUBDIRECTORY_PATH'] = os.path.join(sossisse_path,
-                                                  inputs['SUBDIRECTORY'])
-        paths.set_source('SUBDIRECTORY_PATH', func_name)
-    io.create_directory(paths['SUBDIRECTORY_PATH'])
-    # -------------------------------------------------------------------------
     # the raw path is where we store all the raw data
     if paths['RAWPATH'] is None:
-        paths['RAWPATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'inputs')
+        paths['RAWPATH'] = os.path.join(paths['RUN_PATH'], 'inputs')
         paths.set_source('RAWPATH', func_name)
     io.create_directory(paths['RAWPATH'])
     # -------------------------------------------------------------------------
     # the calibration path is where we store all calibration files
     if paths['CALIBPATH'] is None:
-        paths['CALIBPATH'] = os.path.join(paths['SUBDIRECTORY_PATH'],
+        paths['CALIBPATH'] = os.path.join(paths['RUN_PATH'],
                                           'calibration')
         paths.set_source('CALIBPATH', func_name)
     io.create_directory(paths['CALIBPATH'])
@@ -344,26 +334,26 @@ def run_time_params(params: ParamDict, only_create: bool = False
     # the temp path is where we store temporary versions of the raw data
     #   that have been opened and modified
     if paths['TEMP_PATH'] is None:
-        paths['TEMP_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'],
+        paths['TEMP_PATH'] = os.path.join(paths['RUN_PATH'],
                                           'temporary')
         paths.set_source('TEMP_PATH', func_name)
     io.create_directory(paths['TEMP_PATH'])
     # -------------------------------------------------------------------------
     # the plot path
     if paths['PLOT_PATH'] is None:
-        paths['PLOT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'plots')
+        paths['PLOT_PATH'] = os.path.join(paths['RUN_PATH'], 'plots')
         paths.set_source('PLOT_PATH', func_name)
     io.create_directory(paths['PLOT_PATH'])
     # -------------------------------------------------------------------------
     # the csv path
     if paths['OTHER_PATH'] is None:
-        paths['OTHER_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'other')
+        paths['OTHER_PATH'] = os.path.join(paths['RUN_PATH'], 'other')
         paths.set_source('OTHER_PATH', func_name)
     io.create_directory(paths['OTHER_PATH'])
     # -------------------------------------------------------------------------
     # the out paths
     if paths['OUT_PATH'] is None:
-        paths['OUT_PATH'] = os.path.join(paths['SUBDIRECTORY_PATH'], 'outputs')
+        paths['OUT_PATH'] = os.path.join(paths['RUN_PATH'], 'outputs')
         paths.set_source('OUT_PATH', func_name)
     io.create_directory(paths['OUT_PATH'])
     # -------------------------------------------------------------------------

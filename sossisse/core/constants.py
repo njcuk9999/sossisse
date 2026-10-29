@@ -85,17 +85,14 @@ CDict.add_group(cgroup, description='Definition of inputs related to the data',
 CDict.add('SOSSIOPATH', value=None, dtype=str, not_none=True,
           source=__NAME__, user=True, active=True,
           cmd_arg='sossiopath', group=cgroup,
-          description='The data directory')
-# add the subdirectory (to be used when default path required)
-CDict.add('SUBDIRECTORY', value=None, dtype=str, source=__NAME__,
+          description='The data root (POGOS GLOBAL.DATA_PATH), containing projects/')
+CDict.add('PROJECT_NAME', value=None, dtype=str, not_none=True, source=__NAME__,
+          cmd_arg='project_name',
           user=True, active=True, group=cgroup,
-          description='The sub-directory to use for this SOSSISSE run. '
-                      'This should be descriptive and unique. '
-                      '\nIt should contain no whitespaces or special '
-                      'characters other than underscoes.'
-                      '\nAll miriam data will be stored in '
-                      '{GLOBAL.DATA_PATH}/sossisse/{SUBDIRECTORY}/'
-                      '\n\nWe suggest {OBJNAME}-{INST.MODE}-{STEP}-{YYYYMMDD}')
+          description='Project name (forwarded from POGOS GLOBAL.PROJECT_NAME). '
+                      'Run data defaults to '
+                      '{SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/. '
+                      'Repeated runs reuse this directory.')
 
 # define what we are running through SOSSISSE
 CDict.add('DESCRIPTION', value='', dtype=str, source=__NAME__,
@@ -173,8 +170,8 @@ CDict.add_group(cgroup, description='Definition of general inputs',
 fdesc = ('List of files to be processed in form: '
          '\nFILES:\n - file1\n - file2\n - file3'
          '\n\nBy default these should be placed in '
-         '<SOSSIOPATH>/{OBJECTNAME>/rawdata/'
-         '\n or whatever is set in <PATHS.RAW> (if defined)')
+         '{SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/inputs/'
+         '\n or whatever is set in PATHS.RAWPATH (if defined)')
 CDict.add('FILES', value=None, dtype=list, dtypei=str, not_none=False,
           source=__NAME__, user=True, active=True, group=cgroup,
           description=fdesc)
@@ -288,10 +285,10 @@ CDict.add('RAWPATH', value=None, dtype=str,
           description='The raw path is where we store all the raw data')
 # -----------------------------------------------------------------------------
 # the object path is where we store all the object data
-CDict.add('SUBDIRECTORY_PATH', value=None, dtype=str,
+CDict.add('RUN_PATH', value=None, dtype=str,
           source=__NAME__, active=False, user=False, group=cgroup,
-          description='The path within the OBJECTPATH where this SUBDIRECTORY'
-                      ' run is stored')
+          description='The SOSSISSE module root, defaulting to '
+                      '{SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/')
 # -----------------------------------------------------------------------------
 # the temp path is where we store temporary versions of the raw data
 CDict.add('TEMP_PATH', value=None, dtype=str,

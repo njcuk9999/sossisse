@@ -22,7 +22,7 @@ if __name__ == "__main__":
     param_file = 'demo.yaml'
     # any other keywords can be put in here
     pkwargs = dict()
-    # pkwargs['INPUTS.SOSSIOPATH'] = '/path/to/data/demo/'
+    # pkwargs['INPUTS.SOSSIOPATH'] = '/path/to/observations'
 
     # ----------------------------------------------------------------------
     # deal with parameters

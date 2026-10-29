@@ -722,7 +722,6 @@ def files_to_html(params: ParamDict, file_path: str):
     """
     # get sid path
     filepath = params.rget(file_path, required=True)
-    # get all files in SUBDIRECTORY path
     files = []
     # walk through the directory
     for _root, _dirs, filenames in os.walk(filepath):
@@ -761,7 +760,7 @@ def info_html(params: ParamDict, sid_name: str):
     html += f'<li><b>Reduction date</b>: {timenow}</li>'
     html += f'<li><b>Version</b>: {version}</li>'
     html += f'<li><b>date</b>: {vdate}</li>'
-    html += f'<li><b>SUBDIRECTORY</b>: {params[sid_name]}</li>'
+    html += f'<li><b>PROJECT_NAME</b>: {params[sid_name]}</li>'
     html += '</ul>'
     return html
 
@@ -775,7 +774,7 @@ def summary_html(params: ParamDict, module: str, plot_path: str,
     :param params: ParamDict, the parameter dictionary of constants
     :param module: str, the module name
     :param plot_path: str, the path to the plots
-    :param sid_name: str, the SUBDIRECTORY name
+    :param sid_name: str, the project name parameter key
     :param objname: str, the object name
     :param imode: str, the instrument mode name
 

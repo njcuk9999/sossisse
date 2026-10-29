@@ -79,7 +79,8 @@ sossisse_setup
 This should guide you through create a basic folder structure and a default configuration file.
 
 You'll be asked for:
-- The data directory to use (where input and output data is stored) [SOSSIOPATH]
+- The data root (the same root as POGOS `GLOBAL.DATA_PATH`) [SOSSIOPATH]
+- The project name, reused across reductions of this project [PROJECT_NAME]
 - The input name of the object directory (usually your object name) [OBJECTNAME]
 - The instrument mode to use (either enter the number or the name) [INSTRUMENTMODE]
 	 - 1: JWST.NIRISS.SOSS
@@ -92,10 +93,10 @@ You'll then be told what to do next:
  ********************************************************************************
  What to do next:
  ********************************************************************************
-  1. Open the yaml file: {HOMEDIR}/.sossisse/run_setup_params.yaml
+  1. Open the yaml file: {SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/yamls/run_setup_params.yaml
   2. Copy files to the correct directories:
-           - calibrations: {SOSSIOPATH}/{INSTRUMENTMODE}/calibration
-           - raw data: {SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/rawdata
+           - calibrations: {SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/calibration
+           - raw data: {SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/inputs
   3. Update the yaml parameters, for example:
            - FILES (raw data dir)
            - BKGFILE (calib dir, optional)
@@ -103,10 +104,10 @@ You'll then be told what to do next:
   3. Check every other value in the yaml file before running.
 ```
 
-Note by default the yaml file is saved in the `~/.sossisse/` directory (i.e. your home directory).
+By default the standalone setup yaml file is saved under `PATHS.RUN_PATH/yamls/`.
 You can move this yaml file anywhere on your system - it will be copied with your outputs when you run SOSSISSE.
 
-Note `{HOMEDIR}`, `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` will be filled by the code with the values you entered.
+The root and project name above are filled with the values you entered.
 
 [Back to top](#table-of-contents)
 
@@ -140,13 +141,11 @@ In the `sossisse/demos` directory there are several files that can aid in advanc
 
 All parameters for the SOSSISSE code, from the inputs files to the detrending parameters, are passed through a 
 single yaml file. One should not edit the python codes themselves, but rather edit the yaml file to change any 
-relevant value. As it is likely that users will want to try  a number of parameter combinations, SOSSISSE creates a 
-unique hash key for each parameter combination. This key is used to name the output files and folder name. The 
-hash key is not meant to be an explicit description of the parameter combination, but rather a unique identifier. 
-The hash key (SUBDIRECTORY) is created from the date it was first run - so can either be used again or multiple created. SOSISSE will
-look for previous setups with the exact same parameter file and use this as the SUBDIRECTORY if an SUBDIRECTORY is not given, this prevents
-every run creating a new set of directories. A yaml file is copied to each SUBDIRECTORY directory as a reminder of which parameters
-were used (as the SUBDIRECTORY alone does not given this information).
+relevant value. `INPUTS.PROJECT_NAME` is required and identifies the project, not
+an automatically generated run ID. The default module directory is
+`{SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/`. Repeated runs reuse this directory;
+choose another project name or an explicit `PATHS.RUN_PATH` to keep reductions
+separate. A copy of the parameters used is stored with the outputs.
 
 Here are the main steps of the analysis :
 
@@ -181,29 +180,35 @@ and provides an SED estimate.
 
 #### Data structure
 
-If one has run the `run_setup` script a folder structure will be created in the directory where the script was run.
-As mentioned in `run_setup` you must:
-  1. Open the yaml file: /home/cook/.sossisse/run_setup_params.yaml
-  2. Copy files to the correct directories:
-           - calibrations: /scratch3/jwst-test/data/JWST.NIRISS.SOSS/calibration
-           - raw data: /scratch3/jwst-test/data/JWST.NIRISS.SOSS/t1b/rawdata
-  3. Update the yaml parameters, for example:
-           - FILES (raw data dir)
-           - BKGFILE (calib dir, optional)
-           - FLATFILE (calib dir, optional)
-  3. Check every other value in the yaml file before running.
-
-
-The created folder structure will be as follows: 
+Setup creates directories below the data root, independently of the current
+working directory:
 
 ```
-{SOSSIOPATH}/{INSTRUMENTMODE}/
-{SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/
-{SOSSIOPATH}/{INSTRUMENTMODE}/{OBJECTNAME}/rawdata/
+{SOSSIOPATH}/projects/{PROJECT_NAME}/sossisse/
+  inputs/
+  calibration/
+  temporary/
+  plots/
+  other/
+  outputs/
+  yamls/       (standalone setup)
 ```
 
-where `t1b` is the name of the target (in this case `t1b` for Trappist-1b).
-where `{SOSSIOPATH}`, `{INSTRUMENTMODE}` and `{OBJECTNAME}` are the values you entered when running `run_setup` ([here](#how-to-use))
+`INPUTS.SOSSIOPATH` is the root containing `projects/`, not the project or module
+directory. `PATHS.RUN_PATH` can explicitly override the module directory.
+Absolute overrides for `PATHS.RAWPATH`, `CALIBPATH`, `TEMP_PATH`, `PLOT_PATH`,
+`OTHER_PATH`, `OUT_PATH`, and `YAMLPATH` are preserved. In particular, set
+`PATHS.CALIBPATH` to an absolute shared calibration directory to reuse calibration
+files across projects. Absolute input and calibration filenames also remain
+absolute; relative names resolve against `RAWPATH` and `CALIBPATH`, respectively.
+
+When run through POGOS, the adapter must forward `GLOBAL.DATA_PATH` unchanged
+to `INPUTS.SOSSIOPATH` and the single `GLOBAL.PROJECT_NAME` to
+`INPUTS.PROJECT_NAME`. It must use `PATHS.RUN_PATH` for the module directory and
+retain explicit path overrides. POGOS owns its YAML file; SOSSISSE does not
+create a standalone YAML directory in this mode. Old configuration files must
+be regenerated or migrated to the project-name and run-path keys; there are no
+legacy aliases.
 
 [Back to top](#table-of-contents)
 

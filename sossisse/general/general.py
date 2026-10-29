@@ -398,7 +398,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
     io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.SUBDIRECTORY', 'PATHS.SUBDIRECTORY_PATH',
+                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
                     f'{objname} [{imode}]')
     # -------------------------------------------------------------------------
     # return the instrument object
@@ -610,7 +610,7 @@ def finish_spectral_extraction(inst: Instrument, storage: dict):
     objname = inst.params['INPUTS.OBJECTNAME']
     imode = inst.params['INPUTS.INSTRUMENTMODE']
     io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.SUBDIRECTORY', 'PATHS.SUBDIRECTORY_PATH',
+                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
                     f'{objname} [{imode}]')
 
 
