@@ -227,7 +227,9 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         super().param_override()
 
     def load_cube(self, n_slices: int, image_shape: List[int],
-                  flag_cds: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                  flag_cds: bool, force_pixel_grid: bool = False
+                  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        _ = force_pixel_grid
         input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube

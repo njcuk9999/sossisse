@@ -749,17 +749,20 @@ class Instrument:
     # ==========================================================================
     # White light curve functionality
     # ==========================================================================
-    def load_data(self, filename: str, ext: int = None, extname: str = None):
+    def load_data(self, filename: str, ext: int = None, extname: str = None,
+                  force_pixel_grid: bool = False):
         """
         Load the data from a file
 
         :param filename: str, the filename to load
         :param ext: int, the extension number to load
         :param extname: str, the extension name to load
+        :param force_pixel_grid: bool, ignored for the default instrument
 
         :return: data, the loaded data
         """
         _ = self
+        _ = force_pixel_grid
         # default is to just load the fits file
         data = io.load_fits(filename, ext, extname)
         # return the data
@@ -782,8 +785,9 @@ class Instrument:
         return data
 
     def load_cube(self, n_slices: int, image_shape: List[int],
-                  flag_cds: bool
+                  flag_cds: bool, force_pixel_grid: bool = False
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        _ = force_pixel_grid
         input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,
         # the error cube, and the DQ cube
@@ -945,7 +949,8 @@ class Instrument:
         # TODO: Should be replaced with header keys
         for ifile, filename in enumerate(input_files):
             # get the raw files
-            tmp_data = self.load_data(filename, extname='SCI')
+            tmp_data = self.load_data(filename, extname='SCI',
+                                      force_pixel_grid=True)
             # get the shape of the bins
             bin_shape = self.bin_cube(tmp_data, get_shape=True)
             # add to the number of slices
@@ -963,7 +968,8 @@ class Instrument:
         self.update_meta_data()
         # ---------------------------------------------------------------------
         # load and bin the cube
-        cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds)
+        cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds,
+                           force_pixel_grid=True)
         # slice to the active jump chunk if requested
         cube, err, dq = self.slice_jump_data(cube, err, dq)
         # ---------------------------------------------------------------------
@@ -2142,8 +2148,7 @@ class Instrument:
         wave_file = self.params['GENERAL.WAVE_FILE']
         # get the wave type
         wave_type = self.params['GENERAL.WAVE_FILE_TYPE']
-        # get x size from cube
-        xsize = self.get_variable('DATA_X_SIZE', func_name)
+
         # ---------------------------------------------------------------------
         # Here we assume this is not order dependent
         #   Instruments with order dependent wavelength solutions should
@@ -2182,6 +2187,14 @@ class Instrument:
         # ---------------------------------------------------------------------
         # Deal with hdf5 fits file wave file
         elif wave_type == 'hdf5' and source == 'wavefile':
+            # get x size from cube
+            try:
+                xsize = self.get_variable('DATA_X_SIZE', func_name)
+            except exceptions.SossisseException:
+                emsg = ('DATA_X_SIZE must be set in the config file for '
+                        '{0} when using hdf5 wave file')
+                eargs = [self.name]
+                raise exceptions.SossisseConstantException(emsg.format(*eargs))
             # use the default function to load the wave fits file
             xpix, wavevector = io.load_wave_hdf5(str(wavepath), xsize)
         # ---------------------------------------------------------------------
@@ -2199,6 +2212,14 @@ class Instrument:
                 raise exceptions.SossisseConstantException(emsg)
             # otherwise we use POS_FILE
             else:
+                # get x size from cube
+                try:
+                    xsize = self.get_variable('DATA_X_SIZE', func_name)
+                except exceptions.SossisseException:
+                    emsg = ('DATA_X_SIZE must be set in the config file for '
+                            '{0} when using pos file')
+                    eargs = [self.name]
+                    raise exceptions.SossisseConstantException(emsg.format(*eargs))
                 # get x trace offset
                 x_trace_offset = self.params.rget('WLC.GENERAL.X_TRACE_OFFSET',
                                                   required=True, func=func_name)

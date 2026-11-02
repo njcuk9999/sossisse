@@ -10,15 +10,15 @@ Created on 2024-08-13 at 11:29
 @author: cook
 """
 import os
-from typing import Tuple, Union
+from typing import List, Tuple
 
-import h5py
 import numpy as np
+from astropy.io import fits
 from astropy.table import Table
-from scipy.interpolate import InterpolatedUnivariateSpline as ius
 
 from aperocore import math as mp
 
+from sossisse.core import io
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
@@ -61,6 +61,111 @@ class JWST_NIRSPEC(default.Instrument):
         self.params['WLC.GENERAL.MASK_ORDER_ZERO'] = False
         # for NIRSPEC PRISM we shouldn't have recenter trace position
         self.params['WLC.GENERAL.RECENTER_TRACE_POSITION'] = False
+
+    def load_data(self, filename: str, ext: int = None, extname: str = None,
+                  force_pixel_grid: bool = False):
+        """
+        Load data, optionally selecting the NIRSpec pixel grid.
+
+        :param filename: str, the filename to load
+        :param ext: int, the extension number to load
+        :param extname: str, the extension name to load
+        :param force_pixel_grid: bool, slice the last axis to the pixel grid
+
+        :return: data, the loaded data
+        """
+        data = io.load_fits(filename, ext, extname)
+        if force_pixel_grid:
+            pixel_start, pixel_end = self._force_pixel_grid(filename)
+            data = data[..., pixel_start:pixel_end]
+        return data
+
+    def load_cube(self, n_slices: int, image_shape: List[int],
+                  flag_cds: bool, force_pixel_grid: bool = False
+                  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Load science, error and DQ cubes on the NIRSpec pixel grid.
+
+        When requested, slice the last axis before binning or
+        converting CDS data, as in load_data.
+
+        :param n_slices: int, the number of output frames
+        :param image_shape: list, the image shape [y, x]; x is determined
+                            from the science data after pixel selection
+        :param flag_cds: bool, whether the input data are in CDS format
+        :param force_pixel_grid: bool, slice the last axis to the pixel grid
+        :return: tuple, the science, error and DQ cubes
+        """
+        input_files = self.params.rget('GENERAL.FILES', required=True)
+        if len(input_files) == 0:
+            emsg = 'No files defined in yaml. Please set the FILES parameter.'
+            raise exceptions.SossisseConstantException(emsg)
+        n_slice = 0
+        for ifile, filename in enumerate(input_files):
+            with fits.open(filename) as hdul:
+                tmp_data = hdul[1].data
+                if force_pixel_grid:
+                    pixel_start, pixel_end = self._force_pixel_grid(filename)
+                    tmp_data = tmp_data[..., pixel_start:pixel_end]
+                tmp_data = self.bin_cube(tmp_data, bin_type='Flux')
+                if flag_cds:
+                    tmp_data, tmp_err, tmp_dq = self.from_cds(tmp_data)
+                else:
+                    tmp_err = hdul[2].data
+                    tmp_dq = hdul[3].data
+                    if force_pixel_grid:
+                        tmp_err = tmp_err[..., pixel_start:pixel_end]
+                        tmp_dq = tmp_dq[..., pixel_start:pixel_end]
+                    tmp_err = self.bin_cube(tmp_err, bin_type='Error')
+                    tmp_dq = self.bin_cube(tmp_dq, bin_type='DQ')
+            if ifile == 0:
+                cube = np.zeros([n_slices, image_shape[0], tmp_data.shape[-1]])
+                err = np.zeros_like(cube)
+                dq = np.zeros_like(cube)
+            end = n_slice + tmp_data.shape[0]
+            cube[n_slice:end, :, :] = tmp_data
+            err[n_slice:end, :, :] = tmp_err
+            dq[n_slice:end, :, :] = tmp_dq
+            n_slice = end
+        return cube, err, dq
+
+    def _force_pixel_grid(self, filename: str) -> Tuple[int, int]:
+        """
+        Force the pixel grid for NIRSpec based on the detector
+
+        For NRS1 we have to cut down the data to the
+        last N pixels (based on the wavegrid) - for NRS2 we keep all pixels
+
+        :param filename: str, the filename to load
+        :return: Tuple[int, int], the pixel start and end indices
+        """
+        # deal with NRS1 vs NRS2 - for NRS1 we have to cut down the data to the
+        # last N pixels (based on the wavegrid) - for NRS2 we keep all pixels
+        hdr = io.load_header(filename, ext=0)
+        # two keys are required from the header for this task:
+        #     DETECTOR and SUBSIZE1
+        detector = hdr.get('DETECTOR', None)
+        nbxpix = hdr.get('SUBSIZE1', None)
+        # Deal with no detector keyword in header
+        if detector is None:
+            emsg = ('No DETECTOR keyword found in header.'
+                    'For {0} this key is required in input file={1}')
+            eargs = [self.params['INPUTS.INSTRUMENTMODE'], filename]
+            raise exceptions.SossisseException(emsg.format(*eargs))
+        # Deal with no SUBSIZE1 keyword in header
+        if nbxpix is None:
+            emsg = ('No SUBSIZE1 keyword found in header.'
+                    'For {0} this key is required in input file={1}')
+            eargs = [self.params['INPUTS.INSTRUMENTMODE'], filename]
+            raise exceptions.SossisseException(emsg.format(*eargs))
+        # get the wave grid for the instrument mode
+        wavegrid = self.get_wavegrid()
+        # calculate where we should start and end based on the wavegrid shape
+        pixel_start = nbxpix-wavegrid.shape[0]
+        pixel_end = nbxpix
+        # return the start and end pixels
+        return pixel_start, pixel_end
+
 
     def optimize_trace_mask(self, log: bool = True):
         """
