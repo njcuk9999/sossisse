@@ -7,9 +7,12 @@ Created on 2024-08-13
 
 @author: cook
 """
+from copy import copy
+
 from aperocore.constants import constant_functions
 
 from sossisse.core import base
+from sossisse.core import exceptions
 
 # =============================================================================
 # Define variables
@@ -22,6 +25,62 @@ __authors__ = base.__authors__
 Const = constant_functions.Const
 ConstDict = constant_functions.ConstantsDict
 CDict = ConstDict(__NAME__)
+
+
+class WavelengthFileConst(Const):
+    """Preserve scalar and detector-specific wavelength filenames in YAML."""
+
+    def validate(self, test_value=None, quiet=False, source=None):
+        """
+        Validate filenames without coercing a detector list into one string.
+
+        :param test_value: str, list or None, candidate value; None validates
+                           the stored value and updates true_value
+        :param quiet: bool, accepted for compatibility with Const.validate
+        :param source: str or None, accepted for Const.validate compatibility
+        :return: bool for stored validation, otherwise the scalar or list copy
+        :raises SossisseConstantException: if a non-null value is not a
+                                          nonempty filename or filename list
+        """
+        # A null candidate means validate the stored configuration instead.
+        value = self.value if test_value is None else test_value
+        # Inspect scalar and list values uniformly without changing their type.
+        filenames = value if isinstance(value, list) else [value]
+        # Leave null values valid; downstream consumers decide if required.
+        if value is not None:
+            invalid_filenames = not filenames or any(
+                not isinstance(filename, str) or not filename.strip()
+                for filename in filenames)
+            if invalid_filenames:
+                emsg = ('WAVE_FILE must be a filename or a nonempty list '
+                        'of filenames')
+                raise exceptions.SossisseConstantException(emsg)
+        # Stored validation follows the parent boolean-result convention.
+        if test_value is None:
+            self.true_value = value
+            return True
+        # Candidate validation returns a copy to avoid sharing mutable lists.
+        return list(value) if isinstance(value, list) else value
+
+    def copy(self, source=None):
+        """
+        Copy this constant while preserving detector-list values.
+
+        :param source: str or None, replacement provenance; None delegates
+                       to the parent copy implementation
+        :return: WavelengthFileConst, copied constant with an isolated list
+        """
+        # Preserve the parent behavior when no source override is requested.
+        if source is None:
+            return super().copy(source=source)
+        # Keep this subclass rather than rebuilding a scalar-only Const.
+        constant = copy(self)
+        constant.source = source
+        # A copied configuration must not share its wavelength filename list.
+        if isinstance(self.value, list):
+            constant.value = list(self.value)
+        return constant
+
 
 # Define the title for the yaml
 CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
@@ -213,10 +272,17 @@ CDict.add('POS_FILE', value=None, dtype=str,
                       'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # wavelength calibration
-CDict.add('WAVE_FILE', value=None, dtype=str,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Wavelength calibration file. '
-                      'Must be placed in the "calibration directory"')
+wave_file_kwargs = dict(value=None, dtype=str, source=__NAME__, user=True,
+            active=True, group=cgroup)
+wave_file_kwargs['description'] = (
+  'Wavelength calibration filename, or a list of filenames '
+  'for multiple detector traces. Relative filenames use '
+  'PATHS.CALIBPATH. NIRSpec requires a matching solution '
+  'for every selected detector, identified by DETECTOR '
+  'metadata or an unambiguous nrs1/nrs2 filename. Other '
+  'instruments use one filename.')
+CDict.storage['GENERAL.WAVE_FILE'] = WavelengthFileConst('WAVE_FILE',
+                            **wave_file_kwargs)
 # -----------------------------------------------------------------------------
 # Wavelength calibration file type
 CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
@@ -247,10 +313,16 @@ CDict.add('SAVE_RESULTS', value=True, dtype=bool,
 # Define which orders to use e.g.
 # - 1
 # - 2
-CDict.add('TRACE_ORDERS', value=None, dtype=list, dtypei=int,
+CDict.add('TRACES', value=None, dtype=list,
           source=__NAME__, user=True, active=True, group=cgroup,
-          modes='JWST.NIRISS.SOSS', tex_arg = True,
-          description='Define which orders to use e.g. \n - 1 \n - 2')
+          tex_arg=True,
+          description='Selected traces, for example [1], [2], or [1, 2]. '
+                      'For NIRISS SOSS these are diffraction orders; for '
+                      'NIRSpec these are detectors: 1=NRS1, 2=NRS2. '
+                      'NIRSpec None selects the supplied detectors; '
+                      'requesting '
+                      'a missing detector is an error. For other instruments '
+                      'None uses the single unnumbered trace.')
 
 # -----------------------------------------------------------------------------
 # wavelength domain for the white light curve

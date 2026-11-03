@@ -414,6 +414,8 @@ def run_time_params(params: ParamDict, only_create: bool = False
                                           general['POS_FILE']))
         # if no pos file was given we create it
         else:
+            # Detector children replace this shared automatic position map.
+            params['__AUTO_POS_FILE__'] = True
             wmsg = f'No POS_FILE set, creating pos_file.fits'
             misc.printc(wmsg, msg_type='warning')
             absposfile = str(os.path.join(paths['CALIBPATH'], 'pos_file.fits'))

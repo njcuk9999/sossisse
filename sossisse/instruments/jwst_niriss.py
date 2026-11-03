@@ -255,6 +255,7 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
                     tmp_data = self.bin_cube(hdul[1].data, bin_type='Flux')
                     tmp_err = np.sqrt(np.abs(tmp_data))
                     tmp_dq = np.zeros_like(tmp_data)
+                    io.log_fits_load(filename, ext=1)
             # get start and end points of cube
             start = n_slice
             end = n_slice + tmp_data.shape[0]

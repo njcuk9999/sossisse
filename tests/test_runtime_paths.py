@@ -1,6 +1,8 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
+from astropy.io import fits
 
 from aperocore.constants.param_functions import ParamDict
 from sossisse.core import const_funcs
@@ -41,7 +43,9 @@ def make_params(root, source='SOSSISSE', project='visit-one', **overrides):
         'GENERAL.FILES': None,
         'PLOTS.SHOW': True,
     }
-    values.update({f'PATHS.{key}': value for key, value in PATH_DEFAULTS.items()})
+    path_values = {f'PATHS.{key}': value
+                   for key, value in PATH_DEFAULTS.items()}
+    values.update(path_values)
     values.update(overrides)
     for key, value in values.items():
         params.set(key, value, source='test_runtime_paths')
@@ -116,6 +120,24 @@ def test_projects_are_isolated(tmp_path):
     assert first['PATHS.RUN_PATH'] != second['PATHS.RUN_PATH']
     assert Path(second['PATHS.RUN_PATH']) == (
         tmp_path / 'projects' / 'visit-two' / 'sossisse')
+
+
+def test_load_fits_logs_numeric_extension_precedence(tmp_path, monkeypatch):
+    primary = fits.PrimaryHDU(np.array([0]))
+    science = fits.ImageHDU(np.array([1]), name='SCI')
+    error = fits.ImageHDU(np.array([2]), name='ERR')
+    filename = tmp_path / 'input.fits'
+    fits.HDUList([primary, science, error]).writeto(filename)
+    messages = []
+    monkeypatch.setattr(
+        io.misc, 'printc', lambda message, msg_type: messages.append(
+            (message, msg_type)))
+
+    data = io.load_fits(str(filename), ext=1, extname='ERR')
+
+    np.testing.assert_array_equal(data, [1])
+    assert messages == [
+        (f'Loaded data from {filename} (ext=1)', 'info')]
 
 
 @pytest.mark.parametrize('source', ['SOSSISSE', 'POGOS'])

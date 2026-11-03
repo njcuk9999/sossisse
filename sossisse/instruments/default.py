@@ -85,6 +85,8 @@ class Instrument:
         # jump processing context.  Empty suffix/slice is the normal path.
         # This suffix is appended to temporary and output filenames per chunk.
         self._jump_suffix = ''
+        # Detector children append this suffix to every generated filename.
+        self._trace_suffix = ''
         # This slice defines the active global integration range for a chunk.
         self._jump_slice = None
         # This string is written to FITS headers so products record jump use.
@@ -452,6 +454,31 @@ class Instrument:
         # Rebuild the filename with the active suffix inserted before ext.
         return root + self._jump_suffix + ext
 
+    def add_trace_suffix(self, filename: str) -> str:
+        """Append this instrument context's trace label before the extension.
+
+        :param filename: str, generated filename or path
+        :return: str, filename with the active trace suffix
+        """
+        # Parent instruments and non-multi-trace instruments keep old names.
+        if self._trace_suffix == '':
+            return filename
+        # Keep the extension last so FITS and plot tools still recognize it.
+        root, ext = os.path.splitext(filename)
+        # Add the detector/order label to distinguish shared-directory files.
+        return root + self._trace_suffix + ext
+
+    def add_product_suffix(self, filename: str) -> str:
+        """Append trace and jump labels to a generated product filename.
+
+        :param filename: str, generated filename or path
+        :return: str, filename with active trace and jump suffixes
+        """
+        # Add the trace first so jump chunks follow the detector/order label.
+        trace_filename = self.add_trace_suffix(filename)
+        # Preserve the established jump suffix behavior after trace labeling.
+        return self.add_jump_suffix(trace_filename)
+
     def slice_jump_data(self, *arrays: np.ndarray) -> Tuple[np.ndarray, ...]:
         """
         Slice time-dependent arrays to the active jump context.
@@ -641,27 +668,27 @@ class Instrument:
         # ---------------------------------------------------------------------
         ltbl_file = os.path.join(otherpath, 'linear_recon_coeffs.csv')
         # ---------------------------------------------------------------------
-        sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace_order}.csv')
+        sed_table = os.path.join(otherpath, 'sed_{objname}_ord{trace}.csv')
         # ---------------------------------------------------------------------
-        res_no_grey_ord = 'residual_no_grey_ord{trace_order}.fits'
+        res_no_grey_ord = 'residual_no_grey_ord{trace}.fits'
         res_no_grey_ord = os.path.join(temppath, res_no_grey_ord)
         # ---------------------------------------------------------------------
-        res_grey_ord = 'residual_grey_ord{trace_order}.fits'
+        res_grey_ord = 'residual_grey_ord{trace}.fits'
         res_grey_ord = os.path.join(temppath, res_grey_ord)
         # ---------------------------------------------------------------------
-        spectra_ord = 'spectra_ord{trace_order}.fits'
+        spectra_ord = 'spectra_ord{trace}.fits'
         spectra_ord = os.path.join(temppath, spectra_ord)
         # ---------------------------------------------------------------------
-        waveord_file = 'wavelength_ord{trace_order}.fits'
+        waveord_file = 'wavelength_ord{trace}.fits'
         waveord_file = os.path.join(temppath, waveord_file)
         # ---------------------------------------------------------------------
-        tspec_ord = 'tspec_ord{trace_order}.csv'
+        tspec_ord = 'tspec_ord{trace}.csv'
         tspec_ord = os.path.join(otherpath, tspec_ord)
         # ---------------------------------------------------------------------
-        tspec_ord_bin = 'tspec_ord_{trace_order}_bin{res}.csv'
+        tspec_ord_bin = 'tspec_ord_{trace}_bin{res}.csv'
         tspec_ord_bin = os.path.join(otherpath, tspec_ord_bin)
         # ---------------------------------------------------------------------
-        eureka_file = 'spectra_ord{trace_order}.h5'
+        eureka_file = 'spectra_ord{trace}.h5'
         eureka_file = os.path.join(temppath, eureka_file)
         # ---------------------------------------------------------------------
         out_spec_lc_file = '{prefix}_slc.fits'
@@ -674,38 +701,39 @@ class Instrument:
         out_tex_file = os.path.join(outpath, out_tex_file)
         # ---------------------------------------------------------------------
         # add active jump suffixes to all products produced in this context
-        tmp_amp_file = self.add_jump_suffix(tmp_amp_file)
-        clean_cube_file = self.add_jump_suffix(clean_cube_file)
-        tmp_pcas = self.add_jump_suffix(tmp_pcas)
-        temp_clean_nan = self.add_jump_suffix(temp_clean_nan)
-        temp_clean_nan_err = self.add_jump_suffix(temp_clean_nan_err)
-        temp_ini_cube = self.add_jump_suffix(temp_ini_cube)
-        temp_ini_err = self.add_jump_suffix(temp_ini_err)
-        temp_ini_dq = self.add_jump_suffix(temp_ini_dq)
-        temp_ff_cube = self.add_jump_suffix(temp_ff_cube)
-        temp_ff_err = self.add_jump_suffix(temp_ff_err)
-        temp_ff_dq = self.add_jump_suffix(temp_ff_dq)
-        temp_cube_post_cosmics = self.add_jump_suffix(temp_cube_post_cosmics)
-        tmp_ini_cube_bkgrnd = self.add_jump_suffix(tmp_ini_cube_bkgrnd)
-        tmp_ini_err_bkgrnd = self.add_jump_suffix(tmp_ini_err_bkgrnd)
-        tmp_ini_cube_lowpass = self.add_jump_suffix(tmp_ini_cube_lowpass)
-        tmp_ini_err_lowpass = self.add_jump_suffix(tmp_ini_err_lowpass)
-        median_image_file = self.add_jump_suffix(median_image_file)
-        errfile = self.add_jump_suffix(errfile)
-        resfile = self.add_jump_suffix(resfile)
-        reconfile = self.add_jump_suffix(reconfile)
-        ltbl_file = self.add_jump_suffix(ltbl_file)
-        sed_table = self.add_jump_suffix(sed_table)
-        res_no_grey_ord = self.add_jump_suffix(res_no_grey_ord)
-        res_grey_ord = self.add_jump_suffix(res_grey_ord)
-        spectra_ord = self.add_jump_suffix(spectra_ord)
-        waveord_file = self.add_jump_suffix(waveord_file)
-        tspec_ord = self.add_jump_suffix(tspec_ord)
-        tspec_ord_bin = self.add_jump_suffix(tspec_ord_bin)
-        eureka_file = self.add_jump_suffix(eureka_file)
-        out_spec_lc_file = self.add_jump_suffix(out_spec_lc_file)
-        out_wlc_file = self.add_jump_suffix(out_wlc_file)
-        out_tex_file = self.add_jump_suffix(out_tex_file)
+        tmp_amp_file = self.add_product_suffix(tmp_amp_file)
+        clean_cube_file = self.add_product_suffix(clean_cube_file)
+        tmp_pcas = self.add_product_suffix(tmp_pcas)
+        temp_clean_nan = self.add_product_suffix(temp_clean_nan)
+        temp_clean_nan_err = self.add_product_suffix(temp_clean_nan_err)
+        temp_ini_cube = self.add_product_suffix(temp_ini_cube)
+        temp_ini_err = self.add_product_suffix(temp_ini_err)
+        temp_ini_dq = self.add_product_suffix(temp_ini_dq)
+        temp_ff_cube = self.add_product_suffix(temp_ff_cube)
+        temp_ff_err = self.add_product_suffix(temp_ff_err)
+        temp_ff_dq = self.add_product_suffix(temp_ff_dq)
+        temp_cube_post_cosmics = self.add_product_suffix(
+            temp_cube_post_cosmics)
+        tmp_ini_cube_bkgrnd = self.add_product_suffix(tmp_ini_cube_bkgrnd)
+        tmp_ini_err_bkgrnd = self.add_product_suffix(tmp_ini_err_bkgrnd)
+        tmp_ini_cube_lowpass = self.add_product_suffix(tmp_ini_cube_lowpass)
+        tmp_ini_err_lowpass = self.add_product_suffix(tmp_ini_err_lowpass)
+        median_image_file = self.add_product_suffix(median_image_file)
+        errfile = self.add_product_suffix(errfile)
+        resfile = self.add_product_suffix(resfile)
+        reconfile = self.add_product_suffix(reconfile)
+        ltbl_file = self.add_product_suffix(ltbl_file)
+        sed_table = self.add_product_suffix(sed_table)
+        res_no_grey_ord = self.add_product_suffix(res_no_grey_ord)
+        res_grey_ord = self.add_product_suffix(res_grey_ord)
+        spectra_ord = self.add_product_suffix(spectra_ord)
+        waveord_file = self.add_product_suffix(waveord_file)
+        tspec_ord = self.add_product_suffix(tspec_ord)
+        tspec_ord_bin = self.add_product_suffix(tspec_ord_bin)
+        eureka_file = self.add_product_suffix(eureka_file)
+        out_spec_lc_file = self.add_product_suffix(out_spec_lc_file)
+        out_wlc_file = self.add_product_suffix(out_wlc_file)
+        out_tex_file = self.add_product_suffix(out_tex_file)
         # ---------------------------------------------------------------------
         # temp files
         self.set_variable('MEDIAN_IMAGE_FILE', median_image_file)
@@ -813,6 +841,10 @@ class Instrument:
                     tmp_data = self.bin_cube(hdul[1].data, bin_type='Flux')
                     tmp_err = self.bin_cube(hdul[2].data, bin_type='Error')
                     tmp_dq = self.bin_cube(hdul[3].data, bin_type='DQ')
+            loaded_extensions = [1]
+            if not flag_cds:
+                loaded_extensions.extend([2, 3])
+            io.log_fits_load(filename, ext=loaded_extensions)
             # get start and end points of cube
             start = n_slice
             end = n_slice + tmp_data.shape[0]
@@ -1827,6 +1859,7 @@ class Instrument:
                 hdul = fits.HDUList([hdu0, hdu1, hdu2])
             # write to file
             outfilename = f'{self.name}_badpixels_{iframe:03d}.fits'
+            outfilename = self.add_product_suffix(outfilename)
             outfile = os.path.join(outdir, outfilename)
             hdul.writeto(outfile, overwrite=True)
             hdul.close()
@@ -3549,26 +3582,41 @@ class Instrument:
     # ==========================================================================
     # Spectral Extraction functionality
     # ==========================================================================
-    def get_trace_orders(self) -> List[Union[int, None]]:
+    def get_traces(self) -> List[Union[int, None]]:
         """
-        Get the trace orders
-        If None this is set to [0]
-        :return:
+        Return validated trace identities without coercing their values.
+
+        SOSS traces label diffraction orders. NIRSpec overrides this method
+        for detector labels (1=NRS1, 2=NRS2); other instruments may use None.
+
+        :return: list, configured positive integers or [None] if unnumbered
+        :raises SossisseConstantException: if a non-null selection is invalid
         """
-        trace_orders = self.params['GENERAL.TRACE_ORDERS']
-        # deal with no trace orders set (or none needed)
-        if trace_orders is None:
+        # A null selection denotes one unnumbered extraction, not no traces.
+        traces = self.params['GENERAL.TRACES']
+        if traces is None:
             return [None]
-        else:
-            return trace_orders
+        # Keep type and nonempty checks ahead of iteration and uniqueness.
+        invalid_selection = not isinstance(traces, list) or not traces
+        if not invalid_selection:
+            invalid_selection = any(type(trace) is not int or trace < 1
+                                    for trace in traces)
+        if not invalid_selection:
+            invalid_selection = len(set(traces)) != len(traces)
+        if invalid_selection:
+            emsg = ('GENERAL.TRACES must be a nonempty list of unique '
+                    'positive integers or null')
+            raise exceptions.SossisseConstantException(emsg)
+        # Preserve the configured list and its ordering for valid selections.
+        return traces
 
 
-    def load_input_spec_data(self, trace_order: Optional[int] = None
+    def load_input_spec_data(self, trace: Optional[int] = None
                              ) -> List[np.ndarray]:
         """
-        Load input data for this trace order for the spectral extraction
+        Load input data for this trace for the spectral extraction
 
-        :param trace_order: int, trace order to load
+        :param trace: int, trace to load
 
         returns:
         - med: np.ndarray
@@ -3610,9 +3658,9 @@ class Instrument:
         self.set_variable('DATA_X_SIZE', med.shape[1], func_name)
         self.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
         # get the trace position
-        posmax, throughput = self.get_trace_pos(order_num=trace_order)
+        posmax, throughput = self.get_trace_pos(order_num=trace)
         # get wave grid
-        wavegrid = self.get_wavegrid(order_num=trace_order)
+        wavegrid = self.get_wavegrid(order_num=trace)
         # return all input data
         return [med, dx, dy, rotxy, ddy, med_clean, residual, err,
                 recon, ltable, posmax, throughput, wavegrid]
@@ -3622,7 +3670,19 @@ class Instrument:
     def create_sed(self, med: np.ndarray, residual: np.ndarray,
                    wavegrid: np.ndarray, posmax: np.ndarray,
                    throughput: np.ndarray, med_clean: np.ndarray,
-                   trace_order: int) -> np.ndarray:
+                   trace: int) -> np.ndarray:
+        """
+        Sum the clean median inside the configured trace ribbon and plot it.
+
+        :param med: array, median image with shape (n_rows, n_pixels)
+        :param residual: array, residual cube defining frame and spatial sizes
+        :param wavegrid: array, wavelength values at each spectral pixel
+        :param posmax: array, trace row per pixel; NaN skips that column
+        :param throughput: array, throughput used only for the SED plot
+        :param med_clean: array, cleaned median image summed within the ribbon
+        :param trace: int or None, SOSS order, NIRSpec detector, or unnumbered
+        :return: array, SED of shape (n_pixels,); updates stored dimensions
+        """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.create_sed()'
         trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
@@ -3648,7 +3708,7 @@ class Instrument:
             sp_sed[ix] = np.nansum(med_clean[ystart:yend, ix])
         # ---------------------------------------------------------------------
         # plot the SED
-        plots.plot_sed(self, wavegrid, sp_sed / throughput, trace_order)
+        plots.plot_sed(self, wavegrid, sp_sed / throughput, trace)
         # ---------------------------------------------------------------------
         # return this table
         return sp_sed
@@ -3861,7 +3921,7 @@ class Instrument:
         return ltable
 
     def save_spe_results(self, storage: Dict[str, Any],
-                         trace_order: Optional[int] = None):
+                         trace: Optional[int] = None):
         """
         Save the results to disk
         """
@@ -3895,9 +3955,9 @@ class Instrument:
         # flux_bin = storage['flux_bin']
         # flux_bin_err = storage['flux_bin_err']
 
-        # deal with no trace order
-        if trace_order is None:
-            trace_order = ''
+        # deal with no trace
+        if trace is None:
+            trace = ''
         # ---------------------------------------------------------------------
         # Save the SED table
         # ---------------------------------------------------------------------
@@ -3906,7 +3966,7 @@ class Instrument:
         # construct sed table name
         sed_table_name = self.get_variable('SPE_SED_TBL', func_name)
         sed_table_name = sed_table_name.format(objname=objname,
-                                               trace_order=trace_order)
+                                               trace=trace)
         # construct SED table
         sed_table = Table()
         sed_table['wavelength'] = wavegrid
@@ -3920,7 +3980,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         res_no_grey_ord = self.get_variable('RES_NO_GREY_ORD', func_name)
-        res_no_grey_ord = res_no_grey_ord.format(trace_order=trace_order)
+        res_no_grey_ord = res_no_grey_ord.format(trace=trace)
         # write the residual no grey order tile
         io.save_fits(res_no_grey_ord, datalist=[spec, spec_err],
                      datatypes=['image', 'image'],
@@ -3931,18 +3991,18 @@ class Instrument:
         # ---------------------------------------------------------------------
         # get file name
         res_grey_ord = self.get_variable('RES_GREY_ORD', func_name)
-        res_grey_ord = res_grey_ord.format(trace_order=trace_order)
+        res_grey_ord = res_grey_ord.format(trace=trace)
         # write the residual grey order tile
         io.save_fits(res_grey_ord, datalist=[spec2, spec_err],
                      datatypes=['image', 'image'],
                      datanames=['SPECTRUM', 'SPECTRUM_ERROR'],
                      meta=meta_data)
         # ---------------------------------------------------------------------
-        # Save the spectra for this trace order to file
+        # Save the spectra for this trace to file
         # ---------------------------------------------------------------------
         # get file name
         spec_file = self.get_variable('SPECTRA_ORD', func_name)
-        spec_file = spec_file.format(trace_order=trace_order)
+        spec_file = spec_file.format(trace=trace)
         # get the data list
         datalist = [wavegrid_2d, spec2, spec_err, int_times]
         # get the data type list
@@ -3954,21 +4014,21 @@ class Instrument:
                      datanames=datanames, meta=meta_data)
 
         # ---------------------------------------------------------------------
-        # Save the wavelength for this trace order to file
+        # Save the wavelength for this trace to file
         # ---------------------------------------------------------------------
         # get file name
         wave_file = self.get_variable('WAVE_ORD', func_name)
-        wave_file = wave_file.format(trace_order=trace_order)
+        wave_file = wave_file.format(trace=trace)
         # write the wavelength file
         io.save_fits(wave_file, datalist=[wavegrid], datatypes=['image'],
                      datanames=['WAVELENGTH'], meta=meta_data)
 
         # ---------------------------------------------------------------------
-        # Save the transit spectrum for this trace order to file
+        # Save the transit spectrum for this trace to file
         # ---------------------------------------------------------------------
         # # get file name
         # transit_file = self.get_variable('TSPEC_ORD', func_name)
-        # transit_file = transit_file.format(trace_order=trace_order)
+        # transit_file = transit_file.format(trace=trace)
 
         # # make transit table
         # t_table = Table()
@@ -3979,13 +4039,13 @@ class Instrument:
         # io.save_table(transit_file, t_table, fmt='csv')
 
         # # ---------------------------------------------------------------------
-        # # Save the transit spectrum for this trace order (binned) to file
+        # # Save the transit spectrum for this trace (binned) to file
         # # ---------------------------------------------------------------------
         # # get resolution_bin
         # res_bin = self.params['SPEC_EXT.RESOLUTION_BIN']
         # # get file name
         # transit_bin_file = self.get_variable('TSPEC_ORD_BIN', func_name)
-        # transit_bin_file = transit_bin_file.format(trace_order=trace_order,
+        # transit_bin_file = transit_bin_file.format(trace=trace,
         #                                            res=res_bin)
         # # make transit table
         # tb_table = Table()
@@ -3998,21 +4058,21 @@ class Instrument:
     def to_eureka(self, storage: Dict[int, Dict[str, Any]]):
         # set function name
         func_name = f'{__NAME__}.{self.name}.to_eureka()'
-        # get the trace orders from the
-        trace_orders = list(storage.keys())
+        # get the traces from the
+        traces = list(storage.keys())
         # print progress
         msg = 'Converting to Eureka format'
         misc.printc(msg, 'info')
-        # loop around trace orders
-        for trace_order in trace_orders:
+        # loop around traces
+        for trace in traces:
             # ----------------------------------------------------------------
             # print progress
-            msg = f'Processing order {trace_order}'
+            msg = f'Processing order {trace}'
             misc.printc(msg, 'info')
             # get variables from storage
-            flux = np.array(storage[trace_order]['spec2'])
-            flux_err = np.array(storage[trace_order]['spec_err'])
-            wavegrid = np.array(storage[trace_order]['wavegrid'])
+            flux = np.array(storage[trace]['spec2'])
+            flux_err = np.array(storage[trace]['spec_err'])
+            wavegrid = np.array(storage[trace]['wavegrid'])
             # ----------------------------------------------------------------
             # print progress
             msg = 'Sorting in decreasing wavelength order'
@@ -4032,11 +4092,11 @@ class Instrument:
             # -----------------------------------------------------------------
             # get the filename
             filename = self.get_variable('EUREKA_FILE', func_name)
-            # set filename (Dealing with trace order or lack of orders)
-            if trace_order is None:
-                filename = filename.format(trace_order='')
+            # set filename (Dealing with trace or lack of orders)
+            if trace is None:
+                filename = filename.format(trace='')
             else:
-                filename = filename.format(trace_order=trace_order)
+                filename = filename.format(trace=trace)
             # -----------------------------------------------------------------
             # save eureka format file
             io.save_eureka(filename, flux, flux_err, wavegrid, time_arr)
@@ -4090,7 +4150,7 @@ class Instrument:
                          psnapshot: Table):
         """
         Produce the spectral light curve fits file with the 2D spectra for
-        each trace order and the param snapshot table
+        each trace and the param snapshot table
 
         :param storage: dict, storage dictionary
         :param meta_data: dict, meta data dictionary
@@ -4100,34 +4160,34 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.out_spec_lc_file()'
-        # get the trace orders from the storage keys
-        trace_orders = list(storage.keys())
+        # get the traces from the storage keys
+        traces = list(storage.keys())
         # storage for fits data writing
         datalist = []
         datatypes = []
         datanames = []
         # loop around trace ordesr
-        for trace_order in trace_orders:
-            # get the wavelength from storage for this trace order
-            wavegrid = storage[trace_order]['wavegrid_2d']
-            # get the 2D spectrum from storage for this trace order
-            spec2 = storage[trace_order]['spec2']
-            # get the 2D spectrum error from storage for this trace order
-            spec_err = storage[trace_order]['spec_err']
+        for trace in traces:
+            # get the wavelength from storage for this trace
+            wavegrid = storage[trace]['wavegrid_2d']
+            # get the 2D spectrum from storage for this trace
+            spec2 = storage[trace]['spec2']
+            # get the 2D spectrum error from storage for this trace
+            spec_err = storage[trace]['spec_err']
             # get the integration times from storage for each integration
-            int_times = storage[trace_order]['ltable']['bjd']
+            int_times = storage[trace]['ltable']['bjd']
             # push into data list
             datalist.extend([wavegrid, spec2, spec_err, int_times])
             datatypes.extend(['image', 'image', 'image', 'image'])
-            # Deal with not having trace orders
-            if trace_order is None:
+            # Deal with not having traces
+            if trace is None:
                 datanames.extend(['WAVELENGTH', 'RELFLUX', 'RELFLUX_ERROR',
                                   'BJD'])
             else:
-                datanames.extend([f'WAVELENGTH_{trace_order}',
-                                  f'RELFLUX_{trace_order}',
-                                  f'RELFLUX_ERROR_{trace_order}',
-                                  f'BJD_{trace_order}'])
+                datanames.extend([f'WAVELENGTH_{trace}',
+                                  f'RELFLUX_{trace}',
+                                  f'RELFLUX_ERROR_{trace}',
+                                  f'BJD_{trace}'])
         # add the param table
         datalist.append(psnapshot)
         datatypes.append('table')
@@ -4146,6 +4206,10 @@ class Instrument:
         Produce the white light curve fits file with the linear fit table
         and the param snapshot table
 
+        NIRSpec extensions retain independent detector light curves and
+        timestamps. Numbered SOSS extensions retain the shared linear
+        reconstruction amplitude, identified by WLCMODEL=SHARED.
+
         :param storage: dict, storage dictionary
         :param meta_data: dict, meta data dictionary
         :param psnapshot: Table, param snapshot table
@@ -4154,25 +4218,30 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.out_wlc_file()'
-        # get the trace orders from the storage keys
-        trace_orders = list(storage.keys())
+        # get the traces from the storage keys
+        traces = list(storage.keys())
         # storage for fits data writing
         datalist = []
         datatypes = []
         datanames = []
-        # get the linear fit table from storage for this trace order
-        #   note the linear fit table is the same for all orders used
-        #   so even when we don't have orders we use trace_orders[0]
-        ltable = storage[trace_orders[0]]['ltable']
-        # get columns names to keep
-        rtable = Table()
-        rtable['Time'] = ltable['bjd']
-        rtable['RelFlux'] = ltable['amplitude']
-        rtable['RelFlux_Err'] = ltable['amplitude_error']
-        # push into data list
-        datalist.append(rtable)
-        datatypes.append('table')
-        datanames.append(f'WLC_TABLE')
+        # Preserve each trace's own timing rather than reusing the first table.
+        for trace in traces:
+            # SOSS entries can share amplitudes; detector entries are distinct.
+            ltable = storage[trace]['ltable']
+            rtable = Table()
+            # Keep each integration's timestamp aligned with its amplitude.
+            rtable['Time'] = ltable['bjd']
+            rtable['RelFlux'] = ltable['amplitude']
+            rtable['RelFlux_Err'] = ltable['amplitude_error']
+            # One table extension is written for each stored trace identity.
+            datalist.append(rtable)
+            datatypes.append('table')
+            table_name = 'WLC_TABLE' if trace is None else f'WLC_TABLE_{trace}'
+            datanames.append(table_name)
+        # SOSS orders are not independently extracted detector light curves.
+        if self.name.startswith('JWST.NIRISS.SOSS'):
+            meta_data['WLCMODEL'] = (
+                'SHARED', 'Traces share linear reconstruction amplitude')
         # add the param table
         datalist.append(psnapshot)
         datatypes.append('table')

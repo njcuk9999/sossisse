@@ -185,8 +185,8 @@ def save_show_plot(inst: Any, outname: str, title: str = '',
     figure_types = params.rget('PLOTS.FIGURE_TYPES', required=True,
                                func=func_name)
     show_plot = params.rget('PLOTS.SHOW', required=True, func=func_name)
-    # add the active jump suffix so chunked runs don't overwrite each other
-    outname = inst.add_jump_suffix(outname)
+    # Keep trace and jump plots distinct in the shared plot directory.
+    outname = inst.add_product_suffix(outname)
     # save to yaml file (for html writing)
     plot_file(params, outname, title, description, func_name)
     if figure_types:
@@ -1301,7 +1301,15 @@ def plot_stability(inst: Any, table: Table):
 #     # standard save/show plot for SOSSISSE
 #     save_show_plot(inst, 'transit')
 
-def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
+def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace: int):
+    """
+    Plot one trace's relative-flux spectra without changing integration order.
+
+    :param inst: Instrument, plotting settings and output path owner
+    :param spec2: array, relative flux with shape (n_integrations, n_pixels)
+    :param trace: int or None, SOSS order, NIRSpec detector, or unnumbered
+    :return: None, saves or displays the plot using the instrument settings
+    """
     # set function name
     func_name = f'{__NAME__}.plot_spectral_timeseries()'
     vlims = inst.params.rget('SPEC_PLOT.FRAME_VLIM', required=True,
@@ -1314,12 +1322,12 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     # set title and description
     title = 'Spectral time series'
 
-    if trace_order is None:
+    if trace is None:
         description = ('Spectral time series. Each row is a different '
                        'integration, each column is a different pixel in the '
                        'spectral direction.')
     else:
-        description = (f'Spectral time series for trace order {trace_order}. '
+        description = (f'Spectral time series for trace {trace}. '
                        'Each row is a different integration, each column is a '
                        'different pixel in the spectral direction.')
     norm, ntext = plot_normalization(spec2, interval=interval,
@@ -1341,33 +1349,42 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace_order: int):
     plt.colorbar(frame.images[0], ax=frame, orientation='vertical',
                  label='Rel. flux')
     # construct title
-    if trace_order is None:
+    if trace is None:
         title = f'{objname} -- {suffix} spectral time series'
     else:
-        title = f'{objname} -- {suffix} spectral time series order {trace_order}'
+        title = f'{objname} -- {suffix} spectral time series order {trace}'
     frame.set(title=title)
     # force a tight layout
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    if trace_order is None:
+    if trace is None:
         outname = f'spectral_timeseries'
     else:
-        outname = f'spectral_timeseries_ord{trace_order}'
+        outname = f'spectral_timeseries_ord{trace}'
 
     save_show_plot(inst, outname, title, description, func_name)
 
-def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
-             trace_order: int):
+
+def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray, trace: int):
+    """
+    Plot a throughput-corrected spectral energy distribution for one trace.
+
+    :param inst: Instrument, plotting settings and output path owner
+    :param wavegrid: array, wavelengths in nm with shape (n_pixels,)
+    :param sed: array, throughput-corrected flux at each wavelength
+    :param trace: int or None, SOSS order, NIRSpec detector, or unnumbered
+    :return: None, saves or displays the plot using the instrument settings
+    """
     # set function name
     func_name = f'{__NAME__}.plot_sed()'
-    if trace_order is None:
+    if trace is None:
         description = ('Spectral energy distribution. This is the flux as a '
                        'function of wavelength, corrected for the instrument '
                        'throughput.')
     else:
-        description = (f'Spectral energy distribution for trace order '
-                       f'{trace_order}. This is the flux as a function of '
+        description = (f'Spectral energy distribution for trace '
+                       f'{trace}. This is the flux as a function of '
                        'wavelength, corrected for the instrument throughput.')
     # -------------------------------------------------------------------------
     # get object name and suffix
@@ -1378,10 +1395,10 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     # plot the SED
     frame.plot(wavegrid, sed)
     # construct title
-    if trace_order is None:
+    if trace is None:
         title = objname
     else:
-        title = f'{objname} -- {suffix} order={trace_order}'
+        title = f'{objname} -- {suffix} order={trace}'
     # set the axis labels
     frame.set(xlabel='Wavelength [nm]',
               ylabel='Flux\nthroughput-corrected',
@@ -1390,15 +1407,23 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray,
     plt.tight_layout()
     # -------------------------------------------------------------------------
     # standard save/show plot for SOSSISSE
-    if trace_order is None:
+    if trace is None:
         outname = f'sed_{objname}'
     else:
-        outname = f'sed_{objname}_ord{trace_order}'
+        outname = f'sed_{objname}_ord{trace}'
 
     save_show_plot(inst, outname, title, description, func_name)
 
 
 def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
+    """
+    Overlay the throughput-corrected SEDs while retaining each trace's grid.
+
+    :param inst: Instrument, plotting settings and output path owner
+    :param plot_storage: dict, SOSS order, NIRSpec detector (1=NRS1, 2=NRS2),
+                         or None mapped to wavegrid, sp_sed and throughput
+    :return: None, saves or displays the plot using the instrument settings
+    """
     # set function name
     func_name = f'{__NAME__}.plot_full_sed()'
     objname = inst.params.rget('INPUTS.OBJECTNAME', required=True,
@@ -1406,22 +1431,22 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
     suffix = inst.params['INPUTS.SUFFIX']
     # set title and description
     title = 'Full Spectral energy distribution'
-    description = ('Full spectral energy distribution for all trace orders. '
+    description = ('Full spectral energy distribution for all traces. '
                    'This is the flux as a function of wavelength, corrected '
                    'for the instrument throughput.')
     # -------------------------------------------------------------------------
     # set up the plot
     fig, frame = plt.subplots(nrows=1, ncols=1)
-    # loop around tarce orders
-    for trace_order in plot_storage.keys():
-        # get this trace orders parameters
-        wavegrid = plot_storage[trace_order]['wavegrid']
-        sed_spec = plot_storage[trace_order]['sp_sed']
-        throughtput = plot_storage[trace_order]['throughput']
+    # Compare traces without resampling independent detector wavelength grids.
+    for trace in plot_storage.keys():
+        # Each trace supplies its own wavelength, SED and throughput arrays.
+        wavegrid = plot_storage[trace]['wavegrid']
+        sed_spec = plot_storage[trace]['sp_sed']
+        throughtput = plot_storage[trace]['throughput']
         # plot the SED
         frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
-                         'order {0}'.format(trace_order))
+                         'order {0}'.format(trace))
     # -------------------------------------------------------------------------
     # construct frame title
     ftitle = objname

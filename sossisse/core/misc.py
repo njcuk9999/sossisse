@@ -189,7 +189,8 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     :param word: str, the word to print
     :param color1: str, the color of the border
     :param color2: str, the color of the word
-    :return:
+    :return: str, the banner with whitespace rendered as spaces and
+             unsupported characters rendered as question marks
     """
     # letters
     letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
@@ -215,6 +216,15 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
     low1 = low1 + "         ┌─┐ ┐ ┌─┐┌─┐┌ ┐┌─┐┌─┐┌─┐┌─┐┌─┐ ┌  ┐ ┌─┐ ┐ "
     low2 = low2 + "───      │ │ │ ┌─┘ ─┤└─┤└─┐├─┐  │├─┤└─┤ │  │  ┌┘ │ "
     low3 = low3 + "      ·  └─┘─┴─└─┘└─┘  ┘└─┘└─┘  ┴└─┘└─┘ └  ┘  o  o "
+    letters.append('+')
+    length.append(3)
+    low1 += ' │ '
+    low2 += '─┼─'
+    low3 += ' │ '
+    supported_letters = {character.lower() for character in letters}
+    word = ''.join(' ' if character.isspace() else character
+                   if character.lower() in supported_letters else '?'
+                   for character in word)
     # start the word art strings
     low_1 = ""
     low_2 = ""

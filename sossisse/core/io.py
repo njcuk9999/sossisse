@@ -208,6 +208,8 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
         msg = 'File does not exist: {0}'
         margs = [filename]
         raise exceptions.SossisseFileException(msg.format(*margs))
+    # Match the documented selector rule before calling Astropy's FITS helper.
+    selected_extname = None if ext is not None else extname
     # try to get data from filename
     try:
         if hdufix:
@@ -215,27 +217,53 @@ def load_fits(filename: str, ext: int = None, extname: str = None,
                 # try to fix the data
                 hdul.verify('fix')
                 if ext is not None:
-                    return np.array(hdul[ext].data)
+                    data = np.array(hdul[ext].data)
                 elif extname is not None:
-                    return np.array(hdul[extname].data)
+                    data = np.array(hdul[extname].data)
                 else:
-                    data = fits.getdata(filename, ext=ext, extname=extname)
+                    data = fits.getdata(filename, ext=ext,
+                                        extname=selected_extname)
         else:
-            data = fits.getdata(filename, ext=ext, extname=extname)
+            data = fits.getdata(filename, ext=ext,
+                                extname=selected_extname)
     except Exception as e:
-        try:
-            if not hdufix:
-                load_fits(filename, ext, extname, hdufix=True)
-            else:
-                emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
-                eargs = [filename, type(e), str(e)]
-                raise exceptions.SossisseFileException(emsg.format(*eargs))
-        except Exception as e:
-            emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
-            eargs = [filename, type(e), str(e)]
-            raise exceptions.SossisseFileException(emsg.format(*eargs))
+        # Retry once with Astropy's FITS verification repair enabled.
+        if not hdufix:
+            return load_fits(filename, ext, selected_extname, hdufix=True)
+        # Preserve the original failure details when repair cannot load data.
+        emsg = 'Error loading data from file: {0}\n\t{1}: {2}'
+        eargs = [filename, type(e), str(e)]
+        raise exceptions.SossisseFileException(emsg.format(*eargs))
+    # Report only after data were read successfully; ext takes precedence.
+    log_fits_load(filename, ext=ext, extname=extname)
     # return data
     return np.array(data)
+
+
+def log_fits_load(filename: str, ext=None, extname: str = None):
+    """Report a successfully loaded FITS file and its selected HDU.
+
+    :param filename: str, the path to the loaded FITS file
+    :param ext: int, list, or None, numeric HDU index or indices used
+    :param extname: str or None, named HDU used when ext is None
+    :return: None
+    """
+    # Numeric HDU indices are authoritative when both selectors are supplied.
+    if ext is not None:
+        if isinstance(ext, (list, tuple)):
+            selection = ', '.join(str(index) for index in ext)
+        else:
+            selection = str(ext)
+        hdu_label = f'ext={selection}'
+    # A name identifies the selected HDU when no numeric index was passed.
+    elif extname is not None:
+        hdu_label = f'extname={extname}'
+    # Astropy defaults to the primary HDU when neither selector is given.
+    else:
+        hdu_label = 'default HDU'
+    # Keep messages at info level so normal recipe runs show loaded inputs.
+    msg = f'Loaded data from {filename} ({hdu_label})'
+    misc.printc(msg, msg_type='info')
 
 
 def load_header(filename: str, ext: int = None, extname: str = None,

@@ -128,6 +128,56 @@ where `{path_to_yaml_file}` is the path to the yaml file you created in the setu
 
 ### Advanced use / developer use
 
+### NIRSpec Detector Traces
+
+For NIRSpec, `GENERAL.FILES` can contain both NRS1 and NRS2 files. FITS
+`DETECTOR` headers identify the detectors; filenames are not used to classify
+science inputs. `GENERAL.TRACES: [1]`, `[2]`, or `[1, 2]` selects NRS1, NRS2,
+or both. A null value selects all supplied detectors. All supplied files are
+validated before selection: paired detectors must cover the same exposures,
+segments, and integration numbers. Duplicate segments, overlapping integrations,
+unknown detectors, and incomplete pairs are rejected, even when only one trace
+is selected. Detector time values need not agree.
+
+Each detector is processed independently with its own parameters, cached cubes,
+plots, generated position map, and jump chunks. Detectors share the configured
+calibration, temporary, plot, auxiliary, and output directories. Detector
+products are distinguished by `_nrs1` and `_nrs2` filename suffixes; combined
+parent products use the selected set, such as `_nrs1_nrs2`. No mixed-detector
+cube is fitted. The returned instrument is the logical parent; its output
+filename templates and `GENERAL.PREFIX` locate the combined final products.
+Its `spectral_storage` and detector children's `spectral_storage` are keyed by
+trace.
+
+`GENERAL.WAVE_FILE` accepts a scalar filename for a single selected detector or
+a list of detector calibrations. List entries are classified using FITS
+`DETECTOR` or an unambiguous `nrs1`/`nrs2` filename token for headerless formats.
+Missing, duplicate, foreign-detector, or ambiguous solutions are rejected.
+Supported wavelength types remain `ext1d`, `fits`, and `hdf5`; each child uses
+the existing scalar loading algorithm. A configured background or flat file
+is copied into the shared temporary directory under a detector-tagged
+filename and used by each selected child; ensure that one calibration is
+appropriate for all selected detectors. Position maps are regenerated at
+detector-specific filenames. TSOVORE passes detector wavelength files as a
+list, using `ext1d`.
+
+The combined spectral FITS contains `WAVELENGTH_1`, `RELFLUX_1`,
+`RELFLUX_ERROR_1`, `BJD_1`, and the corresponding `_2` extensions when selected.
+The WLC FITS contains `WLC_TABLE_1` and/or `WLC_TABLE_2`, each with that trace's
+times. Both products carry a detector-selection suffix. Jump products retain
+the existing `_jumpNNN` and `_jumpmerged` naming after the detector suffix.
+
+SOSS per-trace intermediate products already use `_ord1` and `_ord2` filenames.
+They continue to share the configured directories; combined final products
+retain one SOSS FITS file with numbered extensions.
+
+SOSS products also contain numbered WLC tables for their selected traces.
+These tables intentionally contain the existing **shared linear reconstruction
+amplitude**, not independent per-order white-light extractions. `WLCMODEL=SHARED`
+records that distinction. No SOSS reconstruction or extraction numerics change.
+
+### Notebook Examples
+
 In the `sossisse/demos` directory there are several files that can aid in advanced use or in helping with development.
 - There are three notebooks (a full demo, a break down of the white light curve steps, and a break down of the spectral extrction steps)
 - There is a demo python code (similar to the full notebook demo)

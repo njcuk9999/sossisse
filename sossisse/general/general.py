@@ -148,6 +148,25 @@ def get_wlc_files(inst: Instrument):
                 ltable=inst.get_variable('WLC_LTBL_FILE', func_name))
 
 
+def write_sossisse_summary(inst: Instrument):
+    """Write one summary page after the active processing context finishes.
+
+    Detector children share a plot directory, so the parent writes the page
+    once all detector-specific plots have been generated.
+
+    :param inst: Instrument, the completed parent or single-trace instrument
+    :return: None
+    """
+    # Read identity from the completed instrument configuration.
+    objname = inst.params['INPUTS.OBJECTNAME']
+    # Keep the instrument mode in the page title for existing users.
+    imode = inst.params['INPUTS.INSTRUMENTMODE']
+    # Generate one index page for the shared plot directory.
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
+                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
+                    f'{objname} [{imode}]')
+
+
 def merge_linear_recon(inst: Instrument, wlc_files: list,
                        jump_ints: list) -> Instrument:
     """
@@ -194,6 +213,23 @@ def linear_recon(inst: Instrument) -> Instrument:
     :param inst: Instrument, the instrument object
     :return: Instrument, updated instrument object
     """
+    # NIRSpec detectors require independent grids, calibrations and jump runs.
+    children = getattr(inst, 'get_detector_children', lambda: None)()
+    if children is not None:
+        # Never concatenate simultaneous detectors along the integration axis.
+        for child in children.values():
+            linear_recon(child)
+        # Expose the common jump suffix through the selection-level parent.
+        first_child = next(iter(children.values()))
+        parent_jump_kwargs = dict(suffix=first_child._jump_suffix)
+        parent_jump_kwargs['jump_ints'] = (
+            inst.params['WLC.INPUTS.JUMP_INTS'] or [])
+        inst.set_jump_context(**parent_jump_kwargs)
+        # Rebuild parent filenames after detector and jump namespace changes.
+        inst.define_filenames()
+        # Child plots share a directory, so write its summary only once.
+        write_sossisse_summary(inst)
+        return inst
     # Convert the JUMP_INTS parameter into validated processing chunks.
     chunks, jump_ints = get_jump_chunks(inst)
     # normal path: keep filenames unchanged and avoid writing merged products
@@ -394,12 +430,9 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # plot the stability plot
     plots.plot_stability(inst, ltable)
     # -------------------------------------------------------------------------
-    # write the yaml file to html
-    objname = inst.params['INPUTS.OBJECTNAME']
-    imode = inst.params['INPUTS.INSTRUMENTMODE']
-    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
-                    f'{objname} [{imode}]')
+    # Detector children defer the shared summary page to their parent.
+    if getattr(inst, '_detector_trace', None) is None:
+        write_sossisse_summary(inst)
     # -------------------------------------------------------------------------
     # return the instrument object
     return inst
@@ -412,6 +445,27 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     :param inst: Instrument, the instrument object
     :return: Instrument, updated instrument object
     """
+    # Detectors are independent traces, not successive observing segments.
+    children = getattr(inst, 'get_detector_children', lambda: None)()
+    if children is not None:
+        # Retain each detector's own wavelength grid and integration times.
+        storage = dict()
+        for trace, child in children.items():
+            spectral_extraction(child)
+            storage[trace] = child.spectral_storage[trace]
+        # The parent publishes combined products in the common jump namespace.
+        first_child = next(iter(children.values()))
+        parent_jump_kwargs = dict(suffix=first_child._jump_suffix)
+        parent_jump_kwargs['jump_ints'] = (
+            inst.params['WLC.INPUTS.JUMP_INTS'] or [])
+        inst.set_jump_context(**parent_jump_kwargs)
+        inst.define_filenames()
+        # Keep the child results available without merging their time axes.
+        inst.spectral_storage = storage
+        inst.save_final_outputs(storage)
+        # Replace any linear-only summary after spectral plots are generated.
+        write_sossisse_summary(inst)
+        return inst
     # Convert the JUMP_INTS parameter into validated processing chunks.
     chunks, jump_ints = get_jump_chunks(inst)
     # normal path: keep filenames unchanged and finish as before
@@ -447,14 +501,14 @@ def spectral_extraction(inst: Instrument) -> Instrument:
     inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
     # The last chunk left DATA_N_FRAMES set to its local number of frames.
     # Reset it from the merged light-curve table before final plots and files.
-    trace_orders = list(storage.keys())
-    merged_nframes = len(storage[trace_orders[0]]['ltable'])
+    traces = list(storage.keys())
+    merged_nframes = len(storage[traces[0]]['ltable'])
     inst.set_variable('DATA_N_FRAMES', merged_nframes)
     # Recompute filenames so spectral products are saved with _jumpmerged.
     inst.define_filenames()
-    # Save merged per-order spectral products for users who inspect them directly.
-    for trace_order in storage:
-        inst.save_spe_results(storage[trace_order], trace_order)
+    # Save merged per-trace spectra for direct inspection.
+    for trace in storage:
+        inst.save_spe_results(storage[trace], trace)
     # Write Eureka/final products and summary from the merged storage block.
     finish_spectral_extraction(inst, storage)
     # Return the instrument with downstream-visible filenames on _jumpmerged.
@@ -482,25 +536,26 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     # -------------------------------------------------------------------------
     # plot / save storage
     storage = dict()
-    # get the trace orders
-    trace_orders = inst.get_trace_orders()
+    # get the traces
+    traces = inst.get_traces()
     # =========================================================================
-    # Processing trace order loop
+    # Processing trace loop
     # =========================================================================
-    # loop around trace orders
-    for trace_order in trace_orders:
+    # loop around traces
+    for trace in traces:
         # print progress
-        if len(trace_orders) is not None:
-            misc.printc('Processing trace order {0}'.format(trace_order), 'alert')
+        if len(traces) is not None:
+            misc.printc('Processing trace {0}'.format(trace), 'alert')
         # ---------------------------------------------------------------------
-        # load data for this trace order
-        indata = inst.load_input_spec_data(trace_order)
+        # load data for this trace
+        indata = inst.load_input_spec_data(trace)
         med, dx, dy, rotxy, ddy, med_clean, residual, err = indata[:8]
         recon, ltable, posmax, throughput, wavegrid = indata[8:]
         # ---------------------------------------------------------------------
         # create the SED
-        sp_sed = inst.create_sed(med, residual, wavegrid, posmax, throughput,
-                                 med_clean, trace_order)
+        sed_args = [med, residual, wavegrid, posmax, throughput, med_clean,
+                trace]
+        sp_sed = inst.create_sed(*sed_args)
         # ---------------------------------------------------------------------
         # load the model (and deal with masking order zero if required)
         model = inst.load_model(recon, med)
@@ -520,7 +575,7 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
         spec2 = spec + amp_image
         # ---------------------------------------------------------------------
         # plot the spec2 data
-        plots.plot_spectral_timeseries(inst, spec2, trace_order)
+        plots.plot_spectral_timeseries(inst, spec2, trace)
         # ---------------------------------------------------------------------
         # # remove the out-of-transit trend on the photometric time series
         # if inst.params['SPEC_EXT.REMOVE_TREND']:
@@ -539,10 +594,11 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
         #                                                      spec_err_in)
         # ---------------------------------------------------------------------
         # push into storage for outside loop
-        storage = trace_storage(storage, trace_order, wavegrid, sp_sed,
-                                throughput, spec, spec_err, ltable, spec2)
+        storage_args = [storage, trace, wavegrid, sp_sed, throughput, spec,
+                spec_err, ltable, spec2]
+        storage = trace_storage(*storage_args)
         # ---------------------------------------------------------------------
-        inst.save_spe_results(storage[trace_order], trace_order)
+        inst.save_spe_results(storage[trace], trace)
     # return storage for final output generation or merging
     return storage
 
@@ -556,34 +612,34 @@ def merge_spectral_extraction(storages: list) -> dict:
     """
     # Make a new storage dictionary in the same shape as the no-jump path.
     storage = dict()
-    # Use the first chunk to discover which trace orders are present.
-    trace_orders = list(storages[0].keys())
-    # Merge each trace order independently.
-    for trace_order in trace_orders:
+    # Use the first chunk to discover which traces are present.
+    traces = list(storages[0].keys())
+    # Merge each trace independently.
+    for trace in traces:
         # Create the per-order storage dictionary expected by later writers.
         storage_it = dict()
-        # Use the first chunk for wavelength-like arrays that should not change.
-        first = storages[0][trace_order]
+        # Wavelength-like arrays are fixed within one trace across chunks.
+        first = storages[0][trace]
         # Preserve the 1D wavelength grid for this order.
         storage_it['wavegrid'] = np.array(first['wavegrid'])
         # Average per-chunk SED estimates to make one merged SED estimate.
-        storage_it['sp_sed'] = np.nanmean([chunk[trace_order]['sp_sed']
-                                           for chunk in storages], axis=0)
+        storage_it['sp_sed'] = np.nanmean([chunk[trace]['sp_sed']
+                                         for chunk in storages], axis=0)
         # Average throughput arrays; these should normally be identical.
-        storage_it['throughput'] = np.nanmean([chunk[trace_order]['throughput']
-                                               for chunk in storages], axis=0)
+        storage_it['throughput'] = np.nanmean([chunk[trace]['throughput']
+                                             for chunk in storages], axis=0)
         # These arrays are time-dependent, so merge them along time.
         for key in ['spec', 'spec_err', 'spec2', 'wavegrid_2d']:
             # Collect the same product from every chunk in chronological order.
-            values = [chunk[trace_order][key] for chunk in storages]
+            values = [chunk[trace][key] for chunk in storages]
             # Concatenate on axis 0 to restore the full integration series.
             storage_it[key] = np.concatenate(values, axis=0)
         # The light-curve table is also time-dependent.
-        tables = [chunk[trace_order]['ltable'] for chunk in storages]
+        tables = [chunk[trace]['ltable'] for chunk in storages]
         # Stack the per-chunk tables in the same order as the arrays.
         storage_it['ltable'] = vstack(tables)
-        # Store this trace order under its original order number.
-        storage[trace_order] = storage_it
+        # Store this trace under its original order number.
+        storage[trace] = storage_it
     # Return merged storage that downstream writers can treat as normal output.
     return storage
 
@@ -596,6 +652,8 @@ def finish_spectral_extraction(inst: Instrument, storage: dict):
     :param storage: dict, spectral extraction storage
     :return: None
     """
+    # Expose per-trace products for the detector parent's combined output.
+    inst.spectral_storage = storage
     # -------------------------------------------------------------------------
     # plot the SED
     plots.plot_full_sed(inst, storage)
@@ -603,22 +661,38 @@ def finish_spectral_extraction(inst: Instrument, storage: dict):
     # convert sossisse to eureka products
     inst.to_eureka(storage)
     # -------------------------------------------------------------------------
-    # save final outputs
-    inst.save_final_outputs(storage)
+    # Only the parent writes combined detector outputs; children keep theirs.
+    if getattr(inst, '_detector_trace', None) is None:
+        inst.save_final_outputs(storage)
     # -------------------------------------------------------------------------
-    # write the yaml file to html
-    objname = inst.params['INPUTS.OBJECTNAME']
-    imode = inst.params['INPUTS.INSTRUMENTMODE']
-    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
-                    f'{objname} [{imode}]')
+    # Detector children defer the shared summary page to their parent.
+    if getattr(inst, '_detector_trace', None) is None:
+        write_sossisse_summary(inst)
 
 
-def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
+def trace_storage(storage: dict, trace, wavegrid, sp_sed, throughput,
                   spec, spec_err, ltable, spec2):
+    """
+    Copy one trace's spectra and timing into the shared result mapping.
+
+    A trace is a SOSS diffraction order, NIRSpec detector (1=NRS1, 2=NRS2),
+    or None for an unnumbered instrument. Detector tables retain their own
+    timestamps; SOSS orders can share reconstruction amplitudes.
+
+    :param storage: dict, trace-to-result mapping updated in place
+    :param trace: int or None, identity used as the result key
+    :param wavegrid: array, wavelength grid of shape (n_pixels,)
+    :param sp_sed: array, spectral energy distribution of shape (n_pixels,)
+    :param throughput: array, throughput of shape (n_pixels,)
+    :param spec: array, residual spectra of shape (n_integrations, n_pixels)
+    :param spec_err: array, spectral errors with the same shape as spec
+    :param ltable: Table, reconstruction coefficients and per-integration bjd
+    :param spec2: array, amplitude-restored spectra with the same shape as spec
+    :return: dict, the input mapping containing isolated copies for this trace
+    """
     # reshape the wave grid into an image
     wavegrid_2d = np.tile(wavegrid, (spec.shape[0], 1))
-    # save for plotting (outside the trace_order loop) / saving
+    # save for plotting (outside the trace loop) / saving
     # must copy here to avoid shallow copying between orders
     storage_it = dict()
     storage_it['wavegrid'] = np.array(wavegrid)
@@ -630,7 +704,7 @@ def trace_storage(storage: dict, trace_order, wavegrid, sp_sed, throughput,
     storage_it['spec2'] = np.array(spec2)
     storage_it['wavegrid_2d'] = wavegrid_2d
     # append to plot storage
-    storage[trace_order] = storage_it
+    storage[trace] = storage_it
 
     return storage
 
