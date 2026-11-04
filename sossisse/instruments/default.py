@@ -1001,7 +1001,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # load and bin the cube
         cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds,
-                           force_pixel_grid=True)
+                                       force_pixel_grid=True)
         # slice to the active jump chunk if requested
         cube, err, dq = self.slice_jump_data(cube, err, dq)
         # ---------------------------------------------------------------------
