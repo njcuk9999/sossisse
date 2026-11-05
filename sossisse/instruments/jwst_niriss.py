@@ -226,9 +226,19 @@ class JWST_NIRISS_FGS(JWST_NIRISS_SOSS):
         # run the super version first, then override after
         super().param_override()
 
+    def get_datacube_options(self) -> dict:
+        """Generate FGS uncertainty and quality arrays from science data."""
+        datacube_kwargs = super().get_datacube_options()
+        datacube_kwargs['synthetic_errors'] = True
+        return datacube_kwargs
+
     def load_cube(self, n_slices: int, image_shape: List[int],
                   flag_cds: bool, force_pixel_grid: bool = False
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # TODO(DataCube): Legacy full-array loader; DataCube now generates FGS
+        # errors/DQ through get_datacube_options. Retire after caller migration.
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         _ = force_pixel_grid
         input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,

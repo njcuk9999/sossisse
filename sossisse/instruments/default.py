@@ -10,14 +10,17 @@ Created on 2024-08-13 at 11:23
 @author: cook
 """
 import copy
+import hashlib
 import os
 import sys
 import time
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import cast
 
 import numexpr as ne
 import numpy as np
+from numpy.typing import NDArray
 from astropy.io import fits
 from astropy.table import Table
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
@@ -31,9 +34,11 @@ from wpca import EMPCA
 from aperocore import math as mp
 from aperocore.constants import param_functions
 from sossisse.core import base
+from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
+from sossisse.general.datacube import DataCube
 from sossisse.general import plots
 
 # =============================================================================
@@ -501,20 +506,31 @@ class Instrument:
         :return: int, number of frames
         """
         input_files = self.params.rget('GENERAL.FILES', required=True)
-        # Accumulate the binned frame count over all input segments.
-        nframes = 0
-        # Read each science extension just far enough to know its binned shape.
-        for filename in input_files:
-            # Load the raw science data for this input file.
-            tmp_data = self.load_data(filename, extname='SCI')
-            # Ask bin_cube for the post-binning shape without keeping the cube.
-            bin_shape = self.bin_cube(tmp_data, get_shape=True)
-            # Add this file's number of binned integrations to the total.
-            nframes += bin_shape[0]
-            # Drop the raw data before moving to the next segment.
-            del tmp_data
-        # Return the frame count used to validate JUMP_INTS.
-        return nframes
+        bin_size = self.get_data_bin_size()
+        try:
+            return DataCube.input_n_integrations(input_files, bin_size)
+        except ValueError as error:
+            raise exceptions.SossisseFileException(str(error)) from error
+
+    def get_data_bin_size(self) -> int:
+        """Return the active temporal bin size, or one when disabled."""
+        lm_params = self.params.get('WLC.LMODEL')
+        bin_time = lm_params.rget('DATA_BIN_TIME', required=True)
+        if not bin_time:
+            return 1
+        return lm_params.rget('DATA_BIN_SIZE', required=True)
+
+    def get_datacube_options(self) -> dict:
+        """Return instrument-specific options for raw DataCube reads."""
+        return dict(from_cds=self.from_cds,
+                    conversion_signature=self.get_cds_signature)
+
+    def get_cds_signature(self):
+        """Identify reuse settings only when raw inputs require CDS."""
+        input_params = self.params['WLC.INPUTS']
+        cds_ids = input_params['CDS_IDS']
+        cds_ron = input_params['CDS_RON']
+        return [cds_ids, cds_ron]
 
     def localize_frame_domains(self, raw_domains: Union[None, List],
                                param_name: str) -> List[List[int]]:
@@ -815,6 +831,10 @@ class Instrument:
     def load_cube(self, n_slices: int, image_shape: List[int],
                   flag_cds: bool, force_pixel_grid: bool = False
                   ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # TODO(DataCube): Legacy full-array loader; load_data_with_dq now uses
+        # normalized products. Retire this API after its callers are migrated.
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         _ = force_pixel_grid
         input_files = self.params.rget('GENERAL.FILES', required=True)
         # create the containers for the cube of science data,
@@ -924,180 +944,155 @@ class Instrument:
             int_times = self.slice_jump_data(int_times)[0]
         return int_times
 
-    def load_data_with_dq(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def load_data_with_dq(self) -> DataCube:
+        """Normalize raw segments into bounded SCI/ERR/DQ working products.
+
+        Old combined primary-image caches are deliberately ignored. Only
+        complete normalized products matching source/settings may be reused.
+
+        :return: DataCube manager with header-sorted acquisition metadata
         """
-        Load and correct the data
-        :return:
-        """
-        # set function name
         func_name = f'{__NAME__}.load_data_with_dq()'
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
+        max_integrations = self.params.rget('GENERAL.MAX_INTEGRATIONS',
+                                            required=True, func=func_name)
+        if (isinstance(max_integrations, bool)
+                or not isinstance(max_integrations, (int, np.integer))
+                or max_integrations < 1):
+            emsg = 'GENERAL.MAX_INTEGRATIONS must be a positive integer'
+            raise exceptions.SossisseConstantException(emsg)
+        max_integrations = int(max_integrations)
+        # Validate before DataCube construction or any raw pixel reads.
+        memory_value = self.params.rget('GENERAL.MAX_MATH_MEMORY_GB',
+                        required=True, func=func_name)
+        max_math_memory_gb = constants.MathMemoryConst.memory(memory_value)
         temp_ini_cube = self.get_variable('TEMP_INI_CUBE', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR', func_name)
-        temp_ini_dq = self.get_variable('TEMP_INI_DQ', func_name)
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            # check if cube, err and dq files exist
-            cond1 = os.path.exists(temp_ini_cube)
-            cond2 = os.path.exists(temp_ini_err)
-            cond3 = os.path.exists(temp_ini_dq)
-            # only if we have all three files do we read them
-            if cond1 and cond2 and cond3:
-                # read the cube
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
-                            'info')
-                cube = self.load_data(temp_ini_cube)
-                # rea dthe error
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
-                            'info')
-                err = self.load_data(temp_ini_err)
-                # read the dq
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_dq),
-                            'info')
-                dq = self.load_data(temp_ini_dq)
-                # for future reference in the code, we keep track of data size
-                self.set_variable('DATA_X_SIZE', cube.shape[2])
-                self.set_variable('DATA_Y_SIZE', cube.shape[1])
-                self.set_variable('DATA_N_FRAMES', cube.shape[0])
-                # return
-                return cube, err, dq
-        # ---------------------------------------------------------------------
-        # deal with no files
         input_files = self.params.rget('GENERAL.FILES', required=True,
-                          func=func_name)
+                                       func=func_name)
         if len(input_files) == 0:
             emsg = 'No files defined in yaml. Please set the FILES parameter.'
             raise exceptions.SossisseConstantException(emsg)
-        # ---------------------------------------------------------------------
-        # number of slices in the final cube
-        n_slices = 0
-        # storage of raw data and shape
-        raw_shapes = []
-        # handling the files with their varying sizes. We read and count slices
-        # TODO: Should be replaced with header keys
-        for ifile, filename in enumerate(input_files):
-            # get the raw files
-            tmp_data = self.load_data(filename, extname='SCI',
-                                      force_pixel_grid=True)
-            # get the shape of the bins
-            bin_shape = self.bin_cube(tmp_data, get_shape=True)
-            # add to the number of slices
-            n_slices += bin_shape[0]
-            # store the shape of the raw data
-            raw_shapes.append(bin_shape)
-            # make sure tmp data is deleted
-            del tmp_data
-        # ---------------------------------------------------------------------
-        # identify cds and get image shape
-        # ---------------------------------------------------------------------
-        image_shape, flag_cds = self.id_image_shape(raw_shapes)
-        # ---------------------------------------------------------------------
-        # recalculate tags
+        try:
+            datacube = DataCube(max_integrations=max_integrations,
+                               max_math_memory_gb=max_math_memory_gb)
+            normalize_kwargs = self.get_datacube_options()
+            normalize_kwargs['bin_size'] = self.get_data_bin_size()
+            normalize_kwargs['integration_slice'] = self._jump_slice
+            normalize_kwargs['reuse'] = use_temp
+            datacube.normalize(input_files, temp_ini_cube, **normalize_kwargs)
+        except ValueError as error:
+            raise exceptions.SossisseFileException(str(error)) from error
+        self.params.set('GENERAL.FILES', list(datacube.filenames),
+                        source=func_name)
+        self.set_variable('FLAG_CDS', datacube.flag_cds)
         self.update_meta_data()
-        # ---------------------------------------------------------------------
-        # load and bin the cube
-        cube, err, dq = self.load_cube(n_slices, image_shape, flag_cds,
-                                       force_pixel_grid=True)
-        # slice to the active jump chunk if requested
-        cube, err, dq = self.slice_jump_data(cube, err, dq)
-        # ---------------------------------------------------------------------
-        # for future reference in the code, we keep track of data size
-        self.set_variable('DATA_X_SIZE', cube.shape[2])
-        self.set_variable('DATA_Y_SIZE', cube.shape[1])
-        self.set_variable('DATA_N_FRAMES', cube.shape[0])
-        # ---------------------------------------------------------------------
-        return cube, err, dq
+        self.set_variable('DATA_X_SIZE', datacube.shape[2])
+        self.set_variable('DATA_Y_SIZE', datacube.shape[1])
+        self.set_variable('DATA_N_FRAMES', datacube.shape[0])
+        return datacube
 
-    def apply_flat_field(self, cube, err, dq):
+    def apply_flat_field(self, datacube: DataCube) -> DataCube:
+        """Persist flat-corrected SCI/ERR blocks, retaining DQ unchanged.
+
+        Use a bounded first pass for the observation-wide nonzero error
+        minimum, then replace zero errors and write in a second pass. Commit
+        the next filenames only after every expected output validates.
+
+        :param datacube: manager of the current aligned SCI/ERR/DQ FITS blocks
+        :return: the same manager, advanced to the successful flat stage
         """
-        Flag field the cube and error cube
-        :return:
-        """
-        # set function name
+        # ---------------------------------------------------------------------
+        # Resolve the calibration and identify the expected next products.
+        # ---------------------------------------------------------------------
         func_name = f'{__NAME__}.apply_flat_field()'
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
-        temp_ff_cube = self.get_variable('TEMP_FF_CUBE', func_name)
-        temp_ff_err = self.get_variable('TEMP_FF_ERR', func_name)
-        temp_ff_dq = self.get_variable('TEMP_FF_DQ', func_name)
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            # check if cube, err and dq files exist
-            cond1 = os.path.exists(temp_ff_cube)
-            cond2 = os.path.exists(temp_ff_err)
-            cond3 = os.path.exists(temp_ff_dq)
-            # only if we have all three files do we read them
-            if cond1 and cond2 and cond3:
-                # read the cube
-                misc.printc('Reading ff file: {0}'.format(temp_ff_cube),
-                            'info')
-                cube = self.load_data(temp_ff_cube)
-                # rea dthe error
-                misc.printc('Reading ff file: {0}'.format(temp_ff_err),
-                            'info')
-                err = self.load_data(temp_ff_err)
-                # read the dq
-                misc.printc('Reading ff file: {0}'.format(temp_ff_dq),
-                            'info')
-                dq = self.load_data(temp_ff_dq)
-                # update the data sizes (is this required?)
-                self.set_variable('DATA_X_SIZE', cube.shape[2])
-                self.set_variable('DATA_Y_SIZE', cube.shape[1])
-                self.set_variable('DATA_N_FRAMES', cube.shape[0])
-                # return
-                return cube, err, dq
-        # ---------------------------------------------------------------------
-        # get flat
-        flat, no_flat = self.get_flat(cube.shape[1:])
-        # ---------------------------------------------------------------------
-        # apply the flat (may be ones)
+        # Working products are always written. This flag only allows reuse of
+        # a complete, validated flat stage from an earlier run.
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
+        # The flat is one 2D detector image shared by every integration.
+        # get_flat also reports whether flat correction should be skipped.
+        flat, no_flat = self.get_flat(list(datacube.shape[1:]))
         if no_flat:
-            return cube, err, dq
+            # Keep the existing input filenames active when no flat applies.
+            return datacube
+        # Floating-point arithmetic preserves NaNs in invalid flat pixels.
+        flat = np.asarray(flat, dtype=float)
+        # Check alignment before reading blocks or creating any output files.
+        if flat.shape != datacube.shape[1:]:
+            raise ValueError('Flat shape does not match DataCube')
+        # Include the actual calibration values in the stage identity so a
+        # changed flat cannot silently reuse previously corrected products.
+        signature = hashlib.sha256(flat.tobytes()).hexdigest()
+        # Plan filenames/provenance without changing current_infiles.
+        products = datacube.plan_stage('flat', signature)
+        # Retain just the first uncorrected science frame for the comparison
+        # plot; the full observation is never needed for plotting this step.
+        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        if use_temp and datacube.products_valid(products):
+            # Reuse requires every planned output to match its expected layout
+            # and provenance, not merely for some output filenames to exist.
+            plots.plot_flat_field(self, frame0, frame0 / flat)
+            # Publish the already validated flat products as the next inputs.
+            datacube.commit_products(products)
+            return datacube
+
         # ---------------------------------------------------------------------
-        # keep the un-flat-fielded first frame of the cube
-        frame0 = np.array(cube[0])
-        # print progress
+        # First pass: find one error replacement value for the whole selection.
+        # ---------------------------------------------------------------------
         misc.printc('Applying flat field to data', 'info')
-        # apply the flat field
-        for iframe in tqdm(range(cube.shape[0])):
-            cube[iframe] /= flat
-            err[iframe] /= flat
+        # Starting with NaN lets the first finite candidate establish the min.
+        minimum = np.nan
+        # Distinguish an entirely zero error dataset from NaN-containing data.
+        has_nonzero = False
+        for _, arrays in datacube.iter_integrations():
+            # Apply the flat temporarily to this block's ERR array
+            # so the minimum uses corrected uncertainties, not raw ones.
+            corrected = arrays['ERR'] / flat
+            # Exclude exact zeros: these are the values we will replace later.
+            nonzero = corrected[corrected != 0]
+            if nonzero.size:
+                has_nonzero = True
+                # Preserve the original NaN-tolerant behavior without warnings
+                # from a block whose nonzero candidates are all NaN.
+                with warnings.catch_warnings(record=True):
+                    # Combine block minima without collecting errors in RAM.
+                    minimum = np.fmin(minimum, np.nanmin(nonzero))
+        if not has_nonzero:
+            # Do not write a stage when there is no replacement candidate.
+            raise ValueError('No nonzero errors for flat zero replacement')
+
         # ---------------------------------------------------------------------
-        # patch to avoid annoying zeros in error map
-        # Question: All instruments?
-        with warnings.catch_warnings(record=True) as _:
-            err[err == 0] = np.nanmin(err[err != 0])
+        # Second pass: correct each block and persist its SCI/ERR/DQ product.
         # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then save them
-        if allow_temp:
-            # print progress
-            msg = ('We write intermediate files, they will be read to speed '
-                   'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
-            margs = [temp_ff_cube, temp_ff_err]
-            misc.printc(msg.format(*margs), 'info')
-            # force cubes to be float
-            cube = cube.astype(float)
-            err = err.astype(float)
-            # save the data
-            fits.writeto(temp_ff_cube, cube, overwrite=True)
-            fits.writeto(temp_ff_err, err, overwrite=True)
-            fits.writeto(temp_ff_dq, dq, overwrite=True)
+        # Read the original inputs again now that the global minimum is known.
+        # Each planned output corresponds to one existing integration block.
+        for product, (_, arrays) in zip(products,
+                                         datacube.iter_integrations()):
+            # These are independent block arrays, not the manager's storage.
+            cube = arrays['CUBE']
+            err = arrays['ERR']
+            # Apply the same 2D flat to science and uncertainty frame by frame.
+            # DQ flags are neither divided nor otherwise modified in this step.
+            for iframe in range(cube.shape[0]):
+                cube[iframe] /= flat
+                err[iframe] /= flat
+            # Use the SAME observation-wide minimum in every output block,
+            # preserving the previous full-cube zero-error replacement rule.
+            err[err == 0] = minimum
+            # Write one bounded SCI/ERR/DQ FITS product atomically. Keep
+            # current_infiles unchanged so later blocks still read old inputs.
+            datacube.write_product(product, arrays)
+
         # ---------------------------------------------------------------------
-        plots.plot_flat_field(self, frame0, cube[0])
-        # update the data sizes (is this required?)
-        self.set_variable('DATA_X_SIZE', cube.shape[2])
-        self.set_variable('DATA_Y_SIZE', cube.shape[1])
-        self.set_variable('DATA_N_FRAMES', cube.shape[0])
+        # Finish diagnostics, then advance the manager to the completed stage.
         # ---------------------------------------------------------------------
-        # return the cube and error
-        return cube, err, dq
+        plots.plot_flat_field(self, frame0, frame0 / flat)
+        # Validate the entire output set before publishing it. A failed stage
+        # leaves current_infiles pointing at the previous successful products.
+        datacube.commit_products(products)
+        # Callers keep the same manager, now reading the flat-corrected files.
+        return datacube
 
     def id_image_shape(self, raw_shapes: List[List[int]]
                        ) -> Tuple[List[int], bool]:
@@ -1245,46 +1240,48 @@ class Instrument:
             # return the flat field
             return flat, False
 
-    def remove_cosmic_rays(self, cube: np.ndarray) -> np.ndarray:
-        """
-        Remove cosmic rays from the cube (sigma cut)
+    def remove_cosmic_rays(self, datacube: DataCube) -> DataCube:
+        """Mask cosmic rays with an observation-wide percentile sigma cut.
 
-        :param cube: np.ndarray, the cube to remove cosmic rays from
+        The per-pixel 16th/84th percentiles of all active integrations use
+        exact DataCube bounded math (never partial-block statistics). Each
+        frame then sets SCI to NaN where (frame - mid) / half-width exceeds
+        WLC.GENERAL.COSMIC_RAY_SIGMA, exactly as the original full-cube loop.
+        ERR and DQ are unchanged. Reuse skips writes but recomputes the heat
+        map so the diagnostic plot is always produced.
 
-        :return: np.ndarray, the cube with cosmic rays removed
+        :param datacube: active normalized SCI/ERR/DQ stage manager
+        :return: same manager; advanced only after all writes and the plot
+                 succeed, or unchanged when WLC.GENERAL.REMOVE_COSMIC_RAYS is
+                 false (no file I/O or further setting reads)
+        :raises MemoryError: if the exact percentiles exceed the math budget
+        :raises ValueError: if products or alignment fail validation
+        :raises OSError: if a working product cannot be read or written
+        :raises Exception: propagate plot errors without committing
         """
         # get function name
         func_name = f'{__NAME__}.remove_cosmic_rays()'
+        # Read only the enable switch until the stage is actually requested.
         remove_cosmics = self.params.rget('WLC.GENERAL.REMOVE_COSMIC_RAYS',
-                         required=True, func=func_name)
+                                          required=True, func=func_name)
         # see if user wants to remove cosmics
         if not remove_cosmics:
             # print message that we are not removing cosmic rays
             msg = ('WLC.GENERAL.REMOVE_COSMIC_RAYS=False. '
                    'Not removing cosmic rays')
             misc.printc(msg, 'info')
-            # return original cube
-            return cube
-
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
-        temp_postcosic = self.get_variable('TEMP_CUBE_POST_COSMICS', func_name)
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            if os.path.exists(temp_postcosic):
-                # print that we are reading files
-                misc.printc('Reading temporary file: {0}'.format(temp_postcosic),
-                            'info')
-                # load the data
-                cube = self.load_data(temp_postcosic)
-                # return
-                return cube
-        # ---------------------------------------------------------------------
+            # Keep the original working products active.
+            return datacube
+        # Working products are mandatory; USE_TEMPORARY controls reuse only.
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
         sig_cut = self.params.rget('WLC.GENERAL.COSMIC_RAY_SIGMA',
                                    required=True, func=func_name)
+        # The threshold changes masked pixels, so it identifies products.
+        signature = dict(sigma=float(sig_cut), percentiles=[16, 84],
+                         algorithm='percentile-sigma-cut-v1')
+        products = datacube.plan_stage('cosmics', signature)
+        reuse = use_temp and datacube.products_valid(products)
         # print progress
         msg = 'We remove cosmisc rays'
         misc.printc(msg, 'info')
@@ -1296,145 +1293,192 @@ class Instrument:
             # we don't care about the warnings
             # we just want to get the percentiles
             # we know that there are some nans
-            p16, p84 = np.nanpercentile(cube, [16, 84], axis=0)
-
+            # Tiles hold every integration of a pixel: exact percentiles.
+            p16, p84 = datacube.nanpercentile([16, 84], 'CUBE', axis=0)
         # get the sigma and mean
         sigma = (p84 - p16) / 2
         mean = (p84 + p16) / 2
         # storage for heat map
-        heat_map = np.zeros(cube.shape[1:], dtype=float)
-        # store the first frame from before
-        frame_before = np.array(cube[0])
-        # now remove the cosmics using a sigma flag
-        for iframe in tqdm(range(cube.shape[0])):
-            # get the frame
-            frame = cube[iframe]
-            # calculate the number of sigma away from the mean every pixel is
-            nsig = (frame - mean) / sigma
-            # cosmic mask
-            cmask = nsig > sig_cut
-            # add to heat map
-            heat_map[cmask] += 1
-            # set those above the threshold to nan
-            cube[iframe, cmask] = np.nan
+        heat_map = np.zeros(datacube.shape[1:], dtype=float)
+        # store the first frame from before and after (for plot)
+        frame_before = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        frame_after = frame_before.copy()
+        # Only one block and detector-sized maps reside in memory.
+        for product, (integration, arrays) in zip(
+                products, datacube.iter_integrations()):
+            cube = arrays['CUBE']
+            # now remove the cosmics using a sigma flag
+            for local_index, frame in enumerate(cube):
+                # calculate the number of sigma away from the mean every pixel
+                nsig = (frame - mean) / sigma
+                # cosmic mask
+                cmask = nsig > sig_cut
+                # add to heat map
+                heat_map[cmask] += 1
+                # set those above the threshold to nan
+                frame[cmask] = np.nan
+                # keep the first masked frame for the heat map plot
+                if integration.start + local_index == 0:
+                    frame_after = frame.copy()
+            if not reuse:
+                # Never mutate ERR/DQ or publish a partially written stage.
+                datacube.write_product(product, arrays)
+            del cube, arrays
+        if reuse:
+            # Plot the validated cached output, not merely its reconstruction.
+            with fits.open(products[0].filename, memmap=False) as hdul:
+                science_hdu = cast(fits.ImageHDU, hdul['SCI'])
+                frame_after = science_hdu.section[0].astype(float)
         # ---------------------------------------------------------------------
         # plot fractions of good pixels (per pixel) as map
         plots.plot_heatmap(self, heat_map, frame_before,
-                           cube[0], 'cosmic rays rate', 'cosmic_rays_corr',
+                           frame_after, 'cosmic rays rate', 'cosmic_rays_corr',
                            'Number of cosmic rays')
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp:
-            # print progress
-            msg = ('We write intermediate files, they will be read to speed '
-                   'things next time\n\ttemp cube: {0}')
-            margs = [temp_postcosic]
-            misc.printc(msg.format(*margs), 'info')
-            # force cubes to be float
-            cube = cube.astype(float)
-            # save the data
-            fits.writeto(temp_postcosic, cube, overwrite=True)
-        # ---------------------------------------------------------------------
-        # return the cube
-        return cube
+        # Validate all products again before changing active manager filenames.
+        datacube.commit_products(products)
+        return datacube
 
-    def apply_dq(self, cube: np.ndarray, err: np.ndarray, dq: np.ndarray
-                 ) -> Tuple[np.ndarray, np.ndarray]:
+    def apply_dq(self, datacube: DataCube) -> DataCube:
+        """Apply one conservative spatial DQ whitelist to all active frames.
+
+        VALID_DQ maps accepted EXACT values (not bits) to maximum occurrence
+        fractions. A legacy list uses DQ_THRESHOLD for each accepted value.
+        Limits are inclusive: 0 forbids occurrence, 1 permits every frame.
+        Fractions use the entire active DataCube (the current jump chunk),
+        never an individual block or an unselected part of the observation.
+        Any unlisted occurrence, including NaN/inf, or any exceeded limit
+        rejects that spatial pixel in EVERY frame, even otherwise valid ones.
+
+        :param datacube: bounded, aligned SCI/ERR/DQ working-product manager
+        :return: same manager; rejected SCI becomes NaN and ERR becomes inf,
+                 DQ is unchanged. Disabled processing performs no file I/O
+                 or further setting reads. Enabled processing writes bounded
+                 dq-stage FITS products and publishes only a complete stage.
+                 USE_TEMPORARY permits reuse only of an entirely valid set.
+        :raises SossisseConstantException: for invalid whitelist or fractions
+        :raises ValueError: for invalid or incomplete output products
+        :raises OSError: for read/write failures; active inputs stay unchanged
         """
-        Apply dq to the cube
-
-        :param cube: np.ndarray, the cube to remove the background from
-        :param err: np.ndarray, the error cube
-        :param dq: np.ndarray, the data quality cube
-
-        :return: tuple, 1. np.ndarray, the background corrected cube
-                        2. np.ndarray, the background corrected error cube
-        """
-        # get wlc_params
-        wlc_params = self.params.get('WLC')
-        apply_dq_flags = wlc_params.rget('INPUTS.APPLY_DQ_FLAGS', required=True)
-        # ---------------------------------------------------------------------
-        # deal with user not wanting to apply dq flags
+        # Read only the enable switch until this stage is actually requested.
+        func_name = f'{__NAME__}.apply_dq()'
+        input_params = self.params.get('WLC.INPUTS')
+        apply_dq_flags = input_params.rget('APPLY_DQ_FLAGS', required=True,
+                                           func=func_name)
         if not apply_dq_flags:
-            # print message that we are not patching isolated bad pixels
             msg = 'WLC.INPUTS.APPLY_DQ_FLAGS = False. Not applying DQ flags'
             misc.printc(msg, 'info')
-            # return original cube and error
-            return cube, err
-        # ---------------------------------------------------------------------
-        # get valid dq values
-        valid_dqs = wlc_params['INPUTS.VALID_DQ']
-        if valid_dqs is None:
-            emsg = 'WLC.INPUTS.VALID_DQ not set. Please set the valid DQ values'
-            raise exceptions.SossisseConstantException(emsg)
-        # ---------------------------------------------------------------------
-        # trick to get a mask where True is valid
-        cube_mask = np.zeros_like(cube, dtype=bool)
-        for valid_dq in valid_dqs:
-            # print DQ values
-            misc.printc(f'Accepting DQ = {valid_dq}', 'number')
-            # get the mask
-            cube_mask[dq == valid_dq] = True
-        # ---------------------------------------------------------------------
-        # mask the values in cube_mask
-        cube[~cube_mask] = np.nan
-        err[~cube_mask] = np.inf
-        # ---------------------------------------------------------------------
-        # return the background corrected cube
-        return cube, err
+            return datacube
 
-    def remove_background(self, cube: np.ndarray, err: np.ndarray
-                          ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Removes the background with a 3 DOF model. It's the background image
-        times a slope + a DC offset (1 amp, 1 slope, 1 DC)
+        # Validate before reading images; ParamDict callers may bypass Const.
+        valid_dq = input_params.rget('VALID_DQ', required=True, func=func_name)
+        valid_dq = constants.ValidDQConst.configuration(valid_dq)
+        if isinstance(valid_dq, list):
+            # Mappings override the fallback, so only lists need this setting.
+            threshold = input_params.rget('DQ_THRESHOLD', required=True,
+                                          func=func_name)
+            threshold = constants.DQThresholdConst.fraction(threshold)
+            valid_dq = dict.fromkeys(valid_dq, threshold)
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
+        # Canonical ordering makes equivalent YAML mappings share products.
+        # The rule version prevents reuse of older per-integration semantics.
+        signature = dict(rule='exact-whitelist-shared-inclusive-v1',
+                         limits=sorted(valid_dq.items()))
+        products = datacube.plan_stage('dq', signature)
+        if use_temp and datacube.products_valid(products):
+            # A complete hit needs no science/DQ block reads or recounting.
+            datacube.commit_products(products)
+            return datacube
 
-        Background file is loaded from params['GENERAL.BKGFILE']
+        # ---------------------------------------------------------------------
+        # First pass: count each accepted exact category across the selection.
+        # ---------------------------------------------------------------------
+        # Retain N int64 detector maps, never a cube-wide Boolean mask.
+        dq_count: dict[int, NDArray[np.int64]] = dict()
+        for value in valid_dq:
+            dq_count[value] = np.zeros(datacube.shape[1:], dtype=np.int64)
+        for _, arrays in datacube.iter_integrations():
+            # Equality excludes NaN/inf and does not interpret combined bits.
+            quality = arrays['DQ']
+            for value, count in dq_count.items():
+                count += np.count_nonzero(quality == value, axis=0)
+            # Do not keep the last image block alive during the second pass.
+            del quality, arrays
 
-        :param cube: np.ndarray, the cube to remove the background from
-        :param err: np.ndarray, the error cube
+        # One shared 2D mask applies to ALL integrations, not just bad samples.
+        cube_mask = np.ones(datacube.shape[1:], dtype=bool)
+        for value, count in dq_count.items():
+            # Inclusive comparison preserves exact boundary acceptance.
+            cube_mask &= count <= valid_dq[value] * len(datacube)
+        # Each sample matches at most one exact category. Sum counts in place
+        # after testing limits, avoiding another detector-sized count map.
+        counts = iter(dq_count.values())
+        accepted_count = next(counts)
+        for count in counts:
+            accepted_count += count
+        # Any unmatched sample rejects the entire pixel, including NaN/inf.
+        cube_mask &= accepted_count == len(datacube)
 
-        :return: tuple, 1. np.ndarray, the background corrected cube
-                        2. np.ndarray, the background corrected error cube
+        # ---------------------------------------------------------------------
+        # Second pass: mask science/errors and persist unchanged DQ per block.
+        # ---------------------------------------------------------------------
+        for product, (_, arrays) in zip(products,
+                                         datacube.iter_integrations()):
+            cube = arrays['CUBE']
+            err = arrays['ERR']
+            cube[:, ~cube_mask] = np.nan
+            err[:, ~cube_mask] = np.inf
+            # Atomic block writes do not publish partial stage filenames.
+            datacube.write_product(product, arrays)
+            del cube, err, arrays
+        # Failed counting/writes/validation leave the original stage active.
+        datacube.commit_products(products)
+        return datacube
+
+    def remove_background(self, datacube: DataCube) -> DataCube:
+        """Fit one observation-wide background and persist corrected blocks.
+
+        Preserve the shifted calibration, amplitude and DC-offset fit using
+        a per-pixel NaN-aware mean of the active integrations. Only bounded
+        blocks and detector-sized maps reside in memory. ERR and DQ are
+        unchanged. Disabled correction reads only the enable parameter.
+
+        Enabled correction updates instrument metadata before loading the
+        GENERAL.BKGFILE calibration. USE_TEMPORARY permits reuse only when
+        calibration contents, fit settings and all parent products match.
+        Plotting and full output validation must succeed before publishing
+        new filenames; failures leave the manager's current inputs unchanged.
+
+        :param datacube: manager of aligned float64 CUBE/ERR/DQ FITS blocks
+        :return: the same manager, advanced only after a successful stage,
+                 or unchanged when GENERAL.DO_BACKGROUND is false
+        :raises SossisseConstantException: if fit box or shifts are unset
+        :raises ValueError: for mismatched calibration shape, invalid fit
+                            inputs or invalid output products
+        :raises OSError: if calibration or product I/O fails
+        :raises Exception: propagated metadata, fitting or plotting failure
         """
         # set function name
-        func_name = f'{__NAME__}.{self.name}.remove_background()'
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_BKGRND', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR_BKGRND', func_name)
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
-                # print that we are reading files
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
-                            'info')
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
-                            'info')
-                # load the data
-                cube = self.load_data(temp_ini_cube)
-                err = self.load_data(temp_ini_err)
-                # return
-                return cube, err
-        # get the do background parameter
+        func_name = f'{__NAME__}.remove_background()'
+        # Skip before any calibration, cache or science access.
         do_background = self.params.rget('GENERAL.DO_BACKGROUND',
                                          required=True, func=func_name)
-        # force the cube to be floats (it should be)
-        cube = cube.astype(float)
         # deal with not doing background correction
         if not do_background:
             # print progress
             msg = 'We do not clean background. GENERAL.DO_BACKGROUND=False'
             misc.printc(msg, 'warning')
-            # return the cube (unchanged)
-            return cube, err
+            # Keep the original working products active.
+            return datacube
         # update the meta data
         self.update_meta_data()
-        # store uncorrected frame
-        frame0 = np.array(cube[0])
+        # Gather enabled-stage settings after the metadata update.
+        general_params = self.params.get('GENERAL')
+        input_params = self.params.get('WLC.INPUTS')
+        use_temp = general_params.rget('USE_TEMPORARY', required=True,
+                                       func=func_name)
+        background_file = general_params.rget('BKGFILE', required=True,
+                                              func=func_name)
         # ---------------------------------------------------------------------
         # optimal background correction
         # ---------------------------------------------------------------------
@@ -1442,28 +1486,62 @@ class Instrument:
         msg = 'Apply the background model correction'
         misc.printc(msg, 'info')
         # get the background file
-        background = self.load_data(self.params['GENERAL.BKGFILE'])
+        background = self.load_data(background_file)
         # force the background to floats
         background = background.astype(float)
-        # calculate the mean of the cube (along time axis)
-        with warnings.catch_warnings(record=True) as _:
-            mcube = np.nanmean(cube, axis=0)
+        # Reject misalignment before fitting or writing working products.
+        if background.shape != datacube.shape[1:]:
+            raise ValueError('Background shape does not match DataCube')
         # ---------------------------------------------------------------------
         # get the box size from params
-        box = self.params['WLC.INPUTS.BACKGROUND_GLITCH_BOX']
+        box = input_params.rget('BACKGROUND_GLITCH_BOX', func=func_name)
         if box is None:
             emsg = ('WLC.INPUTS.BACKGROUND_GLITCH_BOX not set. '
                     'Please set the BACKGROUND_GLITCH_BOX')
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
         # get the background shifts
-        bgnd_shifts_values = self.params['WLC.INPUTS.BACKGROUND_SHIFTS']
+        bgnd_shifts_values = input_params.rget('BACKGROUND_SHIFTS',
+                              func=func_name)
         if bgnd_shifts_values is None:
             emsg = ('WLC.INPUTS.BACKGROUND_SHIFTS not set. '
                     'Please set the BACKGROUND_SHIFTS')
             raise exceptions.SossisseConstantException(emsg)
         # ---------------------------------------------------------------------
+        # Identity includes actual calibration values and effective fit inputs.
         bgnd_shifts = np.arange(*bgnd_shifts_values)
+        signature = dict()
+        signature['calibration'] = hashlib.sha256(
+            background.tobytes()).hexdigest()
+        signature['box'] = np.asarray(box).tolist()
+        signature['shifts'] = bgnd_shifts.tolist()
+        products = datacube.plan_stage('background', signature)
+        # Retain only the first original frame for the comparison plot.
+        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        if use_temp and datacube.products_valid(products):
+            # Read one corrected frame, without counting or fitting science.
+            with fits.open(products[0].filename, memmap=True) as hdul:
+                science_hdu = cast(fits.ImageHDU, hdul['SCI'])
+                corrected0 = science_hdu.section[0].astype(float)
+            plots.plot_background(self, frame0, corrected0)
+            datacube.commit_products(products)
+            return datacube
+
+        # Accumulate in integration order with one count for each non-NaN
+        # sample. Infinities count, exactly as in the original np.nanmean.
+        mean_sum = np.zeros(datacube.shape[1:], dtype=np.float64)
+        mean_count = np.zeros(datacube.shape[1:], dtype=np.int64)
+        with np.errstate(invalid='ignore', divide='ignore'):
+            for _, arrays in datacube.iter_integrations():
+                for frame in arrays['CUBE']:
+                    valid = ~np.isnan(frame)
+                    np.add(mean_sum, frame, out=mean_sum, where=valid)
+                    mean_count += valid
+                # Do not keep the previous block during the next FITS read.
+                del frame, arrays
+            mcube = mean_sum / mean_count
+        # Only the mean is needed by the original background fit below.
+        del mean_sum, mean_count, valid
         # print progress
         msg = '\tTweaking the position of the background'
         misc.printc(msg, 'info')
@@ -1503,7 +1581,8 @@ class Instrument:
             bend = rms_min + 2
             # TODO: Deal with pooly conditioned polyfit (RankWarning)
             with warnings.catch_warnings(record=True) as _:
-                rms_fit = np.polyfit(bgnd_shifts[bstart:bend], rms[bstart:bend], 2)
+                rms_fit = np.polyfit(bgnd_shifts[bstart:bend],
+                                     rms[bstart:bend], 2)
             # the optimal offset is the half way point
             optimal_offset = -0.5 * rms_fit[1] / rms_fit[0]
             # print the optimal offset
@@ -1520,231 +1599,222 @@ class Instrument:
                                     mean_cube_box.ravel(), 1, 5)
         # apply fit to full image
         background = np.polyval(bfit, background2)
-        # apply the background correction to the cube
-        for frame in tqdm(range(cube.shape[0])):
-            cube[frame] -= background
+        misc.printc('Writing background-corrected working products', 'info')
+        # Subtract the same fitted detector image from every integration.
+        # ERR and DQ retain their original float64 payloads without changes.
+        for product, (_, arrays) in zip(products,
+                                        datacube.iter_integrations()):
+            for frame in arrays['CUBE']:
+                frame -= background
+            # Writes remain unpublished until all diagnostics succeed.
+            datacube.write_product(product, arrays)
+            del frame, arrays
         # ---------------------------------------------------------------------
         # plot the background correction
-        plots.plot_background(self, frame0, cube[0])
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp:
-            # print progress
-            msg = ('We write intermediate files, they will be read to speed '
-                   'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
-            margs = [temp_ini_cube, temp_ini_err]
-            misc.printc(msg.format(*margs), 'info')
-            # force cubes to be float
-            cube = cube.astype(float)
-            err = err.astype(float)
-            # save the data
-            fits.writeto(temp_ini_cube, cube, overwrite=True)
-            fits.writeto(temp_ini_err, err, overwrite=True)
-        # ---------------------------------------------------------------------
-        return cube, err
+        plots.plot_background(self, frame0, frame0 - background)
+        # Validate the complete output set before advancing current inputs.
+        datacube.commit_products(products)
+        return datacube
 
 
-    def low_pass_filter(self, cube, err) -> Tuple[np.ndarray, np.ndarray]:
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.remove_background()'
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
-        temp_ini_cube = self.get_variable('TEMP_INI_CUBE_LOWPASS', func_name)
-        temp_ini_err = self.get_variable('TEMP_INI_ERR_LOWPASS', func_name)
-        # store the uncorrected first frame
-        frame0 = np.array(cube[0])
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            if os.path.exists(temp_ini_cube) and os.path.exists(temp_ini_err):
-                # print that we are reading files
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_cube),
-                            'info')
-                misc.printc('Reading temporary file: {0}'.format(temp_ini_err),
-                            'info')
-                # load the data
-                cube = self.load_data(temp_ini_cube)
-                err = self.load_data(temp_ini_err)
-                # return
-                return cube, err
-        # ---------------------------------------------------------------------
-        # work out the mean of the cube
-        with warnings.catch_warnings(record=True) as _:
-            mcube = np.nanmean(cube, axis=0)
-        # ---------------------------------------------------------------------
-        # print progress
-        msg = '\tLow pass filtering the data'
-        misc.printc(msg, 'info')
-        # create a mask for values less than the median
-        mean_mask = np.zeros_like(mcube, dtype=bool)
-        # loop around pixels in the x directory
-        for ix_pix in tqdm(range(mcube.shape[1])):
-            # get the median value
-            mean_cut = np.nanpercentile(mcube[:, ix_pix], 50)
-            # get the mask
-            mean_mask[:, ix_pix] = mcube[:, ix_pix] < mean_cut
-        # convert to float
-        mean_mask = mean_mask.astype(float)
-        # set all not equal to one to nan
-        mean_mask[mean_mask != 1] = np.nan
+    def low_pass_filter(self, datacube: DataCube) -> DataCube:
+        """Persist the legacy column low-pass correction in bounded products.
 
-        sum_cube_tile = np.zeros_like(cube[0])
-        # loop around frames
-        for iframe in tqdm(range(cube.shape[0])):
-            with warnings.catch_warnings(record=True) as _:
-                med = np.nanmedian(cube[iframe] * mean_mask, axis=0)
-                lowp = mp.lowpassfilter(med, 25)
-            # subtract the low pass filter from this frame of the cube
-            cubetile = np.tile(lowp, mcube.shape[0]).reshape(mcube.shape)
-            cube[iframe] -= cubetile
-            # store the sum of the corrections for plotting
-            sum_cube_tile += cubetile
-        # normalize by number of frames
-        sum_cube_tile /= cube.shape[0]
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then save them
-        # we re-save these with the background removed
-        if allow_temp:
-            # print progress
-            msg = ('We write intermediate files, they will be read to speed '
-                   'things next time\n\ttemp cube: {0}\n\ttemp err: {1}')
-            margs = [temp_ini_cube, temp_ini_err]
-            misc.printc(msg.format(*margs), 'info')
-            # force cubes to be float
-            cube = cube.astype(float)
-            err = err.astype(float)
-            # save the data
-            fits.writeto(temp_ini_cube, cube, overwrite=True)
-            fits.writeto(temp_ini_err, err, overwrite=True)
-        # ---------------------------------------------------------------------
-        plots.plot_lowpass(self, frame0, cube[0], sum_cube_tile)
-        # ---------------------------------------------------------------------
-        # return the background corrected cube
-        return cube, err
+        Use the exact observation-wide nanmean for the below-column-median
+        mask, then subtract each frame's median-filtered width-25 profile.
+        ERR and DQ are unchanged. The fixed scientific settings and complete
+        parent stage identify reusable outputs; the math memory budget does
+        not affect identity. Reuse avoids writes but recomputes diagnostic
+        corrections so the plot retains contributions from every integration,
+        including columns whose original samples were all NaN.
 
-    def patch_isolated_bads(self, cube: np.ndarray, err: np.ndarray
-                            ) -> Tuple[np.ndarray, np.ndarray]:
+        :param datacube: active normalized SCI/ERR/DQ stage, including any
+                         jump-local selection or earlier processing stages
+        :return: same manager, advanced only after writes and plot succeed
+        :raises MemoryError: if the exact mean cannot fit the math budget
+        :raises ValueError: if products or alignment fail validation
+        :raises OSError: if a working product cannot be read or written
+        :raises Exception: propagate filtering/plot errors without committing
         """
-        Patch isolated bad pixels in the cube
+        func_name = f'{__NAME__}.low_pass_filter()'
+        # Working products are mandatory; USE_TEMPORARY controls reuse only.
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
+        # No low-pass enable/calibration settings exist in the legacy stage.
+        percentile = 50
+        filter_width = 25
+        signature = dict(percentile=percentile, filter_width=filter_width,
+                         algorithm='column-median-lowpass-v1')
+        products = datacube.plan_stage('lowpass', signature)
+        reuse = use_temp and datacube.products_valid(products)
+        # The mean tiles only output axes; no partial-mean reweighting occurs.
+        with warnings.catch_warnings(record=True):
+            mcube = datacube.nanmean('CUBE', axis=0)
+        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        misc.printc('\tLow pass filtering the data', 'info')
+        # Preserve the strict below-median rule independently in each column.
+        mean_mask = np.zeros_like(mcube, dtype=float)
+        for column in tqdm(range(mcube.shape[1])):
+            mean_cut = np.nanpercentile(mcube[:, column], percentile)
+            mean_mask[:, column] = mcube[:, column] < mean_cut
+        mean_mask[mean_mask != 1] = np.nan
+        # Only detector-sized diagnostic images survive between blocks.
+        sum_cube_tile = np.zeros_like(mcube)
+        corrected0 = frame0.copy()
+        for product, (integration, arrays) in zip(
+                products, datacube.iter_integrations()):
+            for frame_index, frame in enumerate(arrays['CUBE']):
+                with warnings.catch_warnings(record=True):
+                    med = np.nanmedian(frame * mean_mask, axis=0)
+                    lowp = mp.lowpassfilter(med, filter_width)
+                # Broadcasting is identical to tiling the profile over rows.
+                frame -= lowp
+                # Weight integrations equally, never average block means.
+                sum_cube_tile += lowp
+                if integration.start == 0 and frame_index == 0:
+                    corrected0 = frame.copy()
+            if not reuse:
+                # Never mutate ERR/DQ or publish a partially written stage.
+                datacube.write_product(product, arrays)
+            del frame, arrays
+        sum_cube_tile /= len(datacube)
+        if reuse:
+            # Plot the validated cached output, not merely its reconstruction.
+            with fits.open(products[0].filename, memmap=False) as hdul:
+                science_hdu = cast(fits.ImageHDU, hdul['SCI'])
+                corrected0 = science_hdu.section[0].astype(float)
+        plots.plot_lowpass(self, frame0, corrected0, sum_cube_tile)
+        # Validate all products again before changing active manager filenames.
+        datacube.commit_products(products)
+        return datacube
 
-        :param cube: np.ndarray, the cube to patch
+    def patch_isolated_bads(self, datacube: DataCube) -> DataCube:
+        """Patch isolated NaNs from their four neighbours in bounded blocks.
 
-        :return: np.ndarray, the patched cube
+        A non-finite pixel whose four edge neighbours are all finite becomes
+        the plain mean of those neighbours in SCI; ERR becomes the plain mean
+        of the same four ERR values (infinite neighbours propagate). DQ is
+        unchanged. The heat map, before/after stamps, cutouts and plots use
+        global integration indices of the active DataCube, accumulated across
+        blocks exactly as the original full-cube loop. Reuse skips writes but
+        recomputes diagnostics so plots and cutouts are always produced.
+
+        :param datacube: active normalized SCI/ERR/DQ stage manager
+        :return: same manager; advanced only after all writes, plots and
+                 cutouts succeed, or unchanged when
+                 WLC.GENERAL.PATCH_ISOLATED_BADS is false (no file I/O)
+        :raises SossisseConstantException: if PATCH_IBADS_SSIZE is even
+        :raises ValueError: if products or alignment fail validation
+        :raises OSError: if a working product cannot be read or written
+        :raises Exception: propagate stamp/plot/cutout errors uncommitted
         """
         # set function name
         func_name = f'{__NAME__}.patch_isolated_bads()'
+        # Read only the enable switch until the stage is actually requested.
         wlc_params = self.params.get('WLC.GENERAL')
         patch_isolated_bads = wlc_params.rget('PATCH_ISOLATED_BADS',
-                             required=True, func=func_name)
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True, func=func_name)
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True, func=func_name)
-        # construct temporary file names
-        temp_clean_nan = self.get_variable('TEMP_CLEAN_NAN', func_name)
-        temp_clean_nan_err = self.get_variable('TEMP_CLEAN_NAN_ERR', func_name)
-        # ---------------------------------------------------------------------
+                                              required=True, func=func_name)
         # deal with no patching isolated bad pixels
         if not patch_isolated_bads:
             # print message that we are not patching isolated bad pixels
             msg = ('WLC.GENERAL.PATCH_ISOLATED_BADS=False. Not patching '
                    'isolated bad pixels')
             misc.printc(msg, 'info')
-            # return the cube (unchanged)
-            return cube, err
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
-            if os.path.exists(temp_clean_nan):
-                # print progress
-                msg = ('patch_isolated_bads: \t we read temporary files to '
-                       'speed things up. \nReading: {0}')
-                margs = [temp_clean_nan]
-                misc.printc(msg.format(*margs), 'info')
-                # load the data
-                cube = self.load_data(temp_clean_nan)
-                err = self.load_data(temp_clean_nan_err)
-                return cube, err
-        # ---------------------------------------------------------------------
+            # Keep the original working products active.
+            return datacube
+        # Working products are mandatory; USE_TEMPORARY controls reuse only.
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
         bad_pixel_stamp_size = wlc_params.rget('PATCH_IBADS_SSIZE',
-                               required=True, func=func_name)
+                                               required=True, func=func_name)
+        # Validate the stamp size before reading or writing any block.
+        if bad_pixel_stamp_size % 2 == 0:
+            emsg = 'WLC.GENERAL.PATCH_IBADS_SSIZE must be odd'
+            raise exceptions.SossisseConstantException(emsg)
+        # get the half size of the bad pixel stamps
+        bpixel_ssize = (bad_pixel_stamp_size - 1) // 2
+        # The stamp size only affects diagnostics, never product values.
+        signature = dict(neighbours=4, fill='mean',
+                         algorithm='isolated-four-neighbour-mean-v1')
+        products = datacube.plan_stage('isolated', signature)
+        reuse = use_temp and datacube.products_valid(products)
         # print progress
         msg = ' Removing isolated NaNs'
         misc.printc(msg, 'info')
         # storage for the heat map
-        heat_map = np.zeros_like(cube[0], dtype=float)
-        # storage of bad pixels
+        heat_map = np.zeros(datacube.shape[1:], dtype=float)
+        # storage of bad pixel stamps, keyed by global integration index
         bad_pixels_before = dict()
         bad_pixels_after = dict()
-        # get the size of the bad pixel stamps
-        if bad_pixel_stamp_size % 2 == 0:
-            emsg = 'WLC.GENERAL.PATCH_IBADS_SSIZE must be odd'
-            raise exceptions.SossisseConstantException(emsg)
-        else:
-            bpixel_ssize = (bad_pixel_stamp_size - 1) // 2
-        # ---------------------------------------------------------------------
-        # store cube[0] before (for plot)
-        iframe_before = np.array(cube[0])
         # store the positions of the bad pixels
         badpix_pos = dict()
-        # loop around frames in cube
-        for it, iframe in tqdm(enumerate(range(cube.shape[0]))):
-            # sort out storage for this frame
-            bad_pixels_before[it] = []
-            bad_pixels_after[it] = []
-            # get the cube frame
-            cframe = np.array(cube[iframe, :, :])
-            ecframe = np.array(err[iframe, :, :])
-            # get a mask of the nan values
-            mframe = np.isfinite(cframe)
-            # make a kernel surrounding the pixel (3x3)
-            kernel = np.zeros([3, 3], dtype=float)
-            # set any pixels and the pixel itself to 1
-            kernel[1, :] = 1
-            kernel[:, 1] = 1
-            # find bad pixels that are isolated
-            n_bad = convolve2d(np.array(mframe, dtype=float), kernel,
-                               mode='same')
-            isolated_bad = (n_bad == 4) & ~mframe
-            # add the isolated bad pixels to the heat map
-            heat_map += isolated_bad.astype(int)
-            # get the pixel positions with isolated bad pixels
-            ypix, xpix = np.where(isolated_bad)
-            # for each pixel replace the value with the mean of the 4 pixels
-            #   around it
-            mean_vals = np.mean([cframe[ypix - 1, xpix],
-                                 cframe[ypix + 1, xpix],
-                                 cframe[ypix, xpix - 1],
-                                 cframe[ypix, xpix + 1]], axis=0)
-            # do the same for the errors
-            mean_err_vals = np.mean([ecframe[ypix - 1, xpix],
-                                     ecframe[ypix + 1, xpix],
-                                     ecframe[ypix, xpix - 1],
-                                     ecframe[ypix, xpix + 1]], axis=0)
-            # -----------------------------------------------------------------
-            # get the bad pixel stamps (before correction)
-            _bad_stamps = self.create_bad_pixel_stamps(ypix, xpix, cframe, 
-                                                       bpixel_ssize)
-            bad_pixels_before[it] = _bad_stamps
-            # -----------------------------------------------------------------
-            # update cframe and set make
-            cframe[ypix, xpix] = mean_vals
-            ecframe[ypix, xpix] = mean_err_vals
-            # -----------------------------------------------------------------
-            # get the bad pixel stamps (after correction)
-            _bad_stamps = self.create_bad_pixel_stamps(ypix, xpix, cframe, 
-                                                       bpixel_ssize)
-            bad_pixels_after[it] = _bad_stamps
-            # -----------------------------------------------------------------
-            # mframe[ypix, xpix] = True
-            # push back into the cube
-            cube[iframe, :, :] = cframe
-            err[iframe, :, :] = ecframe
-            # save the bad pixel positions
-            badpix_pos[iframe] = [ypix, xpix]
+        # make a kernel surrounding the pixel (3x3)
+        kernel = np.zeros([3, 3], dtype=float)
+        # set the four edge neighbours and the pixel itself to 1
+        kernel[1, :] = 1
+        kernel[:, 1] = 1
+        # store the first frame before and after patching (for plot)
+        iframe_before = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        iframe_after = iframe_before.copy()
+        # Only one block and detector-sized diagnostics reside in memory.
+        for product, (integration, arrays) in zip(
+                products, datacube.iter_integrations()):
+            cube = arrays['CUBE']
+            err = arrays['ERR']
+            for local_index in range(cube.shape[0]):
+                # Diagnostics retain the full-cube frame numbering.
+                iframe = integration.start + local_index
+                # get the cube frame
+                cframe = np.array(cube[local_index])
+                ecframe = np.array(err[local_index])
+                # get a mask of the nan values
+                mframe = np.isfinite(cframe)
+                # find bad pixels that are isolated
+                n_bad = convolve2d(np.array(mframe, dtype=float), kernel,
+                                   mode='same')
+                isolated_bad = (n_bad == 4) & ~mframe
+                # add the isolated bad pixels to the heat map
+                heat_map += isolated_bad.astype(int)
+                # get the pixel positions with isolated bad pixels
+                ypix, xpix = np.where(isolated_bad)
+                # replace each value with the mean of its 4 neighbours
+                mean_vals = np.mean([cframe[ypix - 1, xpix],
+                                     cframe[ypix + 1, xpix],
+                                     cframe[ypix, xpix - 1],
+                                     cframe[ypix, xpix + 1]], axis=0)
+                # do the same (plain mean) for the errors
+                mean_err_vals = np.mean([ecframe[ypix - 1, xpix],
+                                         ecframe[ypix + 1, xpix],
+                                         ecframe[ypix, xpix - 1],
+                                         ecframe[ypix, xpix + 1]], axis=0)
+                # get the bad pixel stamps (before correction)
+                bad_pixels_before[iframe] = self.create_bad_pixel_stamps(
+                    ypix, xpix, cframe, bpixel_ssize)
+                # update the science and error frames
+                cframe[ypix, xpix] = mean_vals
+                ecframe[ypix, xpix] = mean_err_vals
+                # get the bad pixel stamps (after correction)
+                bad_pixels_after[iframe] = self.create_bad_pixel_stamps(
+                    ypix, xpix, cframe, bpixel_ssize)
+                # push back into the block
+                cube[local_index] = cframe
+                err[local_index] = ecframe
+                # save the bad pixel positions
+                badpix_pos[iframe] = [ypix, xpix]
+                # keep the first patched frame for the heat map plot
+                if iframe == 0:
+                    iframe_after = cframe.copy()
+            if not reuse:
+                # Writes remain unpublished until all diagnostics succeed.
+                datacube.write_product(product, arrays)
+            del cube, err, arrays
+        if reuse:
+            # Plot the validated cached output, not merely its reconstruction.
+            with fits.open(products[0].filename, memmap=False) as hdul:
+                science_hdu = cast(fits.ImageHDU, hdul['SCI'])
+                iframe_after = science_hdu.section[0].astype(float)
         # ---------------------------------------------------------------------
-        plots.plot_heatmap(self, heat_map, iframe_before, cube[0],
+        plots.plot_heatmap(self, heat_map, iframe_before, iframe_after,
                            'isolated bad pixels',
                            'isolated_badpixels',
                            'Number across all integrations')
@@ -1759,23 +1829,11 @@ class Instrument:
         pixel_cutouts_all, table_cutouts_all = csi_out
         # plot this as a cut out
         plots.plot_pixels(self, bpixel_cutouts_small)
-        # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then save them
-        if allow_temp:
-            # print progress
-            msg = ('We write intermediate files, they will be read to speed '
-                   'things next time\n\ttemp cleaned: {0}')
-            margs = [temp_clean_nan]
-            misc.printc(msg.format(*margs), 'info')
-            # save the data
-            fits.writeto(temp_clean_nan, cube, overwrite=True)
-            fits.writeto(temp_clean_nan_err, err, overwrite=True)
-        # ---------------------------------------------------------------------
         # save the cutouts of all bad pixels
         self.save_cutouts(pixel_cutouts_all, table_cutouts_all)
-        # ---------------------------------------------------------------------
-        # return the cube
-        return cube, err
+        # Validate all products again before changing active manager filenames.
+        datacube.commit_products(products)
+        return datacube
 
 
     def create_bad_pixel_stamps(self, ypix: np.ndarray, xpix: np.ndarray, 
@@ -2280,9 +2338,7 @@ class Instrument:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
         # ---------------------------------------------------------------------
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
-                                      func=func_name)
+        # Read the sole control for reusing working products
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
                                     func=func_name)
         # get the number of frames
@@ -2294,8 +2350,8 @@ class Instrument:
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         tmp_amps = self.get_variable('TEMP_AMP_FILE', func_name)
         # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then load them
-        if allow_temp and use_temp:
+        # Reuse existing working files only when requested
+        if use_temp:
             fit_pca = self.params.rget('WLC.LMODEL.FIT_PCA', required=True,
                                        func=func_name)
             # make sure all required files exist
@@ -2371,10 +2427,9 @@ class Instrument:
         misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
         fits.writeto(median_image_file, med, overwrite=True)
         # save temporary files
-        if allow_temp:
-            # write the clean cube
-            misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
-            fits.writeto(clean_cube_file, cube, overwrite=True)
+        # write the clean cube
+        misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
+        fits.writeto(clean_cube_file, cube, overwrite=True)
         # ---------------------------------------------------------------------
         return [cube, med, amps]
 
@@ -2383,9 +2438,7 @@ class Instrument:
                           trace_mask: np.ndarray) -> np.ndarray:
         # define the function name
         func_name = f'{__NAME__}.{self.name}.clean_1f()'
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
-                                      func=func_name)
+        # Read the sole control for reusing working products
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
                                     func=func_name)
         apply_1f_corr = self.params.rget('WLC.INPUTS.APPLY_1F_CORR',
@@ -2430,10 +2483,9 @@ class Instrument:
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
-        if allow_temp:
-            # write the median image
-            misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
-            fits.writeto(median_image_file, med, overwrite=True)
+        # write the median image
+        misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
+        fits.writeto(median_image_file, med, overwrite=True)
         # ---------------------------------------------------------------------
         # return the cleaned cube, the median image, the median difference
         return cube1
@@ -2667,9 +2719,7 @@ class Instrument:
         n_comp = self.params.rget('WLC.LMODEL.FIT_N_PCA', required=True,
                       func=func_name)
         # ---------------------------------------------------------------------
-        # get the conditions for allowing and using temporary files
-        allow_temp = self.params.rget('GENERAL.ALLOW_TEMPORARY', required=True,
-                                      func=func_name)
+        # Read the sole control for reusing working products
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
                                     func=func_name)
         # update meta data
@@ -2687,7 +2737,7 @@ class Instrument:
             return None
         # ---------------------------------------------------------------------
         # only look for fit pca file if we are fitting pca
-        if allow_temp and use_temp and os.path.exists(tmp_pcas):
+        if use_temp and os.path.exists(tmp_pcas):
             misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
             return self.load_data(tmp_pcas)
 
@@ -2804,12 +2854,11 @@ class Instrument:
         # deal with plotting
         plots.pca_plot(self, n_comp, pcas, variance_ratio)
         # ---------------------------------------------------------------------
-        # if we are allowed temporary files and are using them then save them
-        if allow_temp:
-            tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
-            # write the pca
-            misc.printc('\tWriting: {0}'.format(tmp_pcas), 'info')
-            fits.writeto(tmp_pcas, pcas, overwrite=True)
+        # Always persist working products
+        tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
+        # write the pca
+        misc.printc('\tWriting: {0}'.format(tmp_pcas), 'info')
+        fits.writeto(tmp_pcas, pcas, overwrite=True)
         # ---------------------------------------------------------------------
         # return the pcas
         return pcas

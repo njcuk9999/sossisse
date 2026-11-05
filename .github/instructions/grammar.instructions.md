@@ -5,6 +5,50 @@ applyTo: '**/*.py'
 
 # SOSSISSE Python Grammar
 
+## Module Template
+
+- Follow the existing Python module template: shebang, UTF-8 declaration,
+  module docstring, imports, and the sections shown below in this order.
+- Import `base` from the current project's core package, never another
+  project's package. Set `__NAME__` to the actual dotted module name.
+- Put classes in `Define classes`, above `Define functions`. Put private
+  module-level helper functions in `Define functions`.
+- Preserve the standard section dividers and executable footer.
+
+```python
+# =============================================================================
+# Define variables
+# =============================================================================
+__NAME__ = 'sossisse.general.datacube'
+__version__ = base.__version__
+__date__ = base.__date__
+__authors__ = base.__authors__
+
+
+# =============================================================================
+# Define classes
+# =============================================================================
+
+
+# =============================================================================
+# Define functions
+# =============================================================================
+
+
+# =============================================================================
+# Start of code
+# =============================================================================
+# Main code here
+if __name__ == "__main__":
+    # ----------------------------------------------------------------------
+    # print 'Hello World!'
+    print("Hello World!")
+
+# =============================================================================
+# End of code
+# =============================================================================
+```
+
 ## Strings and Line Length
 
 - Prefer single-quoted strings. Use double quotes when needed for embedded

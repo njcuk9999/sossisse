@@ -18,8 +18,8 @@ applyTo: '**/*.py'
 - Separate top-level definitions with two blank lines. Follow existing section
   banners for variables, classes, functions, and worker functions as needed.
 - Keep instrument-specific helpers in the owning instrument module unless
-  there is a concrete shared abstraction. Do not add empty sections or a
-  demonstration main block to library modules.
+  there is a concrete shared abstraction. Preserve the standard module
+  sections and main footer specified in the companion grammar instructions.
 
 ## Comments and Docstrings
 

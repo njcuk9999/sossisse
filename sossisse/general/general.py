@@ -25,7 +25,7 @@ from sossisse.instruments import Instrument
 # =============================================================================
 # Define variables
 # =============================================================================
-__NAME__ = 'sossisse.core.misc'
+__NAME__ = 'sossisse.general.general'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
@@ -279,49 +279,59 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # Load the image, error and data quality images
     # =========================================================================
-    cube, err, dq = inst.load_data_with_dq()
+    datacube = inst.load_data_with_dq()
 
     # =========================================================================
     # Apply the flat field
     # =========================================================================
-    cube, err, dq = inst.apply_flat_field(cube, err, dq)
+    datacube = inst.apply_flat_field(datacube)
 
     # =========================================================================
     # Keep only certain Data Quality flags
     # =========================================================================
-    cube, err = inst.apply_dq(cube, err, dq)
+    datacube = inst.apply_dq(datacube)
 
     # =========================================================================
     # remove the background
     # =========================================================================
-    cube, err = inst.remove_background(cube, err)
+    datacube = inst.remove_background(datacube)
 
     # =========================================================================
     # low pass the data
     # =========================================================================
-    cube, err = inst.low_pass_filter(cube, err)
+    datacube = inst.low_pass_filter(datacube)
 
     # =========================================================================
     # Patch isolated bad pixels
     # =========================================================================
     # for each slice of the cube, isolated bad pixels are interpolated with the
     # value of their 4 neighbours.
-    cube, err = inst.patch_isolated_bads(cube, err)
+    datacube = inst.patch_isolated_bads(datacube)
 
     # =========================================================================
     # remove cosmic rays with a sigma cut
     # =========================================================================
-    cube = inst.remove_cosmic_rays(cube)
+    datacube = inst.remove_cosmic_rays(datacube)
+
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # TODO(DataCube): Starting with get_trace_mask, the stages below
+    # still require arrays. Never materialize the observation to bridge them.
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    raise NotImplementedError(
+        'TODO(DataCube): get_trace_mask and later stages need migration; '
+        f'cosmic-ray-processed {len(datacube)} integrations')
 
     # =========================================================================
     # get the trace map
     # =========================================================================
+    # TODO(DataCube): NEEDS TO BE CHANGED: request only the plotted frames.
     trace_mask = inst.get_trace_mask(cube=cube, no_plot=False,
                                      plot_frames=[0, -1])
 
     # =========================================================================
     # Create the median stack
     # =========================================================================
+    # TODO(DataCube): NEEDS TO BE CHANGED: exact median without a cube copy.
     cube, med, amps = inst.create_median_stack(cube)
 
     # =========================================================================
@@ -329,6 +339,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
+    # TODO(DataCube): NEEDS TO BE CHANGED: residual storage and 1/f reductions.
     cube = inst.clean_residual_1f(cube, err, med, amps, trace_mask)
 
     # =========================================================================
@@ -341,6 +352,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
+    # TODO(DataCube): NEEDS TO BE CHANGED: baseline selection/PCA workspace.
     pcas = inst.fit_pca(cube, err, med, trace_mask)
 
     # =========================================================================
@@ -378,6 +390,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy + amp[3] x dM/dtheta 
     #      + amp[4] x d2M/dy2
     # -------------------------------------------------------------------------
+    # TODO(DataCube): NEEDS TO BE CHANGED: bounded fit and output cube storage.
     l_out = inst.get_linear_coeffs(cube, err, med, mask_trace_pos,
                                    lvector, x_trace_pos, y_trace_pos,
                                    x_order0, y_order0)
@@ -422,6 +435,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # write files
     # =========================================================================
+    # TODO(DataCube): NEEDS TO BE CHANGED: persist output blocks directly.
     inst.save_wlc_results(rescube, err, lrecon, ltable)
 
     # =========================================================================

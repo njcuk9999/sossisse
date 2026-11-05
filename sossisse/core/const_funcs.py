@@ -11,6 +11,7 @@ import os
 import sys
 from typing import List
 
+from aperocore.base import base as aperobase
 from aperocore.constants import load_functions
 from aperocore.constants.param_functions import ParamDict
 from aperocore.core import drs_log
@@ -53,6 +54,41 @@ EXCLUDED_HASH_KEYS = ['PROJECT_NAME']
 # =============================================================================
 # Define functions that use CDICT
 # =============================================================================
+def _load_yaml_parameters(filename: str, params: ParamDict) -> ParamDict:
+    """Load SOSSISSE YAML without flattening exact integer DQ keys.
+
+    The shared loader flattens every dictionary into dotted string keys,
+    losing the distinction between YAML integer 2 and quoted string "2".
+    Keep VALID_DQ as a leaf before delegating parameter validation/storage.
+
+    :param filename: configuration YAML path
+    :param params: initialized defaults and command/function inputs
+    :return: same parameter manager with validated YAML values and sources
+    :raises SossisseConstantException: for invalid raw DQ keys or fractions
+    :raises OSError: if the configuration file cannot be read
+    """
+    # Use the same structured YAML parser as the shared parameter loader.
+    yaml_data = aperobase.load_yaml(filename)
+    if yaml_data is None:
+        return params
+    # Flatten other settings exactly as before; replace only this known leaf.
+    flat_values = load_functions._to_flat_dict(yaml_data)
+    input_values = yaml_data.get('WLC', dict()).get('INPUTS', dict())
+    if 'VALID_DQ' in input_values:
+        # Validate ORIGINAL YAML keys before any stringification can hide an
+        # invalid float/Boolean/string key. Empty mappings must also fail.
+        raw_valid_dq = input_values['VALID_DQ']
+        valid_dq = constants.ValidDQConst.configuration(raw_valid_dq)
+        dq_key = 'WLC.INPUTS.VALID_DQ'
+        flat_values = {key: value for key, value in flat_values.items()
+                       if key != dq_key and not key.startswith(dq_key + '.')}
+        flat_values[dq_key] = valid_dq
+    # Preserve the shared source accounting and all other Const validation.
+    sources = load_functions.update_sources(params, flat_values, filename)
+    load_args = [flat_values, sources, params.instances, params]
+    return load_functions.load_into_params(*load_args, check=True)
+
+
 def get_parameters(no_yaml: bool = False,
                    only_create: bool = False, log_level: str = None,
                    setup_mode: bool = False, **kwargs) -> Instrument:
@@ -105,13 +141,17 @@ def get_parameters(no_yaml: bool = False,
         misc.printc(msg, msg_type='info')
     else:
         # get parameters
-        params = load_functions.get_all_params(name=__NAME__,
-                                               description=description,
-                                               inputargs=inputs,
-                                               param_file_path='INPUTS.PARAM_FILE',
-                                               config_list=[constants.CDict],
-                                               from_file=not no_yaml,
-                                               kwargs=kwargs)
+        parameter_kwargs = dict(name=__NAME__, description=description,
+                    inputargs=inputs,
+                    param_file_path='INPUTS.PARAM_FILE',
+                    config_list=[constants.CDict],
+                    from_file=False, kwargs=kwargs)
+        params = load_functions.get_all_params(**parameter_kwargs)
+        if not no_yaml:
+            # Resolve the same CLI/function YAML path, retaining DQ key types.
+            param_file = load_functions.get_param_file(
+                params, 'INPUTS.PARAM_FILE', func_name)
+            params = _load_yaml_parameters(param_file, params)
         # set source from SOSSISSE
         params.set('__SOURCE__', 'SOSSISSE', source=func_name)
     # -------------------------------------------------------------------------

@@ -170,11 +170,11 @@ class JWST_NIRSPEC(default.Instrument):
         """
         Load science, error and DQ through the detector-isolated parent path.
 
-        The parent may reuse temporary cubes; otherwise it loads, bins and
-        selects frames using its normal workflow. It also updates the stored
-        data dimensions and, on the full loading path, observation metadata.
+        The parent normalizes each raw segment into bounded FITS products,
+        reusing only complete matching products when requested. It updates
+        data dimensions and header-sorted observation metadata in both cases.
 
-        :return: tuple, the parent loader's science, error and DQ cubes
+        :return: DataCube, aligned science, error and DQ storage
         :raises SossisseConstantException: if input detector labels are unknown
                                           or span both detectors
         :raises Exception: propagates header, parameter and parent-load errors
@@ -184,6 +184,12 @@ class JWST_NIRSPEC(default.Instrument):
         self.check_detector_cube()
         # Leave loading, caching and any parameter updates to the parent.
         return super().load_data_with_dq()
+
+    def get_datacube_options(self) -> dict:
+        """Crop raw DataCube reads to the active detector wavelength grid."""
+        datacube_kwargs = super().get_datacube_options()
+        datacube_kwargs['pixel_bounds'] = self._force_pixel_grid
+        return datacube_kwargs
 
     def load_data(self, filename: str, ext: int = None, extname: str = None,
                   force_pixel_grid: bool = False):
@@ -228,6 +234,10 @@ class JWST_NIRSPEC(default.Instrument):
         :raises Exception: propagates FITS access, pixel-grid, binning, CDS
                            conversion and incompatible array-shape errors
         """
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # TODO(DataCube): Legacy full-array loader. The new initial loader uses
+        # get_datacube_options instead; retire this API after caller migration.
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # A temporal cube must never concatenate the two detector pixel grids.
         self.check_detector_cube()
         # Preserve configured file ordering when assembling the frame axis.

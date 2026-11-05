@@ -449,7 +449,6 @@ def test_real_child_filenames_wave_and_cube_loading(tmp_path):
     params = const_funcs.load_functions.load_parameters([constants.CDict])
     for key, value in minimal.params.items():
         params.set(key, value, source='test')
-    params['GENERAL.ALLOW_TEMPORARY'] = False
     params['GENERAL.USE_TEMPORARY'] = False
     inst = jwst_nirspec.JWST_NIRSPEC(params)
     children = jwst_nirspec.detector_children(inst)
@@ -464,11 +463,13 @@ def test_real_child_filenames_wave_and_cube_loading(tmp_path):
         expected_wavelength = np.arange(4.0) + trace
         np.testing.assert_array_equal(child.get_wavegrid(),
                           expected_wavelength)
-        cube, error, dq = child.load_data_with_dq()
+        datacube = child.load_data_with_dq()
+        arrays = datacube.read_integrations()
+        cube = arrays['CUBE']
         assert cube.shape == (2, 2, 4)
         np.testing.assert_array_equal(cube, np.full(cube.shape, trace))
-        np.testing.assert_array_equal(error, np.ones(cube.shape))
-        assert not np.any(dq)
+        np.testing.assert_array_equal(arrays['ERR'], np.ones(cube.shape))
+        assert not np.any(arrays['DQ'])
         path = child.get_variable('TEMP_INI_CUBE', 'test')
         assert path.endswith(f'temporary_initial_cube_nrs{trace}.fits')
         assert os.path.dirname(path) == child.params['PATHS.TEMP_PATH']

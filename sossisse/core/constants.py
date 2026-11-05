@@ -8,6 +8,10 @@ Created on 2024-08-13
 @author: cook
 """
 from copy import copy
+from collections.abc import Mapping
+from numbers import Integral, Real
+import math
+from typing import Any
 
 from aperocore.constants import constant_functions
 
@@ -25,6 +29,173 @@ __authors__ = base.__authors__
 Const = constant_functions.Const
 ConstDict = constant_functions.ConstantsDict
 CDict = ConstDict(__NAME__)
+
+
+class MathMemoryConst(Const):
+    """Preserve strict positive finite GiB limits through YAML and copies."""
+
+    @staticmethod
+    def memory(value: object) -> float:
+        """Validate the original value before any framework dtype conversion.
+
+        :param value: math budget in GiB (1024**3 bytes), not gigabits
+        :return: positive finite floating budget
+        :raises SossisseConstantException: for Boolean/non-real/invalid limits
+        """
+        emsg = ('GENERAL.MAX_MATH_MEMORY_GB must be a positive finite real '
+                'number in GiB (1024**3 bytes), not a Boolean')
+        if isinstance(value, bool) or not isinstance(value, Real):
+            raise exceptions.SossisseConstantException(emsg)
+        # Reject huge integer overflow as a configuration error, not a cast.
+        try:
+            memory = float(value)
+        except OverflowError as error:
+            raise exceptions.SossisseConstantException(emsg) from error
+        if not math.isfinite(memory) or memory <= 0:
+            raise exceptions.SossisseConstantException(emsg)
+        return memory
+
+    def validate(self, test_value: Any = None, quiet: bool = False,
+                 source: str | None = None) -> Any:
+        """Validate stored/candidate limits using the Const convention.
+
+        :param test_value: candidate, or None to validate the stored value
+        :param quiet: accepted for Const compatibility
+        :param source: accepted for Const compatibility
+        :return: True for stored validation, otherwise validated GiB
+        :raises SossisseConstantException: for an invalid memory limit
+        """
+        value = self.value if test_value is None else test_value
+        memory = self.memory(value)
+        if test_value is None:
+            self.true_value = memory
+            return True
+        return memory
+
+    def copy(self, source: str | None = None) -> 'MathMemoryConst':
+        """Keep strict validation when constants acquire new provenance.
+
+        :param source: replacement provenance, or None to preserve it
+        :return: independent constant retaining this validation subclass
+        """
+        constant = copy(self)
+        if source is not None:
+            constant.source = source
+        return constant
+
+
+class DQThresholdConst(Const):
+    """Preserve and strictly validate an occurrence fraction, without casts."""
+
+    @staticmethod
+    def fraction(value: object) -> float:
+        """Return a finite real fraction in [0, 1], excluding Booleans.
+
+        :param value: candidate maximum permitted occurrence fraction
+        :return: validated fraction as a float
+        :raises SossisseConstantException: for non-real or invalid fractions
+        """
+        # Do not let bools, strings or NaN become meaningful science settings.
+        emsg = 'DQ threshold must be a finite real fraction in [0, 1]'
+        if isinstance(value, bool) or not isinstance(value, Real):
+            raise exceptions.SossisseConstantException(emsg)
+        # Compare concrete floats after checking the original type, not a
+        # coerced string/bool. Extremely large integers are invalid limits.
+        try:
+            fraction = float(value)
+        except OverflowError as error:
+            raise exceptions.SossisseConstantException(emsg) from error
+        if not math.isfinite(fraction) or not 0 <= fraction <= 1:
+            raise exceptions.SossisseConstantException(emsg)
+        return fraction
+
+    def validate(self, test_value: Any = None, quiet: bool = False,
+                 source: str | None = None) -> Any:
+        """Validate stored/candidate fractions using the Const convention.
+
+        :param test_value: candidate, or None to validate the stored value
+        :param quiet: accepted for Const compatibility
+        :param source: accepted for Const compatibility
+        :return: True for stored validation, otherwise the validated fraction
+        :raises SossisseConstantException: if the fraction is invalid
+        """
+        value = self.value if test_value is None else test_value
+        fraction = self.fraction(value)
+        if test_value is None:
+            self.true_value = fraction
+            return True
+        return fraction
+
+    def copy(self, source: str | None = None) -> 'DQThresholdConst':
+        """Copy without losing strict validation on a provenance change.
+
+        :param source: replacement provenance, or None to preserve it
+        :return: independent constant retaining this validation subclass
+        """
+        constant = copy(self)
+        if source is not None:
+            constant.source = source
+        return constant
+
+
+class ValidDQConst(Const):
+    """Preserve exact-value DQ whitelists as mappings or legacy lists."""
+
+    @staticmethod
+    def configuration(value: object) -> dict[int, float] | list[int]:
+        """Validate accepted exact DQ categories and optional fraction limits.
+
+        :param value: nonempty mapping of integer DQ to maximum fractions,
+                      or a distinct nonempty legacy list of integer DQ values
+        :return: isolated configuration, without coercing keys or list values
+        :raises SossisseConstantException: for invalid keys, lists or limits
+        """
+        # Keys are exact values, not bit masks; never coerce strings or floats.
+        if not isinstance(value, (Mapping, list)) or not value:
+            emsg = 'VALID_DQ must be a nonempty mapping or distinct list'
+            raise exceptions.SossisseConstantException(emsg)
+        if any(isinstance(key, bool) or not isinstance(key, Integral)
+               or key < 0 for key in value):
+            emsg = 'VALID_DQ keys must be nonnegative integers, not Booleans'
+            raise exceptions.SossisseConstantException(emsg)
+        if isinstance(value, list):
+            if len(set(value)) != len(value):
+                emsg = 'VALID_DQ list must contain distinct integers'
+                raise exceptions.SossisseConstantException(emsg)
+            return list(value)
+        return {int(key): DQThresholdConst.fraction(limit)
+                for key, limit in value.items()}
+
+    def validate(self, test_value: Any = None, quiet: bool = False,
+                 source: str | None = None) -> Any:
+        """Validate without converting a mapping into a list of its keys.
+
+        :param test_value: candidate, or None to validate the stored value
+        :param quiet: accepted for Const compatibility
+        :param source: accepted for Const compatibility
+        :return: True for stored validation, otherwise an isolated dict/list
+        :raises SossisseConstantException: for invalid DQ configuration
+        """
+        value = self.value if test_value is None else test_value
+        validated = self.configuration(value)
+        if test_value is None:
+            self.true_value = validated
+            return True
+        return validated
+
+    def copy(self, source: str | None = None) -> 'ValidDQConst':
+        """Copy this subclass and isolate mutable DQ configuration.
+
+        :param source: replacement provenance, or None to preserve it
+        :return: independent constant retaining dict/list validation
+        """
+        constant = copy(self)
+        if source is not None:
+            constant.source = source
+        constant.value = self.configuration(self.value)
+        if self.true_value is not None:
+            constant.true_value = self.configuration(self.true_value)
+        return constant
 
 
 class WavelengthFileConst(Const):
@@ -291,19 +462,30 @@ CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
           description='Wavelength calibration file type [ext1d, fits, hdf5]')
 
 # -----------------------------------------------------------------------------
-# allow for temporary files to speed the process if you run the code more
-#    than once
-CDict.add('ALLOW_TEMPORARY', value=False, dtype=bool,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Allow saving of temporary files to speed the process if '
-                      '\nyou run the code more than once')
-# -----------------------------------------------------------------------------
 # Use temporary files (False we overwrite the files for a fresh start even
 #   if they exist on disk)
 CDict.add('USE_TEMPORARY', value=False, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Use temporary files (False we overwrite the files '
                       '\nfor a fresh start even if they exist on disk)')
+CDict.add('MAX_INTEGRATIONS', value=1000, dtype=int, minimum=1,
+          source=__NAME__, user=True, active=True, group=cgroup,
+          description='Maximum integrations per normalized FITS product '
+                      'and DataCube read. Working products are always '
+                      'written; USE_TEMPORARY controls reuse. '
+                      'Must be a positive integer.')
+# Keep the original YAML type until validation (bool is not a float budget).
+math_memory_kwargs = dict(value=8.0, dtype=float, source=__NAME__,
+                          user=True, active=True, group=cgroup)
+math_memory_kwargs['description'] = (
+    'DataCube math allocation budget in GiB (1024**3 bytes), not gigabits. '
+    'Includes final output, input tiles and conservative reduction/FITS '
+    'workspace. '
+    'Not a hard process RSS cap. Exact reductions raise MemoryError if '
+    'one complete reduced domain plus output cannot fit. Positive finite '
+    'real number; default 8.0 GiB.')
+CDict.storage['GENERAL.MAX_MATH_MEMORY_GB'] = MathMemoryConst(
+    'MAX_MATH_MEMORY_GB', **math_memory_kwargs)
 # -----------------------------------------------------------------------------
 # Save results at the end
 CDict.add('SAVE_RESULTS', value=True, dtype=bool,
@@ -432,12 +614,33 @@ CDict.add('APPLY_DQ_FLAGS', value=True, dtype=bool, source=__NAME__,
           description='Apply DQ flags')
 
 # -----------------------------------------------------------------------------
-# DQ flags that we should use (list)
-CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int,
-          source=__NAME__, user=True, active=True, tex_arg = True,
-          not_none=False, minimum=0, group=cgroup,
-          description='DQ flags that we should use (list)'
-                      ' e.g. \n -0 \n -2')
+# Accepted exact DQ values, not bit flags; limits apply to the active jump.
+valid_dq_kwargs = dict(value={0: 1.0, 2: 1.0}, dtype=dict,
+                       source=__NAME__, user=True, active=True,
+                       tex_arg=True, group=cgroup,
+                       description='Accepted exact DQ values mapped to '
+                                   'maximum occurrence fractions in the '
+                                   'active DataCube/jump. Inclusive limits: '
+                                   '0 permits no occurrence, 1 permits '
+                                   'every integration. '
+                                   'Any unlisted value (including NaN/inf) or '
+                                   'exceeded limit masks that spatial pixel '
+                                   'in ALL frames. Legacy lists use '
+                                   'DQ_THRESHOLD for every accepted value; '
+                                   'set it to 1 to permit any listed mix.')
+CDict.storage['WLC.INPUTS.VALID_DQ'] = ValidDQConst('VALID_DQ',
+                                                  **valid_dq_kwargs)
+threshold_kwargs = dict(value=0.0, dtype=float, minimum=0, maximum=1,
+                        source=__NAME__, user=True, active=True,
+                        tex_arg=True, group=cgroup,
+                        description='Maximum inclusive occurrence fraction '
+                                    'for each accepted value in a legacy '
+                                    'VALID_DQ list. Default 0 forbids any '
+                                    'listed occurrence, so a nonempty cube '
+                                    'is fully masked. VALID_DQ mappings '
+                                    'override this fallback per value.')
+CDict.storage['WLC.INPUTS.DQ_THRESHOLD'] = DQThresholdConst('DQ_THRESHOLD',
+                                                          **threshold_kwargs)
 # -----------------------------------------------------------------------------
 # Correct 1/f
 CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,

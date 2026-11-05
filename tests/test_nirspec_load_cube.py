@@ -128,11 +128,14 @@ def test_load_data_default_preserves_detector_width(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('cached', [False, True])
-def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached):
+@pytest.mark.parametrize('limit', [1, 1000])
+def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached, limit):
     instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
     instrument.params = ParamDict()
-    instrument.params.set('GENERAL.ALLOW_TEMPORARY', cached, source='test')
     instrument.params.set('GENERAL.USE_TEMPORARY', cached, source='test')
+    instrument.params.set('GENERAL.MAX_INTEGRATIONS', limit, source='test')
+    instrument.params.set('GENERAL.MAX_MATH_MEMORY_GB', 8.0, source='test')
+    instrument.params.set('WLC.LMODEL.DATA_BIN_TIME', False, source='test')
     instrument._jump_slice = None
     variables = {}
     monkeypatch.setattr(instrument, 'set_variable', variables.__setitem__)
@@ -144,7 +147,8 @@ def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached):
     data = np.arange(24.0).reshape(2, 2, 6)
     error = data + 1
     dq = (data % 4).astype(np.uint32)
-    header = fits.Header({'DETECTOR': 'NRS1', 'SUBSIZE1': 6})
+    header = fits.Header(dict(DETECTOR='NRS1', SUBSIZE1=6,
+                             INTSTART=1, INTEND=2))
     filename = tmp_path / 'raw.fits'
     fits.HDUList([fits.PrimaryHDU(header=header),
                   fits.ImageHDU(data, name='SCI'),
@@ -159,9 +163,17 @@ def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached):
     monkeypatch.setattr(instrument, 'get_variable',
                         lambda key, func_name: cache_paths[key])
 
-    actual = instrument.load_data_with_dq()
+    datacube = instrument.load_data_with_dq()
 
+    assert datacube.current_infiles
+    assert not hasattr(datacube, 'in_memory')
+    blocks = list(datacube.iter_integrations())
+    actual = tuple(np.concatenate([arrays[name] for _, arrays in blocks])
+                   for name in ('CUBE', 'ERR', 'DQ'))
     for result, original in zip(actual, [data, error, dq]):
-        expected = original if cached else original[..., 2:6]
+        expected = original[..., 2:6]
         np.testing.assert_array_equal(result, expected)
-    assert variables['DATA_X_SIZE'] == (6 if cached else 4)
+    assert variables['DATA_X_SIZE'] == 4
+    initial_files = datacube.current_infiles.copy()
+    datacube = instrument.load_data_with_dq()
+    assert datacube.current_infiles == initial_files
