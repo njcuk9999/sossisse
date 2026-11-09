@@ -152,8 +152,8 @@ def test_background_parity_and_bounds(tmp_path, monkeypatch, limit, jump):
 
     def bounded_read(start=0, stop=None):
         arrays = original_read(start, stop)
-        assert arrays['CUBE'].shape[0] <= limit
-        reads.append(arrays['CUBE'].shape[0])
+        assert arrays['FLUX'].shape[0] <= limit
+        reads.append(arrays['FLUX'].shape[0])
         return arrays
 
     monkeypatch.setattr(manager, 'read_integrations', bounded_read)

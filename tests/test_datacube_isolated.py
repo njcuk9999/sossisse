@@ -57,7 +57,7 @@ def make_patch_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     science = generator.normal(100, 5, (7, 12, 20))
     error = generator.uniform(1, 3, science.shape)
     for index in range(7):
-        # Every frame needs two stamps: the legacy grid divides by columns.
+        # Two isolated NaNs per frame, so every frame has stamp images.
         science[index, 3 + index % 4, 4 + index] = np.nan
         science[index, 8, 15 - index] = np.nan
         # Positive and negative spikes exercise only the upper sigma cut.
@@ -167,7 +167,7 @@ def record_diagnostics(instrument: Instrument,
         calls['heatmap'].append((heat.copy(), before.copy(), after.copy(),
                                  labels))
 
-    def record_pixels(inst: Any, pixel_dict: Any) -> None:
+    def record_pixels(inst: Any, pixel_dict: Any, frame_num: int = 0) -> None:
         calls['pixels'].append(pixel_dict)
 
     def record_stamps(*stamp_args: Any, **stamp_kwargs: Any) -> Any:
@@ -245,8 +245,8 @@ def test_patch_parity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 
     def bounded_read(start: int = 0, stop: int | None = None) -> Any:
         arrays = original_read(start, stop)
-        assert arrays['CUBE'].shape[0] <= limit
-        reads.append(arrays['CUBE'].shape[0])
+        assert arrays['FLUX'].shape[0] <= limit
+        reads.append(arrays['FLUX'].shape[0])
         return arrays
 
     monkeypatch.setattr(manager, 'read_integrations', bounded_read)
@@ -399,6 +399,66 @@ def test_failed_patch_not_committed(tmp_path: Path,
     with pytest.raises(RuntimeError, match='injected patch'):
         instrument.patch_isolated_bads(manager)
     assert manager.current_infiles == inputs
+
+
+@pytest.mark.parametrize('size', [3, 5, 7])
+@pytest.mark.parametrize('mode', ['seperate', 'together'])
+def test_stamp_images_any_size_and_few_pixels(size: int, mode: str) -> None:
+    """Skip empty frames, allow one stamp, any odd size, aligned positions.
+
+    :param size: odd stamp width
+    :param mode: separate before/after images or side-by-side tiles
+    """
+    instrument = Instrument.__new__(Instrument)
+    instrument.params = ParamDict()
+    instrument.params.set('WLC.GENERAL.PATCH_IBADS_SSIZE', size,
+                          source='test')
+    half = (size - 1) // 2
+    frame = np.random.default_rng(3).normal(size=(20, 20))
+    positions = dict()
+    positions[0] = (np.array([], dtype=int), np.array([], dtype=int))
+    positions[1] = (np.array([5]), np.array([5]))
+    positions[2] = (np.array([4, 10, 15]), np.array([3, 12, 8]))
+    before = dict()
+    after = dict()
+    for iframe, (ypix, xpix) in positions.items():
+        before[iframe] = instrument.create_bad_pixel_stamps(ypix, xpix,
+                                                            frame, half)
+        after[iframe] = instrument.create_bad_pixel_stamps(ypix, xpix,
+                                                           -frame, half)
+    images, tables = instrument.create_stamp_images(before, after,
+                                                    positions, num=2,
+                                                    mode=mode)
+    assert list(images) == [1, 2]
+    assert len(tables[1]) == 1 and len(tables[2]) == 2
+    border = 3
+    for iframe in images:
+        image = images[iframe][0] if mode == 'seperate' else images[iframe]
+        for row in tables[iframe]:
+            y0 = row['row'] * size + (row['row'] + 1) * border
+            width = size if mode == 'seperate' else 2 * size + 1
+            x0 = row['col'] * width + (row['col'] + 1) * border
+            ypix, xpix = np.array([row['y']]), np.array([row['x']])
+            expected = instrument.create_bad_pixel_stamps(ypix, xpix,
+                                                          frame, half)[0]
+            # The table position must belong to the stamp placed there.
+            np.testing.assert_allclose(image[y0:y0 + size, x0:x0 + size],
+                                       expected)
+
+
+@pytest.mark.parametrize('size', [3, 7])
+def test_patch_with_other_stamp_sizes(tmp_path: Path,
+                                      monkeypatch: pytest.MonkeyPatch,
+                                      size: int) -> None:
+    """Run the full stage with stamp sizes other than 5."""
+    instrument, manager, original = make_patch_case(tmp_path, monkeypatch)
+    instrument.params.set('WLC.GENERAL.PATCH_IBADS_SSIZE', size,
+                          source='test')
+    expected = reference_patch(instrument, original[0], original[1], size)
+    calls = record_diagnostics(instrument, monkeypatch)
+    instrument.patch_isolated_bads(manager)
+    np.testing.assert_allclose(collect(manager)[0], expected['cube'])
+    assert len(calls['cutouts']) == 1
 
 
 # =============================================================================

@@ -465,7 +465,7 @@ def test_real_child_filenames_wave_and_cube_loading(tmp_path):
                           expected_wavelength)
         datacube = child.load_data_with_dq()
         arrays = datacube.read_integrations()
-        cube = arrays['CUBE']
+        cube = arrays['FLUX']
         assert cube.shape == (2, 2, 4)
         np.testing.assert_array_equal(cube, np.full(cube.shape, trace))
         np.testing.assert_array_equal(arrays['ERR'], np.ones(cube.shape))

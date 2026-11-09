@@ -13,7 +13,7 @@ import copy
 import os
 import re
 import shutil
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from astropy.io import fits
@@ -26,6 +26,7 @@ from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import misc
 from sossisse.core.exceptions import SossisseConstantException
+from sossisse.general.datacube import DataCube
 from sossisse.instruments import default
 
 # =============================================================================
@@ -362,14 +363,24 @@ class JWST_NIRSPEC(default.Instrument):
         func_name = f'{__NAME__}.{self.name}.optimize_trace_mask()'
         return
 
-    def get_trace_positions(self, med: np.ndarray = None,
-                            cube: np.ndarray = None,  log: bool = True
-                            ) -> np.ndarray:
+    def get_trace_positions(self, med: Optional[np.ndarray] = None,
+                            cube: Optional[DataCube] = None,
+                            log: bool = True) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
 
-        :return: np.ndarray, the trace position map 
+        Without POS_FILE, fit and write a trace from the median image; if
+        only the DataCube is given, its exact per-pixel nanmedian over all
+        active integrations is computed with bounded tiled reads.
+
+        :param med: optional 2D median image, preferred over cube
+        :param cube: optional active DataCube; never materialized
+        :param log: bool, if True print progress
+        :return: np.ndarray, the trace position map
+        :raises SossisseException: if POS_FILE is absent and neither med nor
+                                   cube is supplied
+        :raises MemoryError: if the exact median exceeds the math budget
         """
         # set function name
         func_name = f'{__NAME__}.{self.name}.get_trace_positions()'
@@ -395,7 +406,8 @@ class JWST_NIRSPEC(default.Instrument):
                 med = np.array(med)
             # deal with having a cube supplied (and no temp clean nan)
             elif cube is not None:
-                med = np.nanmedian(cube, axis=0)
+                # Exact per-pixel median of all integrations in tiles.
+                med = cube.nanmedian('FLUX', axis=0)
             # else raise exception
             else:
                 emsg = 'No med/cube provided'

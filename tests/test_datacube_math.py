@@ -109,7 +109,7 @@ def test_selections(math_case: tuple[DataCube, NDArray[np.float64]],
     assert actual.shape == np.shape(expected)
 
 
-@pytest.mark.parametrize('data_key,offset', [('CUBE', 0), ('ERR', 10),
+@pytest.mark.parametrize('data_key,offset', [('FLUX', 0), ('ERR', 10),
                                             ('DQ', 20)])
 def test_methods_and_keys(math_case: tuple[DataCube, NDArray[np.float64]],
                           data_key: str, offset: int) -> None:
@@ -125,6 +125,23 @@ def test_methods_and_keys(math_case: tuple[DataCube, NDArray[np.float64]],
             expected = np.nanpercentile(science + offset, 33, axis=0,
                                          method=method)
             np.testing.assert_allclose(actual, expected)
+
+
+def test_nanmean_defaults_to_flux(
+    math_case: tuple[DataCube, NDArray[np.float64]]) -> None:
+    """The default DataCube reduction reads the FITS SCI flux payload."""
+    manager, flux = math_case
+    actual = manager.nanmean()
+    expected = np.nanmean(flux, axis=0)
+    np.testing.assert_allclose(actual, expected)
+
+
+def test_block_math_rejects_legacy_cube_key(
+        math_case: tuple[DataCube, NDArray[np.float64]]) -> None:
+    """CUBE is not an alias for the in-memory flux payload."""
+    manager, _ = math_case
+    with pytest.raises(ValueError, match='data_key must be FLUX, ERR or DQ'):
+        manager.nanmean('CUBE')
 
 
 def test_tight_budget_sections(math_case: tuple[DataCube, NDArray[np.float64]],

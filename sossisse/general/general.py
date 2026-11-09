@@ -10,6 +10,7 @@ Created on 2022-09-20
 @author: cook
 """
 import os
+from typing import cast
 
 import numpy as np
 from astropy.table import Table
@@ -19,6 +20,7 @@ from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
+from sossisse.general.datacube import DataCube
 from sossisse.general import plots
 from sossisse.instruments import Instrument
 
@@ -313,39 +315,37 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     datacube = inst.remove_cosmic_rays(datacube)
 
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    # TODO(DataCube): Starting with get_trace_mask, the stages below
-    # still require arrays. Never materialize the observation to bridge them.
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    raise NotImplementedError(
-        'TODO(DataCube): get_trace_mask and later stages need migration; '
-        f'cosmic-ray-processed {len(datacube)} integrations')
-
     # =========================================================================
     # get the trace map
     # =========================================================================
-    # TODO(DataCube): NEEDS TO BE CHANGED: request only the plotted frames.
-    trace_mask = inst.get_trace_mask(cube=cube, no_plot=False,
+    trace_mask = inst.get_trace_mask(cube=datacube, no_plot=False,
                                      plot_frames=[0, -1])
 
     # =========================================================================
     # Create the median stack
     # =========================================================================
-    # TODO(DataCube): NEEDS TO BE CHANGED: exact median without a cube copy.
-    cube, med, amps = inst.create_median_stack(cube)
+    datacube, med, amps = inst.create_median_stack(datacube)
+    # The legacy list annotation cannot express the three concrete outputs.
+    datacube = cast(DataCube, datacube)
+    med = cast(np.ndarray, med)
+    amps = cast(np.ndarray, amps)
 
     # =========================================================================
     # Differential 1/f correction
     # =========================================================================
     # if you want to subtract a higher order polynomial to the 1/f noise, change
     # the value of fit_order
-    # TODO(DataCube): NEEDS TO BE CHANGED: residual storage and 1/f reductions.
-    cube = inst.clean_residual_1f(cube, err, med, amps, trace_mask)
+    datacube = inst.clean_residual_1f(datacube, med, amps, trace_mask)
 
     # =========================================================================
     # recenter the trace position
     # =========================================================================
     trace_mask = inst.recenter_trace_position(trace_mask, med)
+
+    # PCA and every later science stage still require DataCube migration.
+    raise NotImplementedError(
+        'TODO(DataCube): PCA and later stages need migration; '
+        f'1/f-corrected {len(datacube)} integrations')
 
     # =========================================================================
     # PCA Analysis

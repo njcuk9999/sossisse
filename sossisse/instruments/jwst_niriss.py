@@ -28,6 +28,7 @@ from sossisse.core import misc
 from sossisse.core import exceptions
 from sossisse.instruments import default
 from sossisse.general import plots
+from sossisse.general.datacube import DataCube
 
 # Just to suppress the deprecation warnings from pastasoss
 # TODO: Test this later (once we update pastasoss)
@@ -115,14 +116,21 @@ class JWST_NIRISS_SOSS(JWST_NIRISS):
             # return the flat field
             return flat, False
 
-    def get_trace_positions(self, med: np.ndarray = None,
-                            cube: np.ndarray = None,  log: bool = True
-                            ) -> np.ndarray:
+    def get_trace_positions(self, med: Optional[np.ndarray] = None,
+                            cube: Optional[DataCube] = None,
+                            log: bool = True) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
 
+        SOSS positions come from POS_FILE orders, so the median image and
+        DataCube are accepted for interface compatibility but never read.
+
+        :param med: optional median image, unused
+        :param cube: optional active DataCube, unused (no data access)
+        :param log: bool, unused here
         :return: np.ndarray, the trace position map
+        :raises SossisseConstantException: if the position file is missing
         """
         # med and cube are not used here
         _ = med, cube

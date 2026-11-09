@@ -191,7 +191,7 @@ class DataCube:
                          shaped ``(1, reads, y, cropped x)`` to SCI/ERR/DQ
                          tuple arrays each shaped ``(1, y, cropped x)``;
                          retain this legacy instrument interface and map it
-                         to CUBE/ERR/DQ at the normalized product boundary;
+                         to FLUX/ERR/DQ at the normalized product boundary;
                          numeric/Boolean outputs are converted to float64
         :param synthetic_errors: for non-CDS inputs, derive ERR as
                                  ``sqrt(abs(SCI))`` and DQ as zeros
@@ -249,7 +249,7 @@ class DataCube:
             for product, task in zip(products, tasks):
                 record, start, stop = task
                 arrays: dict[str, NDArray[np.float64]] = dict()
-                arrays['CUBE'] = np.empty(product.shape, dtype=np.float64)
+                arrays['FLUX'] = np.empty(product.shape, dtype=np.float64)
                 arrays['ERR'] = np.empty(product.shape, dtype=np.float64)
                 arrays['DQ'] = np.empty(product.shape, dtype=np.float64)
                 with fits.open(record.filename, memmap=False,
@@ -266,7 +266,7 @@ class DataCube:
                             raise ValueError('Inconsistent converted shapes')
                         # Copy only this integration into the bounded product.
                         science, error, quality = converted
-                        arrays['CUBE'][target] = science[0]
+                        arrays['FLUX'][target] = science[0]
                         arrays['ERR'][target] = error[0]
                         arrays['DQ'][target] = quality[0]
                 self.write_product(product, arrays)
@@ -334,8 +334,8 @@ class DataCube:
         """Atomically write a bounded floating SCI/ERR/DQ FITS block.
 
         :param product: destination path, expected 3-D shape and FITS header
-        :param arrays: dictionary with exactly CUBE, ERR and DQ keys, each
-                   array matching ``product.shape``; store CUBE as SCI;
+        :param arrays: dictionary with exactly FLUX, ERR and DQ keys, each
+               array matching ``product.shape``; store FLUX as SCI;
                    convert numeric/Boolean values to float64, keeping NaNs
                    without changing the dictionary or its input arrays
         :return: None; create parent directories and replace the destination
@@ -346,13 +346,13 @@ class DataCube:
         :raises OSError: if directory creation, FITS writing or rename fails
         """
         # Reject misalignment before replacing any successful product file.
-        expected_keys = {'CUBE', 'ERR', 'DQ'}
+        expected_keys = {'FLUX', 'ERR', 'DQ'}
         if set(arrays) != expected_keys:
             missing = sorted(expected_keys.difference(arrays))
             unexpected = sorted(set(arrays).difference(expected_keys))
-            raise ValueError('Product requires exactly CUBE/ERR/DQ keys; '
+            raise ValueError('Product requires exactly FLUX/ERR/DQ keys; '
                              f'missing: {missing}; unexpected: {unexpected}')
-        for name in ('CUBE', 'ERR', 'DQ'):
+        for name in ('FLUX', 'ERR', 'DQ'):
             if arrays[name].shape != product.shape:
                 raise ValueError(f'Product {name} shape {arrays[name].shape} '
                                  f'does not match expected {product.shape}')
@@ -360,7 +360,7 @@ class DataCube:
             raise ValueError('Product exceeds max_integrations')
         # Primary metadata describes the identity of all three extensions.
         hdus = fits.HDUList([fits.PrimaryHDU(header=product.header)])
-        for name, extension in (('CUBE', 'SCI'), ('ERR', 'ERR'),
+        for name, extension in (('FLUX', 'SCI'), ('ERR', 'ERR'),
                                 ('DQ', 'DQ')):
             # Floating DQ preserves the previous representation and NaNs.
             hdus.append(fits.ImageHDU(np.asarray(arrays[name], dtype=float),
@@ -427,7 +427,7 @@ class DataCube:
         self.current_infiles = [product.filename for product in products]
 
     def block_math(
-            self, operation: str, data_key: str = 'CUBE',
+            self, operation: str, data_key: str = 'FLUX',
             axis: int | tuple[int, ...] | None = 0,
             selection: slice | Sequence[int] | NDArray[Any] | None = None,
             *, q: float | Sequence[float] | NDArray[Any] | None = None,
@@ -454,7 +454,7 @@ class DataCube:
         streaming/approximate fallback is used for oversized reduced domains.
 
         :param operation: nansum, nanmean, nanmedian or nanpercentile
-        :param data_key: CUBE (FITS SCI), ERR or DQ
+        :param data_key: FLUX (FITS SCI), ERR or DQ
         :param axis: reduced axes in the selected 3-D cube; negative axes,
                      tuples (including empty) and None follow NumPy
         :param selection: integration slice, 1-D Boolean mask of cube length,
@@ -474,8 +474,8 @@ class DataCube:
         :raises OSError: if an active product cannot be read
         """
         # Resolve payload names at the storage boundary, not in the engine.
-        if data_key not in ('CUBE', 'ERR', 'DQ'):
-            raise ValueError('data_key must be CUBE, ERR or DQ')
+        if data_key not in ('FLUX', 'ERR', 'DQ'):
+            raise ValueError('data_key must be FLUX, ERR or DQ')
 
         def read_tile(indices: NDArray[np.intp], spatial: tuple[slice, ...]
                       ) -> NDArray[np.float64]:
@@ -504,7 +504,7 @@ class DataCube:
 
         :param indices: validated active integration indices, duplicates kept
         :param spatial: detector row/column slices for this output tile
-        :param data_key: validated CUBE, ERR or DQ payload name
+        :param data_key: validated FLUX, ERR or DQ payload name
         :return: owned float64 tile; raw reads never exceed max_integrations
         :raises OSError: if a product section cannot be read
         """
@@ -513,7 +513,7 @@ class DataCube:
         shape = (indices.size,) + tuple(part.stop - part.start
                                        for part in spatial)
         tile = np.empty(shape, dtype=np.float64)
-        extension = 'SCI' if data_key == 'CUBE' else data_key
+        extension = 'SCI' if data_key == 'FLUX' else data_key
         position = 0
         while position < indices.size:
             index = int(indices[position])
@@ -536,13 +536,13 @@ class DataCube:
             position = stop
         return tile
 
-    def nanmean(self, data_key: str = 'CUBE',
+    def nanmean(self, data_key: str = 'FLUX',
                 axis: int | tuple[int, ...] | None = 0,
                 selection: slice | Sequence[int] | NDArray[Any] | None = None,
                 *, keepdims: bool = False) -> NDArray[np.float64]:
         """Return exact NumPy nanmean; see block_math for options and errors.
 
-        :param data_key: CUBE, ERR or DQ
+        :param data_key: FLUX, ERR or DQ
         :param axis: reduced axes, default integration axis
         :param selection: integration mask, slice or ordered index vector
         :param keepdims: retain reduced axes
@@ -552,13 +552,13 @@ class DataCube:
         return self.block_math('nanmean', data_key, axis, selection,
                                keepdims=keepdims)
 
-    def nansum(self, data_key: str = 'CUBE',
+    def nansum(self, data_key: str = 'FLUX',
                axis: int | tuple[int, ...] | None = 0,
                selection: slice | Sequence[int] | NDArray[Any] | None = None,
                *, keepdims: bool = False) -> NDArray[np.float64]:
         """Return exact NumPy nansum; see block_math for options and errors.
 
-        :param data_key: CUBE, ERR or DQ
+        :param data_key: FLUX, ERR or DQ
         :param axis: reduced axes, default integration axis
         :param selection: integration mask, slice or ordered index vector
         :param keepdims: retain reduced axes
@@ -568,14 +568,14 @@ class DataCube:
         return self.block_math('nansum', data_key, axis, selection,
                                keepdims=keepdims)
 
-    def nanmedian(self, data_key: str = 'CUBE',
+    def nanmedian(self, data_key: str = 'FLUX',
                   axis: int | tuple[int, ...] | None = 0,
                   selection: slice | Sequence[int] | NDArray[Any] | None
                   = None,
                   *, keepdims: bool = False) -> NDArray[np.float64]:
         """Return exact NumPy nanmedian; see block_math for options and errors.
 
-        :param data_key: CUBE, ERR or DQ
+        :param data_key: FLUX, ERR or DQ
         :param axis: reduced axes, default integration axis
         :param selection: integration mask, slice or ordered index vector
         :param keepdims: retain reduced axes
@@ -587,14 +587,14 @@ class DataCube:
 
     def nanpercentile(
             self, q: float | Sequence[float] | NDArray[Any],
-            data_key: str = 'CUBE', axis: int | tuple[int, ...] | None = 0,
+            data_key: str = 'FLUX', axis: int | tuple[int, ...] | None = 0,
             selection: slice | Sequence[int] | NDArray[Any] | None = None,
             *, keepdims: bool = False, method: str = 'linear'
             ) -> NDArray[np.float64]:
         """Return exact NumPy nanpercentile within estimated math memory.
 
         :param q: scalar or 1-D percentiles in [0, 100], as in NumPy
-        :param data_key: CUBE, ERR or DQ
+        :param data_key: FLUX, ERR or DQ
         :param axis: reduced axes, default integration axis
         :param selection: integration mask, slice or ordered index vector
         :param keepdims: retain reduced axes
@@ -614,10 +614,10 @@ class DataCube:
         :param start: zero-based inclusive binned index; not a Boolean
         :param stop: exclusive binned index, or None for at most one bounded
                      block beginning at start and clipped to the selection
-        :return: dictionary with exactly CUBE, ERR and DQ keys and newly
-             allocated float64 arrays, each shaped
-             ``(stop - start, y, cropped x)``; CUBE reads FITS SCI;
-             may span product boundaries
+        :return: dictionary with exactly FLUX, ERR and DQ keys and newly
+                            allocated float64 arrays, each shaped
+                             ``(stop - start, y, cropped x)``; FLUX reads FITS
+                             SCI; may span product boundaries
         :raises ValueError: if indices are invalid, Boolean, empty, outside
                             the selection or exceed the integration limit
         :raises OSError: if an active product cannot be read
@@ -636,7 +636,7 @@ class DataCube:
         # Explicit reads may span products but cannot exceed the limit.
         shape = (stop - start,) + self.shape[1:]
         arrays: dict[str, NDArray[np.float64]] = dict()
-        arrays['CUBE'] = np.empty(shape, dtype=np.float64)
+        arrays['FLUX'] = np.empty(shape, dtype=np.float64)
         arrays['ERR'] = np.empty(shape, dtype=np.float64)
         arrays['DQ'] = np.empty(shape, dtype=np.float64)
         offset = 0
@@ -646,7 +646,7 @@ class DataCube:
             if local_start < local_stop:
                 with fits.open(product.filename, memmap=False,
                                lazy_load_hdus=True) as hdul:
-                    for name, extension in (('CUBE', 'SCI'), ('ERR', 'ERR'),
+                    for name, extension in (('FLUX', 'SCI'), ('ERR', 'ERR'),
                                             ('DQ', 'DQ')):
                         target = offset + local_start - start
                         count = local_stop - local_start
@@ -662,7 +662,7 @@ class DataCube:
         """Yield aligned SCI/ERR/DQ blocks at active product boundaries.
 
         :return: iterator of ``(slice, arrays)`` pairs, where arrays is a
-             dictionary with exactly CUBE, ERR and DQ keys; slices use
+             dictionary with exactly FLUX, ERR and DQ keys; slices use
              half-open binned indices and each float64 array has shape
                  ``(slice.stop - slice.start, y, cropped x)`` within the limit;
                  an empty manager yields nothing and retains no image blocks
@@ -1071,7 +1071,7 @@ def _read_raw_bin(hdul: fits.HDUList, record: _RawFile, bin_index: int,
     :param synthetic_errors: for ordinary SCI-only data, derive
                              ``sqrt(abs(SCI))`` errors and zero flags
     :return: legacy SCI/ERR/DQ tuple arrays shaped ``(1, y, cropped x)`` for a
-             valid converter; normalization maps these to CUBE/ERR/DQ keys.
+             valid converter; normalization maps these to FLUX/ERR/DQ keys.
              Ordinary outputs are float64, while CDS output dtypes
              are converter-defined and may include Boolean DQ. For binning,
              sum SCI, add ERR in quadrature and take DQ's NaN-aware maximum;

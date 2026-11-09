@@ -22,19 +22,19 @@ def test_named_read_and_iterator_payloads(tmp_path):
     manager.normalize([filename], tmp_path / 'ini.fits')
     for selection, arrays in manager.iter_integrations():
         assert isinstance(arrays, dict)
-        assert set(arrays) == {'CUBE', 'ERR', 'DQ'}
+        assert set(arrays) == {'FLUX', 'ERR', 'DQ'}
         direct = manager.read_integrations(selection.start, selection.stop)
         assert isinstance(direct, dict)
-        assert set(direct) == {'CUBE', 'ERR', 'DQ'}
-        for name, wanted in zip(('CUBE', 'ERR', 'DQ'), expected):
+        assert set(direct) == {'FLUX', 'ERR', 'DQ'}
+        for name, wanted in zip(('FLUX', 'ERR', 'DQ'), expected):
             assert arrays[name].dtype == np.float64
             np.testing.assert_equal(arrays[name], wanted[selection])
             np.testing.assert_equal(arrays[name], direct[name])
 
 
 @pytest.mark.parametrize('missing,extra', [
-    ('CUBE', None), ('ERR', None), ('DQ', None),
-    (None, 'SCI'), (None, 'EXTRA'), ('CUBE', 'SCI'),
+    ('FLUX', None), ('ERR', None), ('DQ', None),
+    (None, 'CUBE'), (None, 'SCI'), (None, 'EXTRA'), ('FLUX', 'SCI'),
 ])
 def test_write_product_requires_exact_payload_keys(tmp_path, missing, extra):
     """Missing and unexpected names fail before replacing a valid file."""
@@ -50,7 +50,7 @@ def test_write_product_requires_exact_payload_keys(tmp_path, missing, extra):
         del arrays[missing]
     if extra is not None:
         arrays[extra] = arrays['ERR']
-    with pytest.raises(ValueError, match='exactly CUBE/ERR/DQ keys') as error:
+    with pytest.raises(ValueError, match='exactly FLUX/ERR/DQ keys') as error:
         manager.write_product(product, arrays)
     if missing is not None:
         assert f"missing: ['{missing}']" in str(error.value)
@@ -60,7 +60,7 @@ def test_write_product_requires_exact_payload_keys(tmp_path, missing, extra):
     assert manager.current_infiles == active
 
 
-@pytest.mark.parametrize('name', ['CUBE', 'ERR', 'DQ'])
+@pytest.mark.parametrize('name', ['FLUX', 'ERR', 'DQ'])
 def test_write_product_rejects_named_shape(tmp_path, name):
     """Every payload shape is validated by name before creating outputs."""
     filename, _ = write_raw(tmp_path)
@@ -83,19 +83,19 @@ def test_write_product_preserves_inputs_and_normalizes_dtype(tmp_path):
     arrays = dict()
     arrays['DQ'] = np.ones(product.shape, dtype=bool)
     arrays['ERR'] = np.full(product.shape, 7, dtype=np.int16)
-    arrays['CUBE'] = np.full(product.shape, 3, dtype=np.float32)
-    arrays['CUBE'][0, 0, 0] = np.nan
+    arrays['FLUX'] = np.full(product.shape, 3, dtype=np.float32)
+    arrays['FLUX'][0, 0, 0] = np.nan
     originals = arrays.copy()
     snapshots = dict()
-    for name in ('CUBE', 'ERR', 'DQ'):
+    for name in ('FLUX', 'ERR', 'DQ'):
         snapshots[name] = arrays[name].copy()
         arrays[name].setflags(write=False)
     manager.write_product(product, arrays)
-    assert tuple(arrays) == ('DQ', 'ERR', 'CUBE')
+    assert tuple(arrays) == ('DQ', 'ERR', 'FLUX')
     with fits.open(product.filename) as hdul:
         assert len(hdul) == 4
         assert cast(fits.PrimaryHDU, hdul[0]).name == 'PRIMARY'
-        extensions = [('CUBE', 'SCI'), ('ERR', 'ERR'), ('DQ', 'DQ')]
+        extensions = [('FLUX', 'SCI'), ('ERR', 'ERR'), ('DQ', 'DQ')]
         for index, (name, extension) in enumerate(extensions, start=1):
             image = cast(fits.ImageHDU, hdul[index])
             assert image.name == extension
@@ -279,6 +279,6 @@ def test_read_across_segment_boundary(tmp_path):
     manager = DataCube(max_integrations=3)
     manager.normalize([second, first], tmp_path / 'ini.fits')
     arrays = manager.read_integrations(1, 4)
-    for name, before, after in zip(('CUBE', 'ERR', 'DQ'), left, right):
+    for name, before, after in zip(('FLUX', 'ERR', 'DQ'), left, right):
         np.testing.assert_equal(arrays[name],
                                 np.concatenate([before, after])[1:4])

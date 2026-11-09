@@ -169,7 +169,7 @@ def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached, limit):
     assert not hasattr(datacube, 'in_memory')
     blocks = list(datacube.iter_integrations())
     actual = tuple(np.concatenate([arrays[name] for _, arrays in blocks])
-                   for name in ('CUBE', 'ERR', 'DQ'))
+                   for name in ('FLUX', 'ERR', 'DQ'))
     for result, original in zip(actual, [data, error, dq]):
         expected = original[..., 2:6]
         np.testing.assert_array_equal(result, expected)

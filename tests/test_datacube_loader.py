@@ -87,7 +87,7 @@ def test_loader_order_and_header_only_frame_count(tmp_path, monkeypatch,
     assert variables['DATA_N_FRAMES'] == 6
     assert variables['DATA_Y_SIZE'] == 2
     assert variables['DATA_X_SIZE'] == 4
-    blocks = [arrays['CUBE'] for _, arrays in datacube.iter_integrations()]
+    blocks = [arrays['FLUX'] for _, arrays in datacube.iter_integrations()]
     actual = np.concatenate(blocks)
     np.testing.assert_equal(actual[:3], np.full((3, 2, 4), 1))
     np.testing.assert_equal(actual[3:], np.full((3, 2, 4), 4))
@@ -105,7 +105,7 @@ def test_fgs_loader_binning_and_jump(tmp_path, monkeypatch):
     datacube = instrument.load_data_with_dq()
     assert variables['DATA_N_FRAMES'] == 1
     arrays = datacube.read_integrations()
-    np.testing.assert_equal(arrays['CUBE'], np.full((1, 2, 4), 3))
+    np.testing.assert_equal(arrays['FLUX'], np.full((1, 2, 4), 3))
     np.testing.assert_equal(arrays['ERR'], np.sqrt(np.full((1, 2, 4), 3)))
     np.testing.assert_equal(arrays['DQ'], np.zeros((1, 2, 4)))
 
@@ -220,16 +220,45 @@ def test_reconstruction_marks_migration_boundary(tmp_path, monkeypatch):
         stages.append(('cosmics', datacube))
         return datacube
 
+    def trace_mask_stage(med=None, cube=None, log=True, no_plot=True,
+                         plot_frames=None):
+        stages.append(('trace_mask', cube))
+        assert med is None and log and not no_plot
+        assert plot_frames == [0, -1]
+        return np.ones((2, 4), dtype=bool)
+
+    def median_stack_stage(datacube):
+        stages.append(('median_stack', datacube))
+        return [datacube, np.ones((2, 4)), np.ones(len(datacube))]
+
+    def residual_stage(datacube, med, amps, trace_mask):
+        stages.append(('subtract_1f', datacube))
+        assert med.shape == (2, 4)
+        assert amps.shape == (len(datacube),)
+        assert trace_mask.shape == (2, 4)
+        return datacube
+
+    def recenter_stage(trace_mask, med):
+        stages.append(('recenter', stages[0][1]))
+        assert trace_mask.shape == med.shape
+        return trace_mask
+
     monkeypatch.setattr(instrument, 'apply_flat_field', flat_stage)
     monkeypatch.setattr(instrument, 'apply_dq', dq_stage)
     monkeypatch.setattr(instrument, 'remove_background', background_stage)
     monkeypatch.setattr(instrument, 'low_pass_filter', lowpass_stage)
     monkeypatch.setattr(instrument, 'patch_isolated_bads', isolated_stage)
     monkeypatch.setattr(instrument, 'remove_cosmic_rays', cosmics_stage)
-    with pytest.raises(NotImplementedError, match='get_trace_mask'):
+    monkeypatch.setattr(instrument, 'get_trace_mask', trace_mask_stage)
+    monkeypatch.setattr(instrument, 'create_median_stack',
+                        median_stack_stage)
+    monkeypatch.setattr(instrument, 'clean_residual_1f', residual_stage)
+    monkeypatch.setattr(instrument, 'recenter_trace_position', recenter_stage)
+    with pytest.raises(NotImplementedError, match='PCA and later'):
         general.linear_recon_chunk(instrument)
     assert [stage[0] for stage in stages] == [
-        'flat', 'dq', 'background', 'lowpass', 'isolated', 'cosmics']
+        'flat', 'dq', 'background', 'lowpass', 'isolated', 'cosmics',
+        'trace_mask', 'median_stack', 'subtract_1f', 'recenter']
     assert all(stage[1] is stages[0][1] for stage in stages)
 
 

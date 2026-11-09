@@ -1028,7 +1028,7 @@ class Instrument:
         products = datacube.plan_stage('flat', signature)
         # Retain just the first uncorrected science frame for the comparison
         # plot; the full observation is never needed for plotting this step.
-        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        frame0 = datacube.read_integrations(0, 1)['FLUX'][0].copy()
         if use_temp and datacube.products_valid(products):
             # Reuse requires every planned output to match its expected layout
             # and provenance, not merely for some output filenames to exist.
@@ -1070,12 +1070,12 @@ class Instrument:
         for product, (_, arrays) in zip(products,
                                          datacube.iter_integrations()):
             # These are independent block arrays, not the manager's storage.
-            cube = arrays['CUBE']
+            flux = arrays['FLUX']
             err = arrays['ERR']
             # Apply the same 2D flat to science and uncertainty frame by frame.
             # DQ flags are neither divided nor otherwise modified in this step.
-            for iframe in range(cube.shape[0]):
-                cube[iframe] /= flat
+            for iframe in range(flux.shape[0]):
+                flux[iframe] /= flat
                 err[iframe] /= flat
             # Use the SAME observation-wide minimum in every output block,
             # preserving the previous full-cube zero-error replacement rule.
@@ -1294,21 +1294,21 @@ class Instrument:
             # we just want to get the percentiles
             # we know that there are some nans
             # Tiles hold every integration of a pixel: exact percentiles.
-            p16, p84 = datacube.nanpercentile([16, 84], 'CUBE', axis=0)
+            p16, p84 = datacube.nanpercentile([16, 84], 'FLUX', axis=0)
         # get the sigma and mean
         sigma = (p84 - p16) / 2
         mean = (p84 + p16) / 2
         # storage for heat map
         heat_map = np.zeros(datacube.shape[1:], dtype=float)
         # store the first frame from before and after (for plot)
-        frame_before = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        frame_before = datacube.read_integrations(0, 1)['FLUX'][0].copy()
         frame_after = frame_before.copy()
         # Only one block and detector-sized maps reside in memory.
         for product, (integration, arrays) in zip(
                 products, datacube.iter_integrations()):
-            cube = arrays['CUBE']
+            flux = arrays['FLUX']
             # now remove the cosmics using a sigma flag
-            for local_index, frame in enumerate(cube):
+            for local_index, frame in enumerate(flux):
                 # calculate the number of sigma away from the mean every pixel
                 nsig = (frame - mean) / sigma
                 # cosmic mask
@@ -1323,7 +1323,7 @@ class Instrument:
             if not reuse:
                 # Never mutate ERR/DQ or publish a partially written stage.
                 datacube.write_product(product, arrays)
-            del cube, arrays
+            del flux, arrays
         if reuse:
             # Plot the validated cached output, not merely its reconstruction.
             with fits.open(products[0].filename, memmap=False) as hdul:
@@ -1424,13 +1424,13 @@ class Instrument:
         # ---------------------------------------------------------------------
         for product, (_, arrays) in zip(products,
                                          datacube.iter_integrations()):
-            cube = arrays['CUBE']
+            flux = arrays['FLUX']
             err = arrays['ERR']
-            cube[:, ~cube_mask] = np.nan
+            flux[:, ~cube_mask] = np.nan
             err[:, ~cube_mask] = np.inf
             # Atomic block writes do not publish partial stage filenames.
             datacube.write_product(product, arrays)
-            del cube, err, arrays
+            del flux, err, arrays
         # Failed counting/writes/validation leave the original stage active.
         datacube.commit_products(products)
         return datacube
@@ -1449,7 +1449,7 @@ class Instrument:
         Plotting and full output validation must succeed before publishing
         new filenames; failures leave the manager's current inputs unchanged.
 
-        :param datacube: manager of aligned float64 CUBE/ERR/DQ FITS blocks
+        :param datacube: manager of aligned float64 FLUX/ERR/DQ FITS blocks
         :return: the same manager, advanced only after a successful stage,
                  or unchanged when GENERAL.DO_BACKGROUND is false
         :raises SossisseConstantException: if fit box or shifts are unset
@@ -1517,7 +1517,7 @@ class Instrument:
         signature['shifts'] = bgnd_shifts.tolist()
         products = datacube.plan_stage('background', signature)
         # Retain only the first original frame for the comparison plot.
-        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        frame0 = datacube.read_integrations(0, 1)['FLUX'][0].copy()
         if use_temp and datacube.products_valid(products):
             # Read one corrected frame, without counting or fitting science.
             with fits.open(products[0].filename, memmap=True) as hdul:
@@ -1533,7 +1533,7 @@ class Instrument:
         mean_count = np.zeros(datacube.shape[1:], dtype=np.int64)
         with np.errstate(invalid='ignore', divide='ignore'):
             for _, arrays in datacube.iter_integrations():
-                for frame in arrays['CUBE']:
+                for frame in arrays['FLUX']:
                     valid = ~np.isnan(frame)
                     np.add(mean_sum, frame, out=mean_sum, where=valid)
                     mean_count += valid
@@ -1604,7 +1604,7 @@ class Instrument:
         # ERR and DQ retain their original float64 payloads without changes.
         for product, (_, arrays) in zip(products,
                                         datacube.iter_integrations()):
-            for frame in arrays['CUBE']:
+            for frame in arrays['FLUX']:
                 frame -= background
             # Writes remain unpublished until all diagnostics succeed.
             datacube.write_product(product, arrays)
@@ -1649,8 +1649,8 @@ class Instrument:
         reuse = use_temp and datacube.products_valid(products)
         # The mean tiles only output axes; no partial-mean reweighting occurs.
         with warnings.catch_warnings(record=True):
-            mcube = datacube.nanmean('CUBE', axis=0)
-        frame0 = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+            mcube = datacube.nanmean('FLUX', axis=0)
+        frame0 = datacube.read_integrations(0, 1)['FLUX'][0].copy()
         misc.printc('\tLow pass filtering the data', 'info')
         # Preserve the strict below-median rule independently in each column.
         mean_mask = np.zeros_like(mcube, dtype=float)
@@ -1663,7 +1663,7 @@ class Instrument:
         corrected0 = frame0.copy()
         for product, (integration, arrays) in zip(
                 products, datacube.iter_integrations()):
-            for frame_index, frame in enumerate(arrays['CUBE']):
+            for frame_index, frame in enumerate(arrays['FLUX']):
                 with warnings.catch_warnings(record=True):
                     med = np.nanmedian(frame * mean_mask, axis=0)
                     lowp = mp.lowpassfilter(med, filter_width)
@@ -1754,18 +1754,18 @@ class Instrument:
         kernel[1, :] = 1
         kernel[:, 1] = 1
         # store the first frame before and after patching (for plot)
-        iframe_before = datacube.read_integrations(0, 1)['CUBE'][0].copy()
+        iframe_before = datacube.read_integrations(0, 1)['FLUX'][0].copy()
         iframe_after = iframe_before.copy()
         # Only one block and detector-sized diagnostics reside in memory.
         for product, (integration, arrays) in zip(
                 products, datacube.iter_integrations()):
-            cube = arrays['CUBE']
+            flux = arrays['FLUX']
             err = arrays['ERR']
-            for local_index in range(cube.shape[0]):
+            for local_index in range(flux.shape[0]):
                 # Diagnostics retain the full-cube frame numbering.
                 iframe = integration.start + local_index
                 # get the cube frame
-                cframe = np.array(cube[local_index])
+                cframe = np.array(flux[local_index])
                 ecframe = np.array(err[local_index])
                 # get a mask of the nan values
                 mframe = np.isfinite(cframe)
@@ -1797,7 +1797,7 @@ class Instrument:
                 bad_pixels_after[iframe] = self.create_bad_pixel_stamps(
                     ypix, xpix, cframe, bpixel_ssize)
                 # push back into the block
-                cube[local_index] = cframe
+                flux[local_index] = cframe
                 err[local_index] = ecframe
                 # save the bad pixel positions
                 badpix_pos[iframe] = [ypix, xpix]
@@ -1807,7 +1807,7 @@ class Instrument:
             if not reuse:
                 # Writes remain unpublished until all diagnostics succeed.
                 datacube.write_product(product, arrays)
-            del cube, err, arrays
+            del flux, err, arrays
         if reuse:
             # Plot the validated cached output, not merely its reconstruction.
             with fits.open(products[0].filename, memmap=False) as hdul:
@@ -1827,8 +1827,11 @@ class Instrument:
         csi_out = self.create_stamp_images(bad_pixels_before, bad_pixels_after,
                                            badpix_pos, mode='seperate')
         pixel_cutouts_all, table_cutouts_all = csi_out
-        # plot this as a cut out
-        plots.plot_pixels(self, bpixel_cutouts_small)
+        # plot the first frame that has isolated bad pixels (if any)
+        if bpixel_cutouts_small:
+            first_frame = min(bpixel_cutouts_small)
+            plots.plot_pixels(self, bpixel_cutouts_small,
+                              frame_num=first_frame)
         # save the cutouts of all bad pixels
         self.save_cutouts(pixel_cutouts_all, table_cutouts_all)
         # Validate all products again before changing active manager filenames.
@@ -1939,7 +1942,7 @@ class Instrument:
         # position of the bad pixels
         bad_table = dict()
         # loop around each frame
-        for iframe in tqdm(range(len(before_dict))):
+        for iframe in tqdm(before_dict):
             # store positions
             bad_itable = dict(x=[], y=[], row=[], col=[])
             # get the before and after lists
@@ -1953,11 +1956,16 @@ class Instrument:
                 raise exceptions.SossisseException(emsg.format(*eargs))
             else:
                 length = len(before_list)
+            # frames without isolated bad pixels have no stamps to show
+            if length == 0:
+                continue
+            # index of each stamp in this frame's position arrays
+            indices = np.arange(length)
             # -----------------------------------------------------------------
             # deal with cutting down number of pixels
             if num is not None and num < length:
                 # select a random number "num" of pixels in the list
-                indices = np.random.choice(len(before_list), num, replace=False)
+                indices = np.random.choice(length, num, replace=False)
                 before_list = [before_list[i] for i in indices]
                 after_list = [after_list[i] for i in indices]
                 # update length parameter
@@ -1978,7 +1986,7 @@ class Instrument:
             #    with height ~ 2*width
             # So we want (cols * tile_width) ~ (rows * tile_height), 
             #    and rows*cols >= length
-            ideal_cols = int(np.sqrt(length / 2))
+            ideal_cols = max(1, int(np.sqrt(length / 2)))
             ideal_rows = int(np.ceil(length / ideal_cols))
             # Make sure we have enough rows and columns
             cols, rows = ideal_cols, ideal_rows
@@ -2006,17 +2014,18 @@ class Instrument:
                 before = before_list[idx]
                 after = after_list[idx]
                 # update bad piexl itable
-                bad_itable['x'].append(pos_dict[iframe][1][idx])
-                bad_itable['y'].append(pos_dict[iframe][0][idx])
+                bad_itable['x'].append(pos_dict[iframe][1][indices[idx]])
+                bad_itable['y'].append(pos_dict[iframe][0][indices[idx]])
                 bad_itable['row'].append(row)
                 bad_itable['col'].append(col)
                 # Insert them into the image
                 if mode == 'seperate':
-                    image1[y0:y0 + 5, x0:x0 + 5] = before
-                    image2[y0:y0 + 5, x0:x0 + 5] = after
+                    image1[y0:y0 + ssize, x0:x0 + ssize] = before
+                    image2[y0:y0 + ssize, x0:x0 + ssize] = after
                 else:
-                    image1[y0:y0+5, x0:x0+5] = before
-                    image1[y0:y0+5, x0+6:x0+11] = after
+                    after_x0 = x0 + ssize + 1
+                    image1[y0:y0 + ssize, x0:x0 + ssize] = before
+                    image1[y0:y0 + ssize, after_x0:after_x0 + ssize] = after
             # -----------------------------------------------------------------
             # construct table
             bad_itable = Table(bad_itable)
@@ -2032,19 +2041,26 @@ class Instrument:
 
         return images, bad_table
 
-    def get_trace_positions(self, med: np.ndarray = None,
-                            cube: np.ndarray = None,  log: bool = True):
+    def get_trace_positions(self, med: Optional[np.ndarray] = None,
+                            cube: Optional[DataCube] = None,
+                            log: bool = True) -> np.ndarray:
         """
         Get the trace positions in a combined map
         (True where the trace is, False otherwise)
 
+        :param med: optional 2D median image used by instrument overrides
+        :param cube: optional active DataCube used by instrument overrides
+                     for exact bounded statistics; never materialized
+        :param log: bool, if True print progress
         :return: np.ndarray, the trace position map
+        :raises NotImplementedError: always; child instruments must override
         """
         _ = self, med, cube, log
         raise NotImplementedError('get_trace_pos() must be implemented in '
                                   'child Instrument class')
 
-    def get_trace_mask(self, med: np.ndarray = None, cube: np.ndarray = None,
+    def get_trace_mask(self, med: Optional[np.ndarray] = None,
+                       cube: Optional[DataCube] = None,
                        log: bool = True, no_plot: bool = True,
                        plot_frames: Optional[List[int]] = None) -> np.ndarray:
         """
@@ -2053,14 +2069,18 @@ class Instrument:
 
         :param med: np.ndarray, median image to plot the trace mask on
                     can be None if cube is supplied
-        :param cube: np.ndarray, cube to plot the trace mask on
+        :param cube: active DataCube to plot the trace mask on; only the
+                     plotted integrations are read, one at a time
                      can be None if med is supplied
         :param log: bool, if True print progress
         :param no_plot: bool, if True do not plot the trace mask
-        :param images: list of np.ndarray, images to overplot the trace mask on
-                       if not given does not plot background image(s)
-        :param labels: list of strs, labels for the images
-        :return:
+        :param plot_frames: optional integration indices (negative values
+                            count from the last integration) to plot under
+                            the mask; the median image is plotted instead
+                            when cube is None
+        :return: np.ndarray, Boolean trace mask shaped (y, x)
+        :raises IndexError: if a plotted frame is outside the DataCube
+        :raises OSError: if a plotted integration cannot be read
         """
         # set function name
         func_name = f'{__NAME__}.get_trace_mask()'
@@ -2102,12 +2122,27 @@ class Instrument:
         # plot the trace mask
         if not no_plot:
             # get the images to plot
+            images: Optional[List[np.ndarray]]
             if plot_frames is not None:
                 if cube is None:
-                    images = [med]
+                    # As before, a med-only call plots the median image.
+                    images = [cast(np.ndarray, med)]
                     labels = ['Median image']
                 else:
-                    images = [cube[it] for it in plot_frames]
+                    nframes = len(cube)
+                    images = []
+                    for it in plot_frames:
+                        # Negative indices count back as in cube indexing.
+                        index = int(it) + nframes if it < 0 else int(it)
+                        if not 0 <= index < nframes:
+                            emsg = 'Plot frame {0} outside {1} integrations'
+                            eargs = [it, nframes]
+                            raise IndexError(emsg.format(*eargs))
+                        # Read only this integration, never the full cube.
+                        frame_arrays = cube.read_integrations(index,
+                                                              index + 1)
+                        images.append(frame_arrays['FLUX'][0])
+                    # Labels keep the requested (possibly negative) index.
                     labels = [f'Frame{it}' for it in plot_frames]
             else:
                 images, labels = None, None
@@ -2326,27 +2361,43 @@ class Instrument:
         else:
             return wavevector
 
-    def create_median_stack(self, cube: np.ndarray) -> List[Union[np.ndarray]]:
-        """
-        Clean the 1/f noise from the cube
+    def create_median_stack(self, datacube: DataCube
+                            ) -> List[Union[DataCube, np.ndarray]]:
+        """Build the amplitude-normalized median image with bounded math.
 
-        :param cube: np.ndarray, the cube to clean
+        The first exact median (baseline frames when MEDIAN_BASELINE and
+        HAS_BASELINE, otherwise all frames) gives per-frame amplitudes, the
+        dot product of each frame with the median over pixels finite in
+        both. Frames divided by their amplitude (ERR and DQ unchanged) are
+        written as 'mednorm' scratch products, reopened in a separate
+        DataCube and reduced by a second exact median (baseline frames when
+        MEDIAN_BASELINE). The scratch stage is never committed to datacube,
+        whose active unnormalized products are returned unchanged. Only the
+        median image is written to MEDIAN_IMAGE_FILE; the legacy full-cube
+        CLEAN_CUBE_FILE is no longer written.
 
-        :return: tuple, 1. the clean cube, 2. the median image,
-                 3. the tmp before after clean1f, 4. the transit in vs out
+        :param datacube: active normalized SCI/ERR/DQ stage manager
+        :return: list of 1. the same unchanged datacube, 2. the median image
+                 shaped (y, x), 3. the per-integration amplitudes; with
+                 GENERAL.USE_TEMPORARY, valid MEDIAN_IMAGE_FILE and
+                 TEMP_AMP_FILE (and TEMP_PCA_FILE when WLC.LMODEL.FIT_PCA)
+                 are reused without reading the cube; invalid files are
+                 recomputed
+        :raises MemoryError: if an exact median exceeds the math budget
+        :raises ValueError: if products or alignment fail validation
+        :raises OSError: if a product or the median image cannot be written
         """
         # define the function name
-        func_name = f'{__NAME__}.{self.name}.clean_1f()'
+        func_name = f'{__NAME__}.{self.name}.create_median_stack()'
         # ---------------------------------------------------------------------
         # Read the sole control for reusing working products
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
                                     func=func_name)
-        # get the number of frames
-        nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        # The active stage defines the number of integrations.
+        nframes = len(datacube)
         # ---------------------------------------------------------------------
         # save these for later
         median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        clean_cube_file = self.get_variable('CLEAN_CUBE_FILE', func_name)
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         tmp_amps = self.get_variable('TEMP_AMP_FILE', func_name)
         # ---------------------------------------------------------------------
@@ -2356,7 +2407,7 @@ class Instrument:
                                        func=func_name)
             # make sure all required files exist
             cond = os.path.exists(median_image_file)
-            cond &= os.path.exists(clean_cube_file)
+            cond &= os.path.exists(tmp_amps)
             # only look for fit pca file if we are fitting pca
             if fit_pca:
                 cond &= os.path.exists(tmp_pcas)
@@ -2365,22 +2416,29 @@ class Instrument:
                 # print that we are loading temporary files to speed things up
                 msg = 'We read temporary files to speed things up.'
                 misc.printc(msg, 'info')
-                # load the median image
-                misc.printc('\tReading: {0}'.format(median_image_file), 'info')
-                median_image = self.load_data(median_image_file)
-                # load the clean cube
-                misc.printc('\tReading: {0}'.format(clean_cube_file), 'info')
-                clean_cube = self.load_data(clean_cube_file)
-                # load the tmp file
-                misc.printc('\tReading: {0}'.format(tmp_amps), 'info')
-                amps = self.load_data(tmp_amps)
-                # return these files
-                return_list = [clean_cube, median_image, amps]
-                return return_list
+                try:
+                    # load the median image
+                    msg = '\tReading: {0}'.format(median_image_file)
+                    misc.printc(msg, 'info')
+                    median_image = self.load_data(median_image_file)
+                    # load the tmp file
+                    misc.printc('\tReading: {0}'.format(tmp_amps), 'info')
+                    amps = self.load_data(tmp_amps)
+                except exceptions.SossisseFileException:
+                    median_image, amps = None, None
+                # Only cached shapes matching the active stage are valid.
+                valid_median = (median_image is not None and np.shape(
+                    median_image) == datacube.shape[1:])
+                valid_amps = (amps is not None
+                              and np.shape(amps) == (nframes,))
+                if valid_median and valid_amps:
+                    # return these files with the unchanged active stage
+                    return_list = [datacube, median_image, amps]
+                    return return_list
+                # Invalid caches are misses; recompute everything below.
+                msg = '\tTemporary median/amplitude files invalid: recompute'
+                misc.printc(msg, 'warning')
         # ---------------------------------------------------------------------
-        # create a copy of the cube, we will normalize the amplitude of each
-        # trace
-        cube2 = np.array(cube, dtype=float)
         # first estimate of the trace amplitude
         misc.printc('\tFirst median of cube to create trace esimate', 'info')
         # validate out-of-transit domain
@@ -2390,105 +2448,184 @@ class Instrument:
         # get flag for median out of transit
         med_baseline = self.params.rget('WLC.GENERAL.MEDIAN_BASELINE',
                                         required=True, func=func_name)
+        # The baseline mask or index vector is passed unchanged as selection.
+        if med_baseline and has_baseline:
+            first_selection = baseline_domain
+        else:
+            first_selection = None
         # ---------------------------------------------------------------------
         # deal with creating median
         with warnings.catch_warnings(record=True) as _:
-            if med_baseline and has_baseline:
-                med = np.nanmedian(cube2[baseline_domain], axis=0)
-            else:
-                med = np.nanmedian(cube2, axis=0)
+            # Tiles hold every selected integration of a pixel: exact median.
+            med = datacube.nanmedian('FLUX', axis=0,
+                                     selection=first_selection)
+        # ---------------------------------------------------------------------
+        # Amplitudes depend only on the first median's frame selection.
+        if first_selection is None:
+            first_frames = None
+        else:
+            first_frames = np.arange(nframes)[first_selection].tolist()
+        signature = dict(baseline_frames=first_frames,
+                         algorithm='median-amplitude-normalization-v1')
+        products = datacube.plan_stage('mednorm', signature)
+        reuse = use_temp and datacube.products_valid(products)
         # ---------------------------------------------------------------------
         # do a dot product of each trace to the median and adjust amplitude
         #   so that they all match
         amps = np.zeros(nframes)
-        # loop around frames
-        for iframe in tqdm(range(nframes)):
-            # only keep finite values in all frames
-            valid = np.isfinite(cube2[iframe]) & np.isfinite(med)
-            # work out the amps
-            part1a = np.nansum(cube2[iframe][valid] * med[valid])
-            part2a = np.nansum(med[valid] ** 2)
-            amps[iframe] = part1a / part2a
-            # normalize the data in the cube by these amplitues
-            cube2[iframe] /= amps[iframe]
+        # Only one block and detector-sized maps reside in memory.
+        blocks = zip(products, datacube.iter_integrations())
+        for product, (integration, arrays) in tqdm(blocks,
+                                                   total=len(products)):
+            for local_index, frame in enumerate(arrays['FLUX']):
+                # Amplitudes use global integration indices.
+                iframe = integration.start + local_index
+                # only keep finite values in all frames
+                valid = np.isfinite(frame) & np.isfinite(med)
+                # work out the amps
+                part1a = np.nansum(frame[valid] * med[valid])
+                part2a = np.nansum(med[valid] ** 2)
+                amps[iframe] = part1a / part2a
+                # normalize the data in the cube by these amplitues
+                frame /= amps[iframe]
+            if not reuse:
+                # Scratch products only; ERR and DQ are not normalized.
+                datacube.write_product(product, arrays)
+            del arrays
         # ---------------------------------------------------------------------
         # median of the normalized cube
         misc.printc('\tSecond median of cube with proper normalization', 'info')
+        # A separate manager keeps the active unnormalized stage unchanged.
+        norm_paths = [product.filename for product in products]
+        norm_kwargs: Dict[str, Any] = dict(
+            max_integrations=datacube.max_integrations,
+            max_math_memory_gb=datacube.max_math_memory_gb)
+        normcube = DataCube(norm_paths, **norm_kwargs)
+        # The second median ignores HAS_BASELINE, as before.
+        second_selection = baseline_domain if med_baseline else None
         # normalize cube
         with warnings.catch_warnings(record=True) as _:
-            if med_baseline:
-                med = np.nanmedian(cube2[baseline_domain], axis=0)
-            else:
-                med = np.nanmedian(cube2, axis=0)
+            # Exact median of the normalized frames, tiled spatially.
+            med = normcube.nanmedian('FLUX', axis=0,
+                                     selection=second_selection)
         # ---------------------------------------------------------------------
         # write files to disk
         # ---------------------------------------------------------------------
         # write the median image
         misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
         fits.writeto(median_image_file, med, overwrite=True)
-        # save temporary files
-        # write the clean cube
-        misc.printc('\tWriting: {0}'.format(clean_cube_file), 'info')
-        fits.writeto(clean_cube_file, cube, overwrite=True)
         # ---------------------------------------------------------------------
-        return [cube, med, amps]
+        return [datacube, med, amps]
 
-    def clean_residual_1f(self, cube: np.ndarray, err: np.ndarray,
-                          med: np.ndarray, amps: np.ndarray,
-                          trace_mask: np.ndarray) -> np.ndarray:
-        # define the function name
-        func_name = f'{__NAME__}.{self.name}.clean_1f()'
-        # Read the sole control for reusing working products
-        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
-                                    func=func_name)
+    def clean_residual_1f(self, datacube: DataCube, med: np.ndarray,
+                          amps: np.ndarray,
+                          trace_mask: np.ndarray) -> DataCube:
+        """Subtract the residual 1/f model in bounded SCI/ERR/DQ blocks.
+
+        Per-frame amplitudes are recomputed from the trace and mutate ``amps``
+        in place. SCI is corrected; ERR and DQ remain unchanged. The stage is
+        published only after products, median image and diagnostic plots all
+        succeed. Temporary reuse skips product writes but still recomputes
+        amplitudes and diagnostics from the active input products.
+
+        :param datacube: active normalized SCI/ERR/DQ product manager
+        :param med: detector median image shaped (y, x)
+        :param amps: mutable per-integration amplitude vector
+        :param trace_mask: Boolean map marking trace pixels
+        :return: same manager, advanced to the ``subtract_1f`` products unless
+                 WLC.INPUTS.APPLY_1F_CORR is false, when it is unchanged
+        :raises ValueError: if planned product blocks fail validation
+        :raises OSError: if a product or median image cannot be written/read
+        :raises Exception: propagate subtraction and plot errors uncommitted
+        """
+        # Keep the function identity stable for parameter diagnostics.
+        func_name = f'{__NAME__}.{self.name}.clean_residual_1f()'
+        # Read the feature switch before touching DataCube products or paths.
         apply_1f_corr = self.params.rget('WLC.INPUTS.APPLY_1F_CORR',
-                        required=True, func=func_name)
-        # ---------------------------------------------------------------------
-        # save these for later
-        median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
-        # get the number of frames
-        nframes = self.get_variable('DATA_N_FRAMES', func_name)
-        # ---------------------------------------------------------------------
-        # Dealing with user turning this off
+                                         required=True, func=func_name)
         if not apply_1f_corr:
-            # print message that we are not removing cosmic rays
+            # A disabled stage leaves files and amplitudes untouched.
             msg = ('WLC.INPUTS.APPLY_1F_CORR=False. '
                    'Not applying 1/f correction')
             misc.printc(msg, 'info')
-            return cube
-        # ---------------------------------------------------------------------
-        # print progress
+            return datacube
+        # Read reuse and numerical settings only for an active correction.
+        use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
+                                    func=func_name)
+        degree_1f_corr = self.params.rget(
+            'WLC.GENERAL.DEGREE_1F_CORR', required=True, func=func_name)
+        median_image_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
+        # Hash exact median/mask bytes so changed diagnostics invalidate reuse.
+        median_hash = hashlib.sha256(
+            np.ascontiguousarray(med).tobytes()).hexdigest()
+        trace_hash = hashlib.sha256(
+            np.ascontiguousarray(trace_mask).tobytes()).hexdigest()
+        signature = dict(median_shape=med.shape, median_sha256=median_hash,
+                         trace_shape=trace_mask.shape,
+                         trace_sha256=trace_hash,
+                         degree=degree_1f_corr,
+                         algorithm='residual-1f-subtraction-v1')
+        # Parents and current selection are included by DataCube planning.
+        products = datacube.plan_stage('subtract_1f', signature)
+        reuse = use_temp and datacube.products_valid(products)
         misc.printc('\nCalculating residuals', 'info')
-        # work out the residuals
-        residuals = np.zeros_like(cube)
-        # loop around frames
-        for iframe in tqdm(range(nframes)):
-            # mask the nans and apply trace map
-            valid = np.isfinite(cube[iframe]) & np.isfinite(med)
-            valid &= trace_mask
-            # work out the amplitudes in the valid regions
-            part1b = np.nansum(cube[iframe][valid] * med[valid])
-            part2b = np.nansum(med[valid] ** 2)
-            amps[iframe] = part1b / part2b
-            # we get the appropriate slice of the error cube
-            residuals[iframe] = cube[iframe] - med * amps[iframe]
-        # ---------------------------------------------------------------------
-        # Subtract of the 1/f noise
-        # ---------------------------------------------------------------------
-        cube1, scorr = self.subtract_1f(residuals, cube, err, trace_mask)
-        # plot the pvalues
-        plots.plot_subtract_1f_scorr(self, scorr)
-        # plot the first frame before and after 1/f correction
-        plots.plot_subtract_1f_comp(self, cube, cube1)
-        # ---------------------------------------------------------------------
-        # write files to disk
-        # ---------------------------------------------------------------------
-        # write the median image
+        # Retain only 2-D diagnostics, never the full correction cube.
+        frame_before = None
+        frame_after = None
+        scorr_first = None
+        scorr_last = None
+        scorr_sum = np.zeros(med.shape, dtype=float)
+        scorr_count = np.zeros(med.shape, dtype=np.int64)
+        # Residuals and corrections stay within one active product block.
+        blocks = zip(products, datacube.iter_integrations())
+        for product, (integration, arrays) in tqdm(blocks,
+                                                   total=len(products)):
+            flux = arrays['FLUX']
+            residuals = np.zeros_like(flux)
+            # Preserve the old amplitude formula in global integration order.
+            for local_index, frame in enumerate(flux):
+                iframe = integration.start + local_index
+                valid = np.isfinite(frame) & np.isfinite(med)
+                valid &= trace_mask
+                numerator = np.nansum(frame[valid] * med[valid])
+                denominator = np.nansum(med[valid] ** 2)
+                amps[iframe] = numerator / denominator
+                residuals[local_index] = frame - med * amps[iframe]
+                if iframe == 0:
+                    # Capture the actual pre-correction first integration.
+                    frame_before = frame.copy()
+            # The helper mutates only SCI and returns this block's scorr map.
+            corrected, scorr = self.subtract_1f(residuals, flux,
+                                                arrays['ERR'], trace_mask)
+            # Keep endpoint images and NaN-aware mean sufficient statistics.
+            for local_index in range(scorr.shape[0]):
+                iframe = integration.start + local_index
+                if iframe == 0:
+                    scorr_first = scorr[local_index].copy()
+                    frame_after = corrected[local_index].copy()
+                scorr_last = scorr[local_index].copy()
+            valid_scorr = ~np.isnan(scorr)
+            scorr_sum += np.sum(np.where(valid_scorr, scorr, 0), axis=0)
+            scorr_count += np.sum(valid_scorr, axis=0)
+            if not reuse:
+                # ERR/DQ are passed through unchanged in the product payload.
+                datacube.write_product(product, arrays)
+            del flux, residuals, corrected, scorr, arrays
+        # Divide only where at least one non-NaN correction was observed.
+        mean_scorr = np.full(med.shape, np.nan, dtype=float)
+        np.divide(scorr_sum, scorr_count, out=mean_scorr,
+                  where=scorr_count > 0)
+        assert frame_before is not None and frame_after is not None
+        assert scorr_first is not None and scorr_last is not None
+        # Preserve the median-image side effect in both fresh and reused runs.
         misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
         fits.writeto(median_image_file, med, overwrite=True)
-        # ---------------------------------------------------------------------
-        # return the cleaned cube, the median image, the median difference
-        return cube1
+        # Plot only the first, last and mean correction maps plus first frames.
+        plots.plot_subtract_1f_scorr(self, scorr_first, scorr_last, mean_scorr)
+        plots.plot_subtract_1f_comp(self, frame_before, frame_after)
+        # Publish only after every product, image and plot has succeeded.
+        datacube.commit_products(products)
+        return datacube
 
     def process_baseline_ints(self,
                              raw_baseline_ints: Union[None, List[List[int]]]
@@ -2617,83 +2754,59 @@ class Instrument:
         ltable['bjd'] = int_times
         return ltable
 
-    def subtract_1f(self, residuals: np.ndarray,
-                    cube: np.ndarray, err: np.ndarray,
-                    trace_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Do the actual subtraction of the 1/f noise, once we have the residuals
+    def subtract_1f(self, residuals: np.ndarray, cube: np.ndarray,
+                    err: np.ndarray, trace_mask: np.ndarray
+                    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Subtract the 1/f correction from one bounded integration block.
 
-        :param residuals: np.ndarray, the residuals
-        :param cube: np.ndarray, the cube
-        :param err: np.ndarray, the error cube
-        :param trace_mask: np.ndarray, the trace map
-
-        :return:
+        :param residuals: residual SCI block shaped (n, y, x)
+        :param cube: SCI block modified in place
+        :param err: unchanged ERR block shaped like ``cube``
+        :param trace_mask: Boolean trace map shaped (y, x)
+        :return: mutated SCI block and its correction block (n, y, x)
+        :raises ValueError: if NumPy cannot perform the requested reductions
         """
-        # define the function name
-        func_name = f'{__NAME__}.{self.name}.clean_1f()'
-        # get the degree for the 1/f polynomial fit
-        degree_1f_corr = self.params.rget('WLC.GENERAL.DEGREE_1F_CORR',
-                                          required=True, func=func_name)
-        # print progress
-        misc.printc('\tSubtracting 1/f noise', 'info')
-        # get the number of frames
-        nframes = self.get_variable('DATA_N_FRAMES', func_name)
-        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
-        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        # storage correction for plot
+        # Keep parameter errors tied to the public correction stage.
+        func_name = f'{__NAME__}.{self.name}.clean_residual_1f()'
+        degree_1f_corr = self.params.rget(
+            'WLC.GENERAL.DEGREE_1F_CORR', required=True, func=func_name)
+        # Product shapes, not instrument globals, define this block's extent.
+        nframes, _, xsize = cube.shape
         scorr = np.zeros_like(cube)
-        # deal with no poly fit of the 1/f noise
+        misc.printc('\tSubtracting 1/f noise', 'info')
         if degree_1f_corr == 0:
-            # get the median noise contribution
+            # Compute the original per-frame column median correction.
             with warnings.catch_warnings(record=True) as _:
                 noise_1f = np.nanmedian(residuals, axis=1)
-            # subtract this off the cube frame-by-frame
             for iframe in tqdm(range(nframes)):
-                # we subtract the 1/f noise off each column
-                for col in range(nbxpix):
-                    # store the noise model as the pvalues
-                    scorr[iframe, :, col] = noise_1f[iframe, col]
-                    cube[iframe, :, col] -= noise_1f[iframe, col]
-        # otherwise we fit the 1/f noise
+                for column in range(xsize):
+                    scorr[iframe, :, column] = noise_1f[iframe, column]
+                    cube[iframe, :, column] -= noise_1f[iframe, column]
         else:
-            # loop around every frame
+            # Preserve the weighted polynomial fit and its sparse-column skip.
             for iframe in tqdm(range(nframes)):
-                # get the residuals
-                res = residuals[iframe]
-                err2 = np.array(err[iframe])
-                # loop around columns
-                for col in range(nbxpix):
-                    # subtract only the 0th term of the odd_ratio_mean, the
-                    # next one is the uncertainty in the mean
-                    # deal with not enough data points to fit
-                    if np.sum(np.isfinite(res[:, col])) < degree_1f_corr + 3:
+                frame_residual = residuals[iframe]
+                frame_error = np.array(err[iframe])
+                for column in range(xsize):
+                    column_residual = frame_residual[:, column]
+                    finite_count = np.sum(np.isfinite(column_residual))
+                    if finite_count < degree_1f_corr + 3:
                         continue
-
-                    # otherwise try to fit the 1/f noise with a polynomial
-                    v1 = res[:, col]
-                    err1 = err2[:, col]
-                    index = np.arange(res.shape[0], dtype=float)
-                    # find valid pixels
-                    valid = np.isfinite(v1 + err1)
-                    valid &= ~trace_mask[:, col]
-                    valid &= np.abs(v1 / err1) < 5
-                    # try fit the polynomial
-                    # noinspection PyBroadException
+                    column_error = frame_error[:, column]
+                    index = np.arange(frame_residual.shape[0], dtype=float)
+                    valid = np.isfinite(column_residual + column_error)
+                    valid &= ~trace_mask[:, column]
+                    valid &= np.abs(column_residual / column_error) < 5
                     try:
-                        pfit = np.polyfit(index[valid], v1[valid],
-                                          degree_1f_corr, w=1 / err1[valid])
-
-                        pvalue = np.polyval(pfit, index)
-                        # subtract the fit from the cube
-                        cube[iframe, :, col] -= pvalue
-                        # store the correction
-                        scorr[iframe, :, col] = pvalue
-                    except Exception as _:
-                        # if the fit fails we just set the column to NaN
-                        cube[iframe, :, col] = np.nan
-                        # store the correction
-                        scorr[iframe, :, col] = np.nan
+                        fit = np.polyfit(index[valid], column_residual[valid],
+                                         degree_1f_corr,
+                                         w=1 / column_error[valid])
+                        correction = np.polyval(fit, index)
+                        cube[iframe, :, column] -= correction
+                        scorr[iframe, :, column] = correction
+                    except Exception:
+                        cube[iframe, :, column] = np.nan
+                        scorr[iframe, :, column] = np.nan
         return cube, scorr
 
     def fit_pca(self, cube2: np.ndarray, err: np.ndarray,

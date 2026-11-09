@@ -367,7 +367,17 @@ def gradient_plot(inst: Any, data: np.ndarray, dx: np.ndarray, dy: np.ndarray,
                    func_name)
 
 
-def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
+def plot_subtract_1f_scorr(inst: Any, scorr_first: np.ndarray,
+                           scorr_last: np.ndarray,
+                           mean_scorr: np.ndarray) -> None:
+    """Plot first, last and mean 2-D 1/f correction images.
+
+    :param inst: active instrument and plotting configuration
+    :param scorr_first: correction image for integration zero
+    :param scorr_last: correction image for the final integration
+    :param mean_scorr: NaN-aware mean correction image across integrations
+    :return: None
+    """
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_scorr()'
     vlims = inst.params.rget('WLC.PLOT.GRADIENT_VLIM', required=True,
@@ -393,17 +403,16 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
         mode = 'correction (for 1/f)  = fit(residuals) degree_1f_corr = {0}'
         mode = mode.format(degree_1f_corr)
 
-    # calculate the median scorr
-    mean_scorr = np.nanmean(scorr, axis=0)
+    # Collapse the supplied integration mean over detector rows for the trace.
     mean_scorr_collapse = np.nanmean(mean_scorr, axis=0)
 
-    # get normaliz
+    # Normalize each 2-D diagnostic independently for its panel.
     ntexts = dict()
-    norm1, ntext1 = plot_normalization(scorr[0], interval=interval,
+    norm1, ntext1 = plot_normalization(scorr_first, interval=interval,
                                        stretch=stretch, vlims=vlims,
                                        vtype=vtype)
     ntexts['First'] = ntext1
-    norm2, ntext2 = plot_normalization(scorr[-1], interval=interval,
+    norm2, ntext2 = plot_normalization(scorr_last, interval=interval,
                                        stretch=stretch, vlims=vlims,
                                        vtype=vtype)
     ntexts['Last'] = ntext2
@@ -414,7 +423,7 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     # setup the figure
     fig, frames = plt.subplots(nrows=4, ncols=1, figsize=[14, 8])
     # plot the first integration
-    im0 = frames[0].imshow(scorr[0], origin='lower', cmap='inferno',
+    im0 = frames[0].imshow(scorr_first, origin='lower', cmap='inferno',
                      aspect='auto', norm=norm1)
     frames[0].set(title='1/f correction values for first integration')
     # -------------------------------------------------------------------------
@@ -422,7 +431,7 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
     plt.colorbar(im0, ax=frames[0], orientation='vertical',
                  pad=0.01, fraction=0.05, label='1/f correction value')
     # plot the last integration
-    im1 = frames[1].imshow(scorr[-1], origin='lower', cmap='inferno',
+    im1 = frames[1].imshow(scorr_last, origin='lower', cmap='inferno',
                            aspect='auto', norm=norm2)
     frames[1].set(title='1/f correction values for last integration')
     # colorbar
@@ -459,7 +468,15 @@ def plot_subtract_1f_scorr(inst: Any, scorr: np.ndarray):
                    func_name)
 
 
-def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
+def plot_subtract_1f_comp(inst: Any, frame_before: np.ndarray,
+                          frame_after: np.ndarray) -> None:
+    """Compare the first integration before and after 1/f subtraction.
+
+    :param inst: active instrument and plotting configuration
+    :param frame_before: uncorrected 2-D SCI frame
+    :param frame_after: corrected 2-D SCI frame
+    :return: None
+    """
     # set function name
     func_name = f'{__NAME__}.plot_subtract_1f_comp()'
     vlims = inst.params.rget('WLC.PLOT.SUB1F_COMP_VLIM', required=True,
@@ -476,18 +493,16 @@ def plot_subtract_1f_comp(inst: Any, cube0: np.ndarray, cube1: np.ndarray):
                    'correction.')
     # setup the figure
     fig, frames = plt.subplots(nrows=2, ncols=1, figsize=[12, 12])
-    # choose the frame to plot
-    iframe = 0
-    # use same normalization for both plots
-    norm, ntext = plot_normalization(cube0, interval=interval,
+    # Normalize from the before image and share that scale across both panels.
+    norm, ntext = plot_normalization(frame_before, interval=interval,
                                      stretch=stretch, vlims=vlims, vtype=vtype)
-    # plot the cube0
-    frames[0].imshow(cube0[iframe], origin='lower', cmap='inferno',
+    # Plot the true uncorrected frame.
+    frames[0].imshow(frame_before, origin='lower', cmap='inferno',
                      aspect='auto', norm=norm)
     frames[0].set(title='Integration 0 before 1/f subtraction')
     # -------------------------------------------------------------------------
-    # plot the cube1
-    frames[1].imshow(cube1[iframe], origin='lower', cmap='inferno',
+    # Plot the corrected frame with the same before-frame normalization.
+    frames[1].imshow(frame_after, origin='lower', cmap='inferno',
                      aspect='auto', norm=norm)
     frames[1].set(title='Integration 0 after 1/f subtraction')
     # -------------------------------------------------------------------------

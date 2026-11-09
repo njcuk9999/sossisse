@@ -20,7 +20,7 @@ def test_datacube_storage(tmp_path, limit):
     assert not hasattr(DataCube, 'from_cache')
     assert datacube.filenames == (filename,)
     blocks = list(datacube.iter_integrations())
-    for name, expected in zip(('CUBE', 'ERR', 'DQ'), arrays):
+    for name, expected in zip(('FLUX', 'ERR', 'DQ'), arrays):
         actual = np.concatenate([block[name] for _, block in blocks])
         np.testing.assert_equal(actual, expected)
     assert max(part.stop - part.start for part, _ in blocks) <= limit

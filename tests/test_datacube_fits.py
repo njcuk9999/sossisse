@@ -59,7 +59,7 @@ def collect(cube):
     """Collect named blocks into a test-only SCI/ERR/DQ comparison tuple."""
     blocks = list(cube.iter_integrations())
     return tuple(np.concatenate([arrays[name] for _, arrays in blocks])
-                 for name in ('CUBE', 'ERR', 'DQ'))
+                 for name in ('FLUX', 'ERR', 'DQ'))
 
 
 @pytest.mark.parametrize('limit', [2, 20])

@@ -84,7 +84,7 @@ def test_shared_dq_mask_across_segments(tmp_path, monkeypatch, limit):
         for integration_range, arrays in original_blocks():
             block_lengths.append(arrays['DQ'].shape[0])
             assert all(arrays[name].shape[0] <= limit
-                       for name in ('CUBE', 'ERR', 'DQ'))
+                       for name in ('FLUX', 'ERR', 'DQ'))
             yield integration_range, arrays
 
     monkeypatch.setattr(manager, 'iter_integrations', bounded_blocks)
