@@ -7,16 +7,11 @@ Created on 2024-08-13
 
 @author: cook
 """
-from copy import copy
-from collections.abc import Mapping
-from numbers import Integral, Real
-import math
-from typing import Any
-
 from aperocore.constants import constant_functions
 
 from sossisse.core import base
-from sossisse.core import exceptions
+from sossisse.core.custom_const import (DQThresholdConst, MathMemoryConst,
+                                        ValidDQConst, WavelengthFileConst)
 
 # =============================================================================
 # Define variables
@@ -31,228 +26,6 @@ ConstDict = constant_functions.ConstantsDict
 CDict = ConstDict(__NAME__)
 
 
-class MathMemoryConst(Const):
-    """Preserve strict positive finite GiB limits through YAML and copies."""
-
-    @staticmethod
-    def memory(value: object) -> float:
-        """Validate the original value before any framework dtype conversion.
-
-        :param value: math budget in GiB (1024**3 bytes), not gigabits
-        :return: positive finite floating budget
-        :raises SossisseConstantException: for Boolean/non-real/invalid limits
-        """
-        emsg = ('GENERAL.MAX_MATH_MEMORY_GB must be a positive finite real '
-                'number in GiB (1024**3 bytes), not a Boolean')
-        if isinstance(value, bool) or not isinstance(value, Real):
-            raise exceptions.SossisseConstantException(emsg)
-        # Reject huge integer overflow as a configuration error, not a cast.
-        try:
-            memory = float(value)
-        except OverflowError as error:
-            raise exceptions.SossisseConstantException(emsg) from error
-        if not math.isfinite(memory) or memory <= 0:
-            raise exceptions.SossisseConstantException(emsg)
-        return memory
-
-    def validate(self, test_value: Any = None, quiet: bool = False,
-                 source: str | None = None) -> Any:
-        """Validate stored/candidate limits using the Const convention.
-
-        :param test_value: candidate, or None to validate the stored value
-        :param quiet: accepted for Const compatibility
-        :param source: accepted for Const compatibility
-        :return: True for stored validation, otherwise validated GiB
-        :raises SossisseConstantException: for an invalid memory limit
-        """
-        value = self.value if test_value is None else test_value
-        memory = self.memory(value)
-        if test_value is None:
-            self.true_value = memory
-            return True
-        return memory
-
-    def copy(self, source: str | None = None) -> 'MathMemoryConst':
-        """Keep strict validation when constants acquire new provenance.
-
-        :param source: replacement provenance, or None to preserve it
-        :return: independent constant retaining this validation subclass
-        """
-        constant = copy(self)
-        if source is not None:
-            constant.source = source
-        return constant
-
-
-class DQThresholdConst(Const):
-    """Preserve and strictly validate an occurrence fraction, without casts."""
-
-    @staticmethod
-    def fraction(value: object) -> float:
-        """Return a finite real fraction in [0, 1], excluding Booleans.
-
-        :param value: candidate maximum permitted occurrence fraction
-        :return: validated fraction as a float
-        :raises SossisseConstantException: for non-real or invalid fractions
-        """
-        # Do not let bools, strings or NaN become meaningful science settings.
-        emsg = 'DQ threshold must be a finite real fraction in [0, 1]'
-        if isinstance(value, bool) or not isinstance(value, Real):
-            raise exceptions.SossisseConstantException(emsg)
-        # Compare concrete floats after checking the original type, not a
-        # coerced string/bool. Extremely large integers are invalid limits.
-        try:
-            fraction = float(value)
-        except OverflowError as error:
-            raise exceptions.SossisseConstantException(emsg) from error
-        if not math.isfinite(fraction) or not 0 <= fraction <= 1:
-            raise exceptions.SossisseConstantException(emsg)
-        return fraction
-
-    def validate(self, test_value: Any = None, quiet: bool = False,
-                 source: str | None = None) -> Any:
-        """Validate stored/candidate fractions using the Const convention.
-
-        :param test_value: candidate, or None to validate the stored value
-        :param quiet: accepted for Const compatibility
-        :param source: accepted for Const compatibility
-        :return: True for stored validation, otherwise the validated fraction
-        :raises SossisseConstantException: if the fraction is invalid
-        """
-        value = self.value if test_value is None else test_value
-        fraction = self.fraction(value)
-        if test_value is None:
-            self.true_value = fraction
-            return True
-        return fraction
-
-    def copy(self, source: str | None = None) -> 'DQThresholdConst':
-        """Copy without losing strict validation on a provenance change.
-
-        :param source: replacement provenance, or None to preserve it
-        :return: independent constant retaining this validation subclass
-        """
-        constant = copy(self)
-        if source is not None:
-            constant.source = source
-        return constant
-
-
-class ValidDQConst(Const):
-    """Preserve exact-value DQ whitelists as mappings or legacy lists."""
-
-    @staticmethod
-    def configuration(value: object) -> dict[int, float] | list[int]:
-        """Validate accepted exact DQ categories and optional fraction limits.
-
-        :param value: nonempty mapping of integer DQ to maximum fractions,
-                      or a distinct nonempty legacy list of integer DQ values
-        :return: isolated configuration, without coercing keys or list values
-        :raises SossisseConstantException: for invalid keys, lists or limits
-        """
-        # Keys are exact values, not bit masks; never coerce strings or floats.
-        if not isinstance(value, (Mapping, list)) or not value:
-            emsg = 'VALID_DQ must be a nonempty mapping or distinct list'
-            raise exceptions.SossisseConstantException(emsg)
-        if any(isinstance(key, bool) or not isinstance(key, Integral)
-               or key < 0 for key in value):
-            emsg = 'VALID_DQ keys must be nonnegative integers, not Booleans'
-            raise exceptions.SossisseConstantException(emsg)
-        if isinstance(value, list):
-            if len(set(value)) != len(value):
-                emsg = 'VALID_DQ list must contain distinct integers'
-                raise exceptions.SossisseConstantException(emsg)
-            return list(value)
-        return {int(key): DQThresholdConst.fraction(limit)
-                for key, limit in value.items()}
-
-    def validate(self, test_value: Any = None, quiet: bool = False,
-                 source: str | None = None) -> Any:
-        """Validate without converting a mapping into a list of its keys.
-
-        :param test_value: candidate, or None to validate the stored value
-        :param quiet: accepted for Const compatibility
-        :param source: accepted for Const compatibility
-        :return: True for stored validation, otherwise an isolated dict/list
-        :raises SossisseConstantException: for invalid DQ configuration
-        """
-        value = self.value if test_value is None else test_value
-        validated = self.configuration(value)
-        if test_value is None:
-            self.true_value = validated
-            return True
-        return validated
-
-    def copy(self, source: str | None = None) -> 'ValidDQConst':
-        """Copy this subclass and isolate mutable DQ configuration.
-
-        :param source: replacement provenance, or None to preserve it
-        :return: independent constant retaining dict/list validation
-        """
-        constant = copy(self)
-        if source is not None:
-            constant.source = source
-        constant.value = self.configuration(self.value)
-        if self.true_value is not None:
-            constant.true_value = self.configuration(self.true_value)
-        return constant
-
-
-class WavelengthFileConst(Const):
-    """Preserve scalar and detector-specific wavelength filenames in YAML."""
-
-    def validate(self, test_value=None, quiet=False, source=None):
-        """
-        Validate filenames without coercing a detector list into one string.
-
-        :param test_value: str, list or None, candidate value; None validates
-                           the stored value and updates true_value
-        :param quiet: bool, accepted for compatibility with Const.validate
-        :param source: str or None, accepted for Const.validate compatibility
-        :return: bool for stored validation, otherwise the scalar or list copy
-        :raises SossisseConstantException: if a non-null value is not a
-                                          nonempty filename or filename list
-        """
-        # A null candidate means validate the stored configuration instead.
-        value = self.value if test_value is None else test_value
-        # Inspect scalar and list values uniformly without changing their type.
-        filenames = value if isinstance(value, list) else [value]
-        # Leave null values valid; downstream consumers decide if required.
-        if value is not None:
-            invalid_filenames = not filenames or any(
-                not isinstance(filename, str) or not filename.strip()
-                for filename in filenames)
-            if invalid_filenames:
-                emsg = ('WAVE_FILE must be a filename or a nonempty list '
-                        'of filenames')
-                raise exceptions.SossisseConstantException(emsg)
-        # Stored validation follows the parent boolean-result convention.
-        if test_value is None:
-            self.true_value = value
-            return True
-        # Candidate validation returns a copy to avoid sharing mutable lists.
-        return list(value) if isinstance(value, list) else value
-
-    def copy(self, source=None):
-        """
-        Copy this constant while preserving detector-list values.
-
-        :param source: str or None, replacement provenance; None delegates
-                       to the parent copy implementation
-        :return: WavelengthFileConst, copied constant with an isolated list
-        """
-        # Preserve the parent behavior when no source override is requested.
-        if source is None:
-            return super().copy(source=source)
-        # Keep this subclass rather than rebuilding a scalar-only Const.
-        constant = copy(self)
-        constant.source = source
-        # A copied configuration must not share its wavelength filename list.
-        if isinstance(self.value, list):
-            constant.value = list(self.value)
-        return constant
-
-
 # Define the title for the yaml
 CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
                                version=__version__, date=__date__)
@@ -260,6 +33,9 @@ CDict.title = CDict.yaml_title('SOSSISSE', setup_program='sossisse_setup.py',
 # =============================================================================
 # Notes from adding constant
 # =============================================================================
+# For custom validation, use CDict.addc with const_class set to a Const subclass
+# from sossisse.core.custom_const; the remaining arguments match CDict.add.
+#
 # CDICT['KEY'] = Const('KEY', value=None, 
 #                      dtype=DTYPE, dtypeio=DTYPEO,
 #                      minimum=MINIMUM, maximum=MAXIMUM, length=LENGTH,
@@ -443,17 +219,14 @@ CDict.add('POS_FILE', value=None, dtype=str,
                       'Must be placed in the "calibration directory" if set.')
 # -----------------------------------------------------------------------------
 # wavelength calibration
-wave_file_kwargs = dict(value=None, dtype=str, source=__NAME__, user=True,
-            active=True, group=cgroup)
-wave_file_kwargs['description'] = (
-  'Wavelength calibration filename, or a list of filenames '
-  'for multiple detector traces. Relative filenames use '
-  'PATHS.CALIBPATH. NIRSpec requires a matching solution '
-  'for every selected detector, identified by DETECTOR '
-  'metadata or an unambiguous nrs1/nrs2 filename. Other '
-  'instruments use one filename.')
-CDict.storage['GENERAL.WAVE_FILE'] = WavelengthFileConst('WAVE_FILE',
-                            **wave_file_kwargs)
+CDict.addc('WAVE_FILE', value=None, dtype=str, source=__NAME__, user=True,
+           active=True, group=cgroup, const_class=WavelengthFileConst,
+           description='Wavelength calibration filename, or a list of filenames '
+                       'for multiple detector traces. Relative filenames use '
+                       'PATHS.CALIBPATH. NIRSpec requires a matching solution '
+                       'for every selected detector, identified by DETECTOR '
+                       'metadata or an unambiguous nrs1/nrs2 filename. Other '
+                       'instruments use one filename.')
 # -----------------------------------------------------------------------------
 # Wavelength calibration file type
 CDict.add('WAVE_FILE_TYPE', value=None, dtype=str,
@@ -475,17 +248,14 @@ CDict.add('MAX_INTEGRATIONS', value=1000, dtype=int, minimum=1,
                       'written; USE_TEMPORARY controls reuse. '
                       'Must be a positive integer.')
 # Keep the original YAML type until validation (bool is not a float budget).
-math_memory_kwargs = dict(value=8.0, dtype=float, source=__NAME__,
-                          user=True, active=True, group=cgroup)
-math_memory_kwargs['description'] = (
-    'DataCube math allocation budget in GiB (1024**3 bytes), not gigabits. '
-    'Includes final output, input tiles and conservative reduction/FITS '
-    'workspace. '
-    'Not a hard process RSS cap. Exact reductions raise MemoryError if '
-    'one complete reduced domain plus output cannot fit. Positive finite '
-    'real number; default 8.0 GiB.')
-CDict.storage['GENERAL.MAX_MATH_MEMORY_GB'] = MathMemoryConst(
-    'MAX_MATH_MEMORY_GB', **math_memory_kwargs)
+CDict.addc('MAX_MATH_MEMORY_GB', value=8.0, dtype=float, source=__NAME__,
+           user=True, active=True, group=cgroup, const_class=MathMemoryConst,
+           description='DataCube math allocation budget in GiB (1024**3 bytes), '
+                       'not gigabits. Includes final output, input tiles and '
+                       'conservative reduction/FITS workspace. '
+                       'Not a hard process RSS cap. Exact reductions raise '
+                       'MemoryError if one complete reduced domain plus output '
+                       'cannot fit. Positive finite real number; default 8.0 GiB.')
 # -----------------------------------------------------------------------------
 # Save results at the end
 CDict.add('SAVE_RESULTS', value=True, dtype=bool,
@@ -615,32 +385,28 @@ CDict.add('APPLY_DQ_FLAGS', value=True, dtype=bool, source=__NAME__,
 
 # -----------------------------------------------------------------------------
 # Accepted exact DQ values, not bit flags; limits apply to the active jump.
-valid_dq_kwargs = dict(value={0: 1.0, 2: 1.0}, dtype=dict,
-                       source=__NAME__, user=True, active=True,
-                       tex_arg=True, group=cgroup,
-                       description='Accepted exact DQ values mapped to '
-                                   'maximum occurrence fractions in the '
-                                   'active DataCube/jump. Inclusive limits: '
-                                   '0 permits no occurrence, 1 permits '
-                                   'every integration. '
-                                   'Any unlisted value (including NaN/inf) or '
-                                   'exceeded limit masks that spatial pixel '
-                                   'in ALL frames. Legacy lists use '
-                                   'DQ_THRESHOLD for every accepted value; '
-                                   'set it to 1 to permit any listed mix.')
-CDict.storage['WLC.INPUTS.VALID_DQ'] = ValidDQConst('VALID_DQ',
-                                                  **valid_dq_kwargs)
-threshold_kwargs = dict(value=0.0, dtype=float, minimum=0, maximum=1,
-                        source=__NAME__, user=True, active=True,
-                        tex_arg=True, group=cgroup,
-                        description='Maximum inclusive occurrence fraction '
-                                    'for each accepted value in a legacy '
-                                    'VALID_DQ list. Default 0 forbids any '
-                                    'listed occurrence, so a nonempty cube '
-                                    'is fully masked. VALID_DQ mappings '
-                                    'override this fallback per value.')
-CDict.storage['WLC.INPUTS.DQ_THRESHOLD'] = DQThresholdConst('DQ_THRESHOLD',
-                                                          **threshold_kwargs)
+CDict.addc('VALID_DQ', value={0: 1.0, 2: 1.0}, dtype=dict,
+           source=__NAME__, user=True, active=True, tex_arg=True, group=cgroup,
+           const_class=ValidDQConst,
+           description='Accepted exact DQ values mapped to '
+                       'maximum occurrence fractions in the '
+                       'active DataCube/jump. Inclusive limits: '
+                       '0 permits no occurrence, 1 permits '
+                       'every integration. '
+                       'Any unlisted value (including NaN/inf) or '
+                       'exceeded limit masks that spatial pixel '
+                       'in ALL frames. Legacy lists use '
+                       'DQ_THRESHOLD for every accepted value; '
+                       'set it to 1 to permit any listed mix.')
+CDict.addc('DQ_THRESHOLD', value=0.0, dtype=float, minimum=0, maximum=1,
+           source=__NAME__, user=True, active=True, tex_arg=True, group=cgroup,
+           const_class=DQThresholdConst,
+           description='Maximum inclusive occurrence fraction '
+                       'for each accepted value in a legacy '
+                       'VALID_DQ list. Default 0 forbids any '
+                       'listed occurrence, so a nonempty cube '
+                       'is fully masked. VALID_DQ mappings '
+                       'override this fallback per value.')
 # -----------------------------------------------------------------------------
 # Correct 1/f
 CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
