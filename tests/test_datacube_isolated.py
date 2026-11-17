@@ -461,6 +461,61 @@ def test_patch_with_other_stamp_sizes(tmp_path: Path,
     assert len(calls['cutouts']) == 1
 
 
+@pytest.mark.parametrize('interval', ['base', 'minmax', 'zscale'])
+@pytest.mark.parametrize('limits', [([0., 100.], 'percentile', (0., 1.)),
+                                    ([-2., 3.], 'absolute', (-2., 3.))])
+@pytest.mark.parametrize('value', [np.nan, np.inf, -np.inf])
+def test_normalization_without_finite_pixels(interval, limits, value):
+    """All-invalid diagnostic images must render without interval failures."""
+    import warnings
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    vlims, vtype, expected = limits
+    data = np.full((3, 4), value)
+    original = data.copy()
+    figure = Figure()
+    FigureCanvasAgg(figure)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', RuntimeWarning)
+        norm, text = plots.plot_normalization(data, interval=interval,
+                                               stretch='linear', vlims=vlims,
+                                               vtype=vtype)
+        figure.subplots().imshow(data, norm=norm)
+        figure.canvas.draw()
+    assert (norm.vmin, norm.vmax) == expected
+    assert 'no finite data' in text
+    np.testing.assert_array_equal(data, original)
+
+
+def test_all_nan_patch_heatmap_renders(monkeypatch):
+    """Exercise the reported plot_heatmap/astropy ZScale crash directly."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    inst = Instrument.__new__(Instrument)
+    inst.params = ParamDict()
+    settings = dict(FRAME_VLIM=[0., 100.], FRAME_VLIM_TYPE='percentile',
+                     FRAME_INTERVAL='zscale', FRAME_STRETCH='linear')
+    for key, value in settings.items():
+        inst.params.set(f'WLC.PLOT.{key}', value, source='test')
+    completed = []
+
+    def render(*unused, **unused_kwargs):
+        figure = plots.plt.gcf()
+        FigureCanvasAgg(figure).draw()
+        completed.append(figure)
+
+    monkeypatch.setattr(plots, 'save_show_plot', render)
+    frame = np.full((3, 4), np.nan)
+    try:
+        plots.plot_heatmap(inst, np.zeros_like(frame), frame, frame,
+                           'isolated bad pixels', 'test', 'Count')
+        assert len(completed) == 1
+    finally:
+        for figure in completed:
+            plots.plt.close(figure)
+
+
 # =============================================================================
 # Start of code
 # =============================================================================

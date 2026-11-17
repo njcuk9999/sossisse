@@ -13,6 +13,7 @@ import sys
 from typing import Union
 
 import sossisse
+from aperocore.core import drs_log
 from sossisse.core import const_funcs
 from sossisse.core import base
 from sossisse.core import exceptions
@@ -28,6 +29,7 @@ __NAME__ = 'sossisse.recipes.run_setup'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+WLOG = drs_log.wlog
 # get the instrument modes
 INSTRUMENTMODES = list(select.INSTRUMENTS.keys())
 
@@ -44,15 +46,13 @@ def main(**kwargs) -> Union[Instrument, None]:
                                        setup_mode=True,
                                        **kwargs)
     except exceptions.SossisseException as e:
-        misc.printc(e.message, msg_type='error')
+        WLOG(None, 'error', e.message, raise_exception=False)
         return None
     # ----------------------------------------------------------------------
-    # get log level
-    misc.LOG_LEVEL = 'SETUP'
     # print message
-    misc.printc('*' * 80, msg_type='setup')
-    misc.printc('SOSSISSE SETUP', msg_type='setup')
-    misc.printc('*' * 80 + '\n\n', msg_type='setup')
+    WLOG(inst.params, 'info', '*' * 80)
+    WLOG(inst.params, 'info', 'SOSSISSE SETUP')
+    WLOG(inst.params, 'info', '*' * 80 + '\n\n')
     # ----------------------------------------------------------------------
     # give user some instructions on what to do next
     # ----------------------------------------------------------------------
@@ -71,10 +71,10 @@ def main(**kwargs) -> Union[Instrument, None]:
     msgs += ['\n3. Check every other value in the yaml file before running.']
     # print message
     for msg in msgs:
-        misc.printc(msg, msg_type='setup')
+        WLOG(inst.params, 'info', msg)
 
     # end script
-    misc.end_recipe()
+    misc.end_recipe(inst.params)
     # return locals
     return inst
 

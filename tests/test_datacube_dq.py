@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Shared spatial DQ masks, strict configuration and staged persistence."""
+"""Maximum bad-DQ fractions, sample masks and staged persistence."""
 
 from pathlib import Path
 from typing import cast
@@ -16,6 +16,7 @@ from sossisse.core import base
 from sossisse.core import constants
 from sossisse.core import const_funcs
 from sossisse.core import exceptions
+from sossisse.instruments import default as default_instrument
 from test_datacube_fits import collect
 from test_datacube_loader import make_loader
 
@@ -43,8 +44,10 @@ def make_dq_case(tmp_path, monkeypatch, limit=2, selection=None):
     science = np.arange(48.).reshape(6, 2, 4)
     error = np.full(science.shape, 8.)
     quality = np.zeros_like(science)
-    quality[:3, 0, 0] = 2
-    quality[:4, 0, 1] = 2
+    quality[:, 0, 0] = 4
+    quality[:3, 0, 0] = [0, 2, 0]
+    quality[:, 0, 1] = 4
+    quality[:2, 0, 1] = [0, 2]
     quality[-1, 0, 2] = 4
     quality[0, 0, 3] = np.nan
     quality[-1, 1, 0] = np.inf
@@ -62,9 +65,9 @@ def make_dq_case(tmp_path, monkeypatch, limit=2, selection=None):
         files.append(str(filename))
     instrument.params.set('GENERAL.FILES', files[::-1], source='test')
     instrument.params.set('WLC.INPUTS.APPLY_DQ_FLAGS', True, source='test')
-    instrument.params.set('WLC.INPUTS.VALID_DQ', {0: 1.0, 2: 0.5},
+    instrument.params.set('WLC.INPUTS.VALID_DQ', [0, 2],
                           source='test')
-    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 0.0, source='test')
+    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 1.0, source='test')
     instrument._jump_slice = selection
     manager = instrument.load_data_with_dq()
     active = slice(None) if selection is None else slice(*selection)
@@ -94,12 +97,13 @@ def test_shared_dq_mask_across_segments(tmp_path, monkeypatch, limit):
     expected_lengths = {1: [1] * 6, 2: [1, 2, 2, 1], 100: [1, 5]}
     assert block_lengths == expected_lengths[limit] * 2
     science, error, quality = collect(manager)
-    mask = np.array([[True, False, False, False],
-                     [False, False, True, False]])
+    accepted = np.isin(original[2], [0, 2])
+    pixel_mask = (~accepted).mean(axis=0) <= 1.0
+    mask = accepted & pixel_mask[None, :, :]
     expected_science = original[0].copy()
     expected_error = original[1].copy()
-    expected_science[:, ~mask] = np.nan
-    expected_error[:, ~mask] = np.inf
+    expected_science[~mask] = np.nan
+    expected_error[~mask] = np.inf
     np.testing.assert_equal(science, expected_science)
     np.testing.assert_equal(error, expected_error)
     np.testing.assert_equal(quality, original[2])
@@ -129,42 +133,62 @@ def test_disabled_dq_reads_only_switch(tmp_path, monkeypatch):
     assert manager.current_infiles == before
 
 
-@pytest.mark.parametrize('limits', [
-    {0: 1.0, 2: 0.0}, {0: 1.0, 2: 1.0},
-    {0: 0.5, 2: 0.5}, {0: 0.0, 2: 1.0},
-])
-def test_category_zero_one_and_inclusive_limits(tmp_path, monkeypatch,
-                                               limits):
-    """Limits constrain accepted categories, not the fraction of bad flags."""
-    instrument, manager, original = make_dq_case(tmp_path, monkeypatch)
-    instrument.params.set('WLC.INPUTS.VALID_DQ', limits, source='test')
-    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 'unused', source='test')
-    quality = original[2]
-    mask = np.all(np.isin(quality, list(limits)), axis=0)
-    for value, fraction in limits.items():
-        mask &= np.sum(quality == value, axis=0) <= fraction * len(manager)
-    instrument.apply_dq(manager)
-    science, error, actual_dq = collect(manager)
-    np.testing.assert_equal(np.all(np.isfinite(science), axis=0), mask)
-    np.testing.assert_equal(np.all(np.isfinite(error), axis=0), mask)
-    np.testing.assert_equal(actual_dq, quality)
-
-
-@pytest.mark.parametrize('threshold', [0.0, 0.5, 1.0])
-def test_legacy_list_scalar_fallback(tmp_path, monkeypatch, threshold):
-    """The default zero fallback masks everything, while one permits mixes."""
-    instrument, manager, original = make_dq_case(tmp_path, monkeypatch)
-    instrument.params.set('WLC.INPUTS.VALID_DQ', [0, 2], source='test')
+@pytest.mark.parametrize('threshold', [0., 1 / 3, 0.5,
+                                      np.nextafter(0.5, 1.), 1.])
+@pytest.mark.parametrize('limit', [1, 2, 100])
+def test_maximum_bad_union_fraction(tmp_path, monkeypatch, threshold, limit):
+    """Count unlisted values together, with an inclusive maximum fraction."""
+    instrument, manager, original = make_dq_case(tmp_path, monkeypatch, limit)
     instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', threshold, source='test')
-    quality = original[2]
-    mask = np.all(np.isin(quality, [0, 2]), axis=0)
-    for value in (0, 2):
-        mask &= np.sum(quality == value, axis=0) <= threshold * len(manager)
+    accepted = np.isin(original[2], [0, 2])
+    bad = ~accepted
+    pixel_mask = bad.mean(axis=0) <= threshold
+    mask = accepted & pixel_mask[None, :, :]
+    log_messages = []
+    monkeypatch.setattr(default_instrument, 'WLOG',
+                        lambda params, level, message:
+                        log_messages.append(message))
     instrument.apply_dq(manager)
-    np.testing.assert_equal(np.isfinite(collect(manager)[0]),
-                            np.broadcast_to(mask, quality.shape))
-    if threshold == 0:
-        assert not mask.any()
+    rejected_pixels = np.count_nonzero(~pixel_mask)
+    max_bad_integrations = int(np.floor(threshold * len(original[2])))
+    bad_samples = int(bad.sum())
+    total_samples = accepted.size
+    rejected_message = (f'{rejected_pixels}/{pixel_mask.size} spatial pixels '
+                        'rejected')
+    integrations_message = (f'bad integrations > '
+                            f'{max_bad_integrations}/{len(original[2])}')
+    samples_message = (f'bad samples={bad_samples}/{total_samples} '
+                       f'({bad_samples / total_samples:.1%})')
+    assert rejected_message in log_messages[0]
+    assert integrations_message in log_messages[0]
+    assert samples_message in log_messages[0]
+    science, error, quality = collect(manager)
+    expected, expected_error = original[0].copy(), original[1].copy()
+    expected[~mask] = np.nan
+    expected_error[~mask] = np.inf
+    np.testing.assert_array_equal(science, expected)
+    np.testing.assert_array_equal(error, expected_error)
+    np.testing.assert_array_equal(quality, original[2])
+    if threshold == 0.5:
+        assert np.isfinite(science[:3, 0, 0]).all()
+        assert np.isnan(science[:, 0, 1]).all()
+
+
+def test_zero_threshold_matches_original_developer_mask(tmp_path, monkeypatch):
+    """Zero allows no bad samples in any pixel that remains unmasked."""
+    instrument, manager, original = make_dq_case(tmp_path, monkeypatch)
+    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 0., source='test')
+    quality = original[2]
+    accepted = np.isin(quality, [0, 2])
+    pixel_mask = np.all(accepted, axis=0)
+    mask = accepted & pixel_mask[None, :, :]
+    expected, expected_error = original[0].copy(), original[1].copy()
+    expected[~mask] = np.nan
+    expected_error[~mask] = np.inf
+    instrument.apply_dq(manager)
+    science, error, _ = collect(manager)
+    np.testing.assert_array_equal(science, expected)
+    np.testing.assert_array_equal(error, expected_error)
 
 
 @pytest.mark.parametrize('selection', [(0, 2), (2, 6), (1, 5)])
@@ -174,13 +198,15 @@ def test_dq_counts_only_active_jump(tmp_path, monkeypatch, selection, limit):
     case_kwargs = dict(limit=limit, selection=selection)
     outputs = make_dq_case(tmp_path, monkeypatch, **case_kwargs)
     instrument, manager, original = outputs
+    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 0.5, source='test')
     quality = original[2]
-    mask = np.all(np.isin(quality, [0, 2]), axis=0)
-    mask &= np.sum(quality == 2, axis=0) <= len(manager) * 0.5
+    accepted = np.isin(quality, [0, 2])
+    pixel_mask = (~accepted).mean(axis=0) <= 0.5
+    mask = accepted & pixel_mask[None, :, :]
     instrument.apply_dq(manager)
     science, error, actual_dq = collect(manager)
     np.testing.assert_equal(np.isfinite(science),
-                            np.broadcast_to(mask, quality.shape))
+                            mask)
     np.testing.assert_equal(np.isfinite(error), np.isfinite(science))
     np.testing.assert_equal(actual_dq, quality)
 
@@ -281,16 +307,17 @@ def test_dq_canonical_signature_and_changed_limits(tmp_path, monkeypatch):
     instrument.apply_dq(manager)
     paths = manager.current_infiles.copy()
     instrument.params.set('GENERAL.USE_TEMPORARY', True, source='test')
-    instrument.params.set('WLC.INPUTS.VALID_DQ', {2: 0.5, 0: 1},
+    instrument.params.set('WLC.INPUTS.VALID_DQ', [2, 0],
                           source='test')
     manager = instrument.load_data_with_dq()
     instrument.apply_dq(manager)
     assert manager.current_infiles == paths
-    instrument.params.set('WLC.INPUTS.VALID_DQ', {0: 1, 2: 1}, source='test')
+    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', 0.5, source='test')
     manager = instrument.load_data_with_dq()
     instrument.apply_dq(manager)
     assert not set(paths).intersection(manager.current_infiles)
-    assert np.isfinite(collect(manager)[0][:, 0, 1]).all()
+    assert np.isfinite(collect(manager)[0][:3, 0, 0]).all()
+    assert np.isnan(collect(manager)[0][:, 0, 1]).all()
 
 
 @pytest.mark.parametrize('value', [[], {}, [0, 0], [1.0], {0: np.nan}])
@@ -310,10 +337,10 @@ def test_runtime_invalid_config_before_io(tmp_path, monkeypatch, value):
 
 
 @pytest.mark.parametrize('value', [
-    {0: 1.0, 2: 1.0}, {0: 1.0, 2: 0.5}, [0, 2],
+    [0, 2], [0], [2, 0, 4],
 ])
 def test_dq_configuration_yaml_round_trip(tmp_path, value):
-    """Actual ConstDict dump/read retains mapping keys or a legacy list."""
+    """Standard ConstDict dump/read and nested copies retain integer lists."""
     copied = constants.CDict.copy(source='test')
     copied.title = 'DQ configuration round trip'
     constant = copied.get('WLC.INPUTS.VALID_DQ')
@@ -334,59 +361,53 @@ def test_dq_configuration_yaml_round_trip(tmp_path, value):
     assert nested_constant.validate(test_value=value) == value
 
 
-@pytest.mark.parametrize('value', [
-    {}, [], {'2': 1.0}, {2.0: 1.0}, {True: 1.0}, {-1: 1.0},
-    {0: True}, {0: '1'}, {0: np.inf}, {0: -0.5},
-])
-def test_yaml_dq_rejects_noninteger_keys_and_invalid_values(tmp_path, value):
-    """Raw YAML validation must not repair quoted, float or Boolean keys."""
+def test_generic_yaml_loader_preserves_valid_dq_list(tmp_path):
+    """Generic YAML loading supports the ordinary list and scalar constants."""
     params = load_functions.load_parameters([constants.CDict])
-    document = dict(WLC=dict(INPUTS=dict(VALID_DQ=value)))
-    filename = tmp_path / 'invalid-dq.yaml'
+    document = dict(WLC=dict(INPUTS=dict(VALID_DQ=[0, 2], DQ_THRESHOLD=0.5)))
+    filename = tmp_path / 'valid-dq.yaml'
     filename.write_text(yaml.safe_dump(document))
-    with pytest.raises(exceptions.SossisseConstantException):
-        const_funcs._load_yaml_parameters(str(filename), params)
+
+    reloaded = load_functions.load_from_yaml([str(filename)], params)
+
+    assert reloaded['WLC.INPUTS.VALID_DQ'] == [0, 2]
+    assert reloaded['WLC.INPUTS.DQ_THRESHOLD'] == 0.5
 
 
 def test_default_dq_configuration():
-    """Defaults survive stored validation and provenance-changing copies."""
+    """DQ settings are ordinary typed constants, including after nesting."""
     constant = constants.CDict.get('WLC.INPUTS.VALID_DQ')
-    expected = {0: 1.0, 2: 1.0}
-    assert constant.dtype is dict
+    expected = [0, 2]
+    assert type(constant) is constants.Const
+    assert constant.dtype is list
+    assert constant.dtypei is int
     assert constant.value == expected
     assert constant.validate() is True
     assert constant.true_value == expected
-    for source in (None, 'test'):
+    for source in ('test',):
         copied = constant.copy(source=source)
-        assert isinstance(copied, constants.ValidDQConst)
+        assert type(copied) is constants.Const
         assert copied.value == expected
-        assert copied.value is not constant.value
         assert copied.validate(test_value=[0, 2]) == [0, 2]
     threshold = constants.CDict.get('WLC.INPUTS.DQ_THRESHOLD')
-    assert threshold.value == 0.0
+    assert type(threshold) is constants.Const
+    assert threshold.dtype is float
+    assert threshold.minimum == 0 and threshold.maximum == 1
+    assert threshold.value == 1.0
     assert threshold.validate() is True
-
-
-@pytest.mark.parametrize('value', [
-    None, [], {}, [0, 0], [True], [-1], [1.0], ['2'],
-    {'2': 1}, {True: 1}, {1.0: 1}, {-1: 1},
-    {0: True}, {0: -0.1}, {0: 1.1}, {0: np.nan}, {0: np.inf}, {0: '1'},
-])
-def test_invalid_dq_configuration(value):
-    """Reject coercible keys and invalid fractions instead of guessing."""
-    with pytest.raises(exceptions.SossisseConstantException):
-        constants.ValidDQConst.configuration(value)
 
 
 @pytest.mark.parametrize('value', [
     True, '0', None, -1, 2, np.nan, np.inf, 10 ** 400,
 ])
-def test_invalid_dq_threshold(value):
-    """The scalar fallback is subject to the same strict fraction rules."""
-    threshold = constants.CDict.get('WLC.INPUTS.DQ_THRESHOLD').copy('test')
-    threshold.value = value
+def test_invalid_dq_threshold(tmp_path, monkeypatch, value):
+    """Direct ParamDict changes must be validated before any product I/O."""
+    instrument, manager, _ = make_dq_case(tmp_path, monkeypatch)
+    instrument.params.set('WLC.INPUTS.DQ_THRESHOLD', value, source='test')
+    monkeypatch.setattr(manager, 'plan_stage',
+                        lambda *unused: pytest.fail('Invalid setting read'))
     with pytest.raises(exceptions.SossisseConstantException):
-        threshold.validate()
+        instrument.apply_dq(manager)
 
 
 # =============================================================================

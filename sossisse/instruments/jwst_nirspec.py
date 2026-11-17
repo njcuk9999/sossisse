@@ -10,6 +10,7 @@ Created on 2024-08-13 at 11:29
 @author: cook
 """
 import copy
+import logging
 import os
 import re
 import shutil
@@ -20,11 +21,11 @@ from astropy.io import fits
 from astropy.table import Table
 
 from aperocore import math as mp
+from aperocore.core import drs_log
 
 from sossisse.core import io
 from sossisse.core import base
 from sossisse.core import exceptions
-from sossisse.core import misc
 from sossisse.core.exceptions import SossisseConstantException
 from sossisse.general.datacube import DataCube
 from sossisse.instruments import default
@@ -36,6 +37,7 @@ __NAME__ = 'sossisse.instruments.jwst_nirspec'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+WLOG = drs_log.wlog
 
 
 # =============================================================================
@@ -86,6 +88,13 @@ class JWST_NIRSPEC(default.Instrument):
         """
         # Keep child creation and its cache in the shared detector worker.
         return detector_children(self)
+
+    def get_processing_detectors(self):
+        """Return detector-isolated processing instruments."""
+        children = self.get_detector_children()
+        if children is None:
+            return {self._detector_trace: self}
+        return children
 
     def get_traces(self):
         """
@@ -251,6 +260,7 @@ class JWST_NIRSPEC(default.Instrument):
             raise exceptions.SossisseConstantException(emsg)
         # Track the next output frame across all file segments.
         n_slice = 0
+
         # Only the first loaded segment determines allocation of the cubes.
         for ifile, filename in enumerate(input_files):
             # Keep science, error and DQ reads within the FITS resource
@@ -315,41 +325,70 @@ class JWST_NIRSPEC(default.Instrument):
 
     def _force_pixel_grid(self, filename: str) -> Tuple[int, int]:
         """
-        Force the pixel grid for NIRSpec based on the detector
+        Select the NIRSpec extract_2d slit columns on the input pixel grid.
 
-        For NRS1 we have to cut down the data to the
-        last N pixels (based on the wavegrid) - for NRS2 we keep all pixels
+        The slit cutout bounds are relative to the input detector subarray
+        and apply to both NRS1 and NRS2. The wavelength solution's spectral
+        width must match the selected pixel width.
 
         :param filename: str, the filename to load
-        :return: Tuple[int, int], the pixel start and end indices
+        :return: Tuple[int, int], pixel_low and exclusive pixel_high indices
+        :raises SossisseConstantException: if wavelength and pixel widths differ
         """
-        # deal with NRS1 vs NRS2 - for NRS1 we have to cut down the data to the
-        # last N pixels (based on the wavegrid) - for NRS2 we keep all pixels
-        hdr = io.load_header(filename, ext=0)
-        # two keys are required from the header for this task:
-        #     DETECTOR and SUBSIZE1
-        detector = hdr.get('DETECTOR', None)
-        nbxpix = hdr.get('SUBSIZE1', None)
-        # Deal with no detector keyword in header
-        if detector is None:
-            emsg = ('No DETECTOR keyword found in header.'
-                    'For {0} this key is required in input file={1}')
-            eargs = [self.params['INPUTS.INSTRUMENTMODE'], filename]
-            raise exceptions.SossisseException(emsg.format(*eargs))
-        # Deal with no SUBSIZE1 keyword in header
-        if nbxpix is None:
-            emsg = ('No SUBSIZE1 keyword found in header.'
-                    'For {0} this key is required in input file={1}')
-            eargs = [self.params['INPUTS.INSTRUMENTMODE'], filename]
-            raise exceptions.SossisseException(emsg.format(*eargs))
-        # get the wave grid for the instrument mode
-        wavegrid = self.get_wavegrid()
-        # calculate where we should start and end based on the wavegrid shape
-        pixel_start = nbxpix-wavegrid.shape[0]
-        pixel_end = nbxpix
-        # return the start and end pixels
-        return pixel_start, pixel_end
-
+        # Header identity lets repeated files reuse bounds without opening a
+        # JWST model or running its WCS pipeline again.
+        header = fits.getheader(filename, ext=0)
+        detector = str(header.get('DETECTOR', '')).strip().upper()
+        wave_file = str(self.params['GENERAL.WAVE_FILE'])
+        wave_type = self.params['GENERAL.WAVE_FILE_TYPE']
+        calibration_path = self.params['PATHS.CALIBPATH']
+        wave_path = os.path.abspath(os.path.join(calibration_path, wave_file))
+        cache_key = (detector, wave_type, wave_path)
+        pixel_grid_cache = getattr(self, '_pixel_grid_cache', {})
+        # if we already have the pixel grid for this detector and
+        #    wavelength solution, return it
+        if (detector in ('NRS1', 'NRS2') and cache_key in pixel_grid_cache):
+            return pixel_grid_cache[cache_key]
+        # print the progress
+        msg = (f'Reading NIRSpec {detector} slit pixel bounds '
+               f'from the WCS of {filename}')
+        WLOG(self.params, 'info', msg)
+        # only load jwst if we need to
+        from jwst import datamodels
+        from jwst.assign_wcs import AssignWcsStep
+        from jwst.extract_2d import nirspec
+        # we don't want the jwst logging here, so we disable it temporarily
+        previous_disable = logging.root.manager.disable
+        logging.disable(max(previous_disable, logging.INFO))
+        try:
+            with datamodels.open(filename) as cube:
+                # Only the first file for a detector/wavelength solution needs
+                # the WCS transform and slit processing.
+                # Use the first slit, which is the only one for BOTS prism data.
+                with AssignWcsStep.call(cube, configure_log=False) as result:
+                    slits = result.meta.wcs.get_transform('gwa', 'slit_frame').slits
+                    slit_result = nirspec.process_slit(result, slits[0])
+                    slit_model, pixel_low, pixel_high, _, _ = slit_result
+                    slit_model.close()
+        finally:
+            logging.disable(previous_disable)
+        # get the wavelength solution width and compare to the pixel width
+        wavegrid_width = np.asarray(self.get_wavegrid()).shape[-1]
+        if wavegrid_width != pixel_high - pixel_low:
+            emsg = ('NIRSpec slit pixel width does not match wavelength '
+                    f'solution width: {pixel_high - pixel_low} != '
+                f'{wavegrid_width}')
+            raise exceptions.SossisseConstantException(emsg)
+        else:
+            msg = ('NIRSpec slit pixel width matches wavelength solution '
+                   f'width: {pixel_high - pixel_low} == {wavegrid_width}')
+            WLOG(self.params, 'info', msg)
+        # Cache only validated bounds for this detector and wave solution.
+        bounds = (pixel_low, pixel_high)
+        if detector in ('NRS1', 'NRS2'):
+            pixel_grid_cache[cache_key] = bounds
+            self._pixel_grid_cache = pixel_grid_cache
+        return bounds
 
     def optimize_trace_mask(self, log: bool = True):
         """
@@ -397,7 +436,7 @@ class JWST_NIRSPEC(default.Instrument):
             if log:
                 msg = 'No POS_FILE defined for mode={0} - creating trace map'
                 margs = [self.name]
-                misc.printc(msg.format(*margs), msg_type='warning')
+                WLOG(self.params, 'warning', msg.format(*margs))
             # get the wave grid from the parameters
             xpix, wavegrid = self.get_wavegrid(return_xpix=True)
             # -----------------------------------------------------------------
@@ -442,7 +481,7 @@ class JWST_NIRSPEC(default.Instrument):
             if log:
                 msg = 'Writing POS_FILE={0}'
                 margs = [gen_params['POS_FILE']]
-                misc.printc(msg.format(*margs), msg_type='info')
+                WLOG(self.params, 'info', msg.format(*margs))
             # write trace file
             tracetable.write(gen_params['POS_FILE'], overwrite=True)
         # ---------------------------------------------------------------------

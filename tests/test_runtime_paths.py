@@ -9,6 +9,8 @@ from sossisse.core import const_funcs
 from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
+from sossisse.core import misc
+from sossisse.recipes import run_setup
 
 
 PATH_DEFAULTS = {
@@ -130,7 +132,7 @@ def test_load_fits_logs_numeric_extension_precedence(tmp_path, monkeypatch):
     fits.HDUList([primary, science, error]).writeto(filename)
     messages = []
     monkeypatch.setattr(
-        io.misc, 'printc', lambda message, msg_type: messages.append(
+        io, 'WLOG', lambda params, msg_type, message: messages.append(
             (message, msg_type)))
 
     data = io.load_fits(str(filename), ext=1, extname='ERR')
@@ -138,6 +140,37 @@ def test_load_fits_logs_numeric_extension_precedence(tmp_path, monkeypatch):
     np.testing.assert_array_equal(data, [1])
     assert messages == [
         (f'Loaded data from {filename} (ext=1)', 'info')]
+
+
+def test_end_recipe_uses_run_logger(tmp_path):
+    params = ParamDict()
+    params.set('PATH.LOG', str(tmp_path), source='test')
+    params.set('PID', 'sossisse-logging-test', source='test')
+    params.set('RECIPE', 'run_sossisse', source='test')
+
+    misc.end_recipe(params)
+
+    logs = list(tmp_path.rglob('APEROL-sossisse-logging-test_run_sossisse.log'))
+    assert len(logs) == 1
+    assert 'Code finished successfully' in logs[0].read_text()
+
+
+def test_setup_error_is_logged_without_raising(monkeypatch):
+    def fail(**kwargs):
+        raise exceptions.SossisseException('setup failed')
+
+    monkeypatch.setattr(run_setup.sossisse, 'get_parameters', fail)
+    calls = []
+    real_wlog = run_setup.WLOG
+
+    def log(*args, **kwargs):
+        calls.append((args, kwargs))
+        real_wlog(*args, **kwargs)
+
+    monkeypatch.setattr(run_setup, 'WLOG', log)
+    assert run_setup.main() is None
+    assert calls == [((None, 'error', 'setup failed'),
+                      {'raise_exception': False})]
 
 
 @pytest.mark.parametrize('source', ['SOSSISSE', 'POGOS'])

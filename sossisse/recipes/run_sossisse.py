@@ -55,7 +55,7 @@ def main(**kwargs) -> Union[Instrument, None]:
 
     # -------------------------------------------------------------------------
     # end script
-    misc.end_recipe()
+    misc.end_recipe(inst.params)
     # return the instrument object
     return inst
 

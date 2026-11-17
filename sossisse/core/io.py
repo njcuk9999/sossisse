@@ -28,10 +28,10 @@ from aperocore.base import base as aperobase
 from aperocore.constants.param_functions import ParamDict
 from aperocore.constants.param_functions import SubParamDict
 from aperocore.constants.constant_functions import ConstantsDict
+from aperocore.core import drs_log
 
 from sossisse.core import base
 from sossisse.core import exceptions
-from sossisse.core import misc
 
 # =============================================================================
 # Define variables
@@ -51,6 +51,7 @@ MAX_LOCK_WAIT = 30
 LOCK_WAIT = 5
 # all valid file extensions to include in html file list (not plots)
 FILE_EXTS = ['.csv', '.fits', '.h5', '.txt', '.tex']
+WLOG = drs_log.wlog
 
 
 # =============================================================================
@@ -71,7 +72,7 @@ def create_directory(path: str):
     # try to create the path
     try:
         # print that we are creating path
-        misc.printc('Creating directory: {0}'.format(path), msg_type='setup')
+        WLOG(None, 'info', 'Creating directory: {0}'.format(path))
         # make the path
         os.makedirs(path)
     except Exception as e:
@@ -107,7 +108,7 @@ def lock_wait(filename: str, unlock: bool = False):
         time.sleep(LOCK_WAIT)
         msg = 'Waiting for lock file to be removed: {0} [{1}/{2}]'
         margs = [lockfile, counter+1, MAX_LOCK_WAIT]
-        misc.printc(msg.format(*margs), msg_type='alert')
+        WLOG(None, 'info', msg.format(*margs), colour='magenta')
     # -------------------------------------------------------------------------
     # Deal with the case where the lock file still exists
     if MAX_LOCK_WAIT == counter:
@@ -141,12 +142,12 @@ def get_file(path: Union[str, None], name: str,
     if os.path.exists(path):
         msg = 'File for "{0}" exists: {1}. Will use {0} file.'
         args = [name, path]
-        misc.printc(msg.format(*args), msg_type='debug')
+        WLOG(None, 'debug', msg.format(*args))
         return path
     else:
         wmsg = 'File for "{0} does not exist: {1}. Will not use {0} file.'
         wargs = [name, path]
-        misc.printc(wmsg.format(*wargs), msg_type='warning')
+        WLOG(None, 'warning', wmsg.format(*wargs))
         return None
 
 
@@ -167,7 +168,7 @@ def copy_file(inpath: str, outpath: str):
         # print that we are copying file
         msg = 'Copying file: {0}-->{1}'
         margs = [inpath, outpath]
-        misc.printc(msg.format(*margs), msg_type='debug')
+        WLOG(None, 'debug', msg.format(*margs))
         # copy the file
         shutil.copyfile(inpath, outpath)
     except Exception as e:
@@ -263,7 +264,7 @@ def log_fits_load(filename: str, ext=None, extname: str = None):
         hdu_label = 'default HDU'
     # Keep messages at info level so normal recipe runs show loaded inputs.
     msg = f'Loaded data from {filename} ({hdu_label})'
-    misc.printc(msg, msg_type='info')
+    WLOG(None, 'info', msg)
 
 
 def load_header(filename: str, ext: int = None, extname: str = None,
@@ -347,7 +348,7 @@ def save_fitsimage(filename: str, data: np.ndarray, meta: Dict[str, Any] = None)
     """
     # print progres
     msg = 'Saving data to file: {0}'
-    misc.printc(msg.format(filename), msg_type='info')
+    WLOG(None, 'info', msg.format(filename))
     # try to save the data
     try:
         fits.writeto(filename, data, meta, overwrite=True)
@@ -370,7 +371,7 @@ def save_fits(filename: str, datalist: List[Any], datatypes: List[str],
     """
     # print progres
     msg = 'Saving data to file: {0}'
-    misc.printc(msg.format(filename), msg_type='info')
+    WLOG(None, 'info', msg.format(filename))
 
     try:
         # open a fits hdu list
@@ -413,7 +414,7 @@ def save_table(filename: str, data: Table, fmt: str = 'csv',
     """
     # print progres
     msg = 'Saving table to file: {0}'
-    misc.printc(msg.format(filename), msg_type='info')
+    WLOG(None, 'info', msg.format(filename))
     # try to save the data
     try:
         data.write(filename, format=fmt, overwrite=True,

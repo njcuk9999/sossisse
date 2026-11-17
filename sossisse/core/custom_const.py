@@ -1,8 +1,7 @@
 """Custom constant types for SOSSISSE."""
 
 from copy import copy
-from collections.abc import Mapping
-from numbers import Integral, Real
+from numbers import Real
 import math
 from typing import Any
 
@@ -64,120 +63,6 @@ class MathMemoryConst(Const):
         constant = copy(self)
         if source is not None:
             constant.source = source
-        return constant
-
-
-class DQThresholdConst(Const):
-    """Preserve and strictly validate an occurrence fraction, without casts."""
-
-    @staticmethod
-    def fraction(value: object) -> float:
-        """Return a finite real fraction in [0, 1], excluding Booleans.
-
-        :param value: candidate maximum permitted occurrence fraction
-        :return: validated fraction as a float
-        :raises SossisseConstantException: for non-real or invalid fractions
-        """
-        # Do not let bools, strings or NaN become meaningful science settings.
-        emsg = 'DQ threshold must be a finite real fraction in [0, 1]'
-        if isinstance(value, bool) or not isinstance(value, Real):
-            raise exceptions.SossisseConstantException(emsg)
-        # Compare concrete floats after checking the original type, not a
-        # coerced string/bool. Extremely large integers are invalid limits.
-        try:
-            fraction = float(value)
-        except OverflowError as error:
-            raise exceptions.SossisseConstantException(emsg) from error
-        if not math.isfinite(fraction) or not 0 <= fraction <= 1:
-            raise exceptions.SossisseConstantException(emsg)
-        return fraction
-
-    def validate(self, test_value: Any = None, quiet: bool = False,
-                 source: str | None = None) -> Any:
-        """Validate stored/candidate fractions using the Const convention.
-
-        :param test_value: candidate, or None to validate the stored value
-        :param quiet: accepted for Const compatibility
-        :param source: accepted for Const compatibility
-        :return: True for stored validation, otherwise the validated fraction
-        :raises SossisseConstantException: if the fraction is invalid
-        """
-        value = self.value if test_value is None else test_value
-        fraction = self.fraction(value)
-        if test_value is None:
-            self.true_value = fraction
-            return True
-        return fraction
-
-    def copy(self, source: str | None = None) -> 'DQThresholdConst':
-        """Copy without losing strict validation on a provenance change.
-
-        :param source: replacement provenance, or None to preserve it
-        :return: independent constant retaining this validation subclass
-        """
-        constant = copy(self)
-        if source is not None:
-            constant.source = source
-        return constant
-
-
-class ValidDQConst(Const):
-    """Preserve exact-value DQ whitelists as mappings or legacy lists."""
-
-    @staticmethod
-    def configuration(value: object) -> dict[int, float] | list[int]:
-        """Validate accepted exact DQ categories and optional fraction limits.
-
-        :param value: nonempty mapping of integer DQ to maximum fractions,
-                      or a distinct nonempty legacy list of integer DQ values
-        :return: isolated configuration, without coercing keys or list values
-        :raises SossisseConstantException: for invalid keys, lists or limits
-        """
-        # Keys are exact values, not bit masks; never coerce strings or floats.
-        if not isinstance(value, (Mapping, list)) or not value:
-            emsg = 'VALID_DQ must be a nonempty mapping or distinct list'
-            raise exceptions.SossisseConstantException(emsg)
-        if any(isinstance(key, bool) or not isinstance(key, Integral)
-               or key < 0 for key in value):
-            emsg = 'VALID_DQ keys must be nonnegative integers, not Booleans'
-            raise exceptions.SossisseConstantException(emsg)
-        if isinstance(value, list):
-            if len(set(value)) != len(value):
-                emsg = 'VALID_DQ list must contain distinct integers'
-                raise exceptions.SossisseConstantException(emsg)
-            return list(value)
-        return {int(key): DQThresholdConst.fraction(limit)
-                for key, limit in value.items()}
-
-    def validate(self, test_value: Any = None, quiet: bool = False,
-                 source: str | None = None) -> Any:
-        """Validate without converting a mapping into a list of its keys.
-
-        :param test_value: candidate, or None to validate the stored value
-        :param quiet: accepted for Const compatibility
-        :param source: accepted for Const compatibility
-        :return: True for stored validation, otherwise an isolated dict/list
-        :raises SossisseConstantException: for invalid DQ configuration
-        """
-        value = self.value if test_value is None else test_value
-        validated = self.configuration(value)
-        if test_value is None:
-            self.true_value = validated
-            return True
-        return validated
-
-    def copy(self, source: str | None = None) -> 'ValidDQConst':
-        """Copy this subclass and isolate mutable DQ configuration.
-
-        :param source: replacement provenance, or None to preserve it
-        :return: independent constant retaining dict/list validation
-        """
-        constant = copy(self)
-        if source is not None:
-            constant.source = source
-        constant.value = self.configuration(self.value)
-        if self.true_value is not None:
-            constant.true_value = self.configuration(self.true_value)
         return constant
 
 

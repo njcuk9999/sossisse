@@ -11,6 +11,7 @@ Created on 2024-08-13 at 11:23
 """
 import os
 import time
+import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -23,8 +24,10 @@ from astropy.visualization import stretch as stretch_mod
 
 from aperocore import math as mp
 from aperocore.base import base as aperobase
+from aperocore.core import drs_log
 from sossisse.core import base
-from sossisse.core import misc
+
+WLOG = drs_log.wlog
 
 # =============================================================================
 # Define variables
@@ -68,7 +71,8 @@ def plot_normalization(data: np.ndarray,
         - 'percentile': use percentiles for normalization
         - 'absolute': use min/max values for normalization
 
-    :return: tuple, 1. ImageNormalize object, 2. str, the normalization text
+    :return: tuple, normalization object and text; frames without finite data
+             use explicit display limits and are labelled in the text
     """
     # -------------------------------------------------------------------------
     if interval == 'base':
@@ -92,6 +96,17 @@ def plot_normalization(data: np.ndarray,
     # else not supported
     else:
         raise ValueError(f'Unsupported stretch type: {stretch}')
+    # Astropy intervals cannot infer limits from an empty finite sample.
+    if not np.any(np.isfinite(data)):
+        vmin, vmax = vlims if vtype == 'absolute' else (0., 1.)
+        if not np.all(np.isfinite([vmin, vmax])):
+            vmin, vmax = 0., 1.
+        norm = ImageNormalize(stretch=stretch_inst, interval=interval_inst,
+                              vmin=vmin, vmax=vmax)
+        ntext = (f'NORM[vmin={vmin:.2e}, vmax={vmax:.2e}, '
+                 f'interval={interval}, stretch={stretch}, no finite data]')
+        WLOG(None, 'warning', 'Plot contains no finite data; using fixed display limits')
+        return norm, ntext
     # -------------------------------------------------------------------------
     # deal with vmin, vmax and vtype
     if vtype == 'percentile':
@@ -200,16 +215,16 @@ def save_show_plot(inst: Any, outname: str, title: str = '',
         abspath = os.path.join(plot_directory, basename)
         # say that we are plotting graph
         msg = f'Plotting graph: {basename}'
-        misc.printc(msg, msg_type='info')
+        WLOG(params, 'info', msg)
         # save the figure
         plt.savefig(abspath)
     # if we want to show the plot do it now
     if show_plot:
         # deal with description
         if len(description) > 0:
-            misc.printc(f'PLOT: {title}', 'plot')
-            misc.printc('', 'plot')
-            misc.printc(f'PLOT: {description}', 'plot')
+            WLOG(params, 'info', f'PLOT: {title}', colour='magenta')
+            WLOG(params, 'info', '', colour='magenta')
+            WLOG(params, 'info', f'PLOT: {description}', colour='magenta')
         # show the plot
         plt.show(block=True)
     # finally close the plot
@@ -404,7 +419,8 @@ def plot_subtract_1f_scorr(inst: Any, scorr_first: np.ndarray,
         mode = mode.format(degree_1f_corr)
 
     # Collapse the supplied integration mean over detector rows for the trace.
-    mean_scorr_collapse = np.nanmean(mean_scorr, axis=0)
+    with warnings.catch_warnings(record=True):
+        mean_scorr_collapse = np.nanmean(mean_scorr, axis=0)
 
     # Normalize each 2-D diagnostic independently for its panel.
     ntexts = dict()
@@ -1316,7 +1332,8 @@ def plot_stability(inst: Any, table: Table):
 #     # standard save/show plot for SOSSISSE
 #     save_show_plot(inst, 'transit')
 
-def plot_spectral_timeseries(inst: Any, spec2: np.ndarray, trace: int):
+def plot_spectral_timeseries(inst: Any, spec2: np.ndarray,
+                             trace: int | None = None):
     """
     Plot one trace's relative-flux spectra without changing integration order.
 
@@ -1544,7 +1561,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
 #             self.fig.canvas.mpl_connect('button_press_event', self.on_click)
 #             plt.show(block=True)
 #         except Exception as e:
-#             misc.printc(str(e), 'error')
+#             WLOG(None, 'error', str(e), raise_exception=False)
 #             self.success = False
 #
 #     def on_click(self, event):
@@ -1616,7 +1633,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
 #                 self.transit_ints = [[]]
 #                 return False
 #         except Exception as e:
-#             misc.printc(str(e), 'error')
+#             WLOG(None, 'error', str(e), raise_exception=False)
 #             self.success = False
 #             return False
 #         # if we get here return True

@@ -1,3 +1,6 @@
+import logging
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -17,13 +20,15 @@ def test_load_cube_pixel_grid(tmp_path, monkeypatch, detector, width,
                               force_pixel_grid):
     subsize = width
     width = subsize if data_width is None else data_width
-    pixel_start, pixel_end = (subsize - 4, subsize) if force_pixel_grid else (0, width)
+    bounds = (1, 5) if subsize == 6 else (0, 3)
+    pixel_start, pixel_end = bounds if force_pixel_grid else (0, width)
     output_width = len(range(width)[pixel_start:pixel_end])
     instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
     instrument.params = ParamDict()
     instrument.params.set('WLC.INPUTS', {'CDS_IDS': [0, 1], 'CDS_RON': 4},
                           source='test')
-    monkeypatch.setattr(instrument, 'get_wavegrid', lambda: np.arange(4))
+    monkeypatch.setattr(instrument, '_force_pixel_grid',
+                        lambda filename: bounds)
     filenames = []
     expected = [[], [], []]
     bin_calls = []
@@ -83,7 +88,7 @@ def test_load_cube_pixel_grid(tmp_path, monkeypatch, detector, width,
 def test_load_data_pixel_grid(tmp_path, monkeypatch, ndim, width, subsize,
                               force_pixel_grid):
     instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
-    monkeypatch.setattr(instrument, 'get_wavegrid', lambda: np.arange(4))
+    monkeypatch.setattr(instrument, '_force_pixel_grid', lambda filename: (1, 5))
     data = np.arange(2 ** (ndim - 1) * width).reshape(
         (2,) * (ndim - 1) + (width,))
     header = fits.Header()
@@ -96,7 +101,7 @@ def test_load_data_pixel_grid(tmp_path, monkeypatch, ndim, width, subsize,
     actual = instrument.load_data(str(filename),
                                   force_pixel_grid=force_pixel_grid)
 
-    expected = data[..., 2:6] if force_pixel_grid else data
+    expected = data[..., 1:5] if force_pixel_grid else data
     np.testing.assert_array_equal(actual, expected)
 
 
@@ -140,7 +145,7 @@ def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached, limit):
     variables = {}
     monkeypatch.setattr(instrument, 'set_variable', variables.__setitem__)
     monkeypatch.setattr(instrument, 'update_meta_data', lambda: None)
-    monkeypatch.setattr(instrument, 'get_wavegrid', lambda: np.arange(4))
+    monkeypatch.setattr(instrument, '_force_pixel_grid', lambda filename: (1, 5))
     monkeypatch.setattr(instrument, 'bin_cube',
                         lambda data, bin_type='Flux', get_shape=False:
                         list(data.shape) if get_shape else data)
@@ -171,9 +176,140 @@ def test_load_data_with_dq_pixel_grid(tmp_path, monkeypatch, cached, limit):
     actual = tuple(np.concatenate([arrays[name] for _, arrays in blocks])
                    for name in ('FLUX', 'ERR', 'DQ'))
     for result, original in zip(actual, [data, error, dq]):
-        expected = original[..., 2:6]
+        expected = original[..., 1:5]
         np.testing.assert_array_equal(result, expected)
     assert variables['DATA_X_SIZE'] == 4
     initial_files = datacube.current_infiles.copy()
     datacube = instrument.load_data_with_dq()
     assert datacube.current_infiles == initial_files
+
+
+@pytest.mark.parametrize('detector', ['NRS1', 'NRS2'])
+def test_force_pixel_grid_uses_slit_cutout(monkeypatch, caplog, detector):
+    from jwst import datamodels
+    from jwst.assign_wcs import AssignWcsStep
+    from jwst.extract_2d import nirspec
+
+    instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
+    instrument.params = ParamDict()
+    instrument.params.set('GENERAL.WAVE_FILE', 'wave.fits', source='test')
+    instrument.params.set('GENERAL.WAVE_FILE_TYPE', 'fits', source='test')
+    instrument.params.set('PATHS.CALIBPATH', '.', source='test')
+    monkeypatch.setattr(instrument, 'get_wavegrid', lambda: np.arange(4))
+    cube = MagicMock()
+    result = MagicMock()
+    cube.__enter__.return_value = cube
+    result.__enter__.return_value = result
+    slit = object()
+    slit_model = MagicMock()
+    cube.meta.instrument.detector = detector
+    result.meta.wcs.get_transform.return_value.slits = [slit]
+    open_model = MagicMock(return_value=cube)
+    logger = logging.getLogger('jwst.assign_wcs.test')
+    caplog.set_level(logging.INFO)
+
+    def run_assign_wcs(cube, configure_log):
+        logger.info('pipeline progress')
+        logger.warning('pipeline warning')
+        return result
+
+    assign_wcs = MagicMock(side_effect=run_assign_wcs)
+    process_slit = MagicMock(return_value=(slit_model, 1, 5, 0, 2))
+    monkeypatch.setattr(datamodels, 'open', open_model)
+    monkeypatch.setattr(AssignWcsStep, 'call', assign_wcs)
+    monkeypatch.setattr(nirspec, 'process_slit', process_slit)
+    monkeypatch.setattr(fits, 'getheader',
+                        lambda filename, ext=0: {'DETECTOR': detector})
+
+    previous_disable = logging.root.manager.disable
+    assert instrument._force_pixel_grid('raw.fits') == (1, 5)
+    open_model.assert_called_once_with('raw.fits')
+    assign_wcs.assert_called_once_with(cube, configure_log=False)
+    result.meta.wcs.get_transform.assert_called_once_with('gwa', 'slit_frame')
+    process_slit.assert_called_once_with(result, slit)
+    slit_model.close.assert_called_once_with()
+    assert 'pipeline progress' not in caplog.text
+    assert 'pipeline warning' in caplog.text
+    assert logging.root.manager.disable == previous_disable
+
+
+def test_force_pixel_grid_cache_is_per_detector_and_wave_solution(
+        tmp_path, monkeypatch):
+    from jwst import datamodels
+    from jwst.assign_wcs import AssignWcsStep
+    from jwst.extract_2d import nirspec
+
+    instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
+    instrument.params = ParamDict()
+    instrument.params.set('GENERAL.WAVE_FILE', 'shared-wave.fits',
+                          source='test')
+    instrument.params.set('GENERAL.WAVE_FILE_TYPE', 'fits', source='test')
+    instrument.params.set('PATHS.CALIBPATH', str(tmp_path), source='test')
+    monkeypatch.setattr(instrument, 'get_wavegrid', lambda: np.arange(4))
+
+    cubes = {}
+    results = {}
+    slit_models = {}
+    bounds = {'NRS1': (1, 5), 'NRS2': (2, 6)}
+    for detector in bounds:
+        cube = MagicMock()
+        cube.__enter__.return_value = cube
+        cube.meta.instrument.detector = detector
+        result = MagicMock()
+        result.__enter__.return_value = result
+        slit = object()
+        result.meta.wcs.get_transform.return_value.slits = [slit]
+        cubes[detector] = cube
+        results[detector] = result
+        slit_models[detector] = MagicMock()
+
+    open_model = MagicMock(side_effect=lambda filename: cubes[filename])
+    assign_wcs = MagicMock(
+        side_effect=lambda cube, configure_log:
+        results[cube.meta.instrument.detector])
+
+    def get_slit_bounds(result, slit):
+        detector = next(detector for detector, item in results.items()
+                        if item is result)
+        return (slit_models[detector], *bounds[detector], 0, 2)
+
+    process_slit = MagicMock(side_effect=get_slit_bounds)
+    monkeypatch.setattr(datamodels, 'open', open_model)
+    monkeypatch.setattr(AssignWcsStep, 'call', assign_wcs)
+    monkeypatch.setattr(nirspec, 'process_slit', process_slit)
+    monkeypatch.setattr(fits, 'getheader',
+                        lambda filename, ext=0: {'DETECTOR': filename})
+
+    assert instrument._force_pixel_grid('NRS1') == bounds['NRS1']
+    assert instrument._force_pixel_grid('NRS1') == bounds['NRS1']
+    assert instrument._force_pixel_grid('NRS2') == bounds['NRS2']
+    instrument.params.set('GENERAL.WAVE_FILE', 'other-wave.fits',
+                          source='test')
+    assert instrument._force_pixel_grid('NRS1') == bounds['NRS1']
+
+    assert assign_wcs.call_count == 3
+    assert process_slit.call_count == 3
+    assert open_model.call_count == 3
+
+
+@pytest.mark.parametrize('disabled_level', [logging.NOTSET, logging.WARNING])
+def test_force_pixel_grid_restores_logging_on_error(monkeypatch, disabled_level):
+    from jwst import datamodels
+
+    instrument = JWST_NIRSPEC.__new__(JWST_NIRSPEC)
+    instrument.params = ParamDict()
+    instrument.params.set('GENERAL.WAVE_FILE', 'wave.fits', source='test')
+    instrument.params.set('GENERAL.WAVE_FILE_TYPE', 'fits', source='test')
+    instrument.params.set('PATHS.CALIBPATH', '.', source='test')
+    previous_disable = logging.root.manager.disable
+    monkeypatch.setattr(datamodels, 'open', MagicMock(side_effect=ValueError))
+    monkeypatch.setattr(fits, 'getheader',
+                        lambda filename, ext=0: {'DETECTOR': 'NRS1'})
+
+    logging.disable(disabled_level)
+    try:
+        with pytest.raises(ValueError):
+            instrument._force_pixel_grid('raw.fits')
+        assert logging.root.manager.disable == disabled_level
+    finally:
+        logging.disable(previous_disable)

@@ -55,34 +55,18 @@ EXCLUDED_HASH_KEYS = ['PROJECT_NAME']
 # Define functions that use CDICT
 # =============================================================================
 def _load_yaml_parameters(filename: str, params: ParamDict) -> ParamDict:
-    """Load SOSSISSE YAML without flattening exact integer DQ keys.
-
-    The shared loader flattens every dictionary into dotted string keys,
-    losing the distinction between YAML integer 2 and quoted string "2".
-    Keep VALID_DQ as a leaf before delegating parameter validation/storage.
+    """Load and validate YAML constants through the shared loader.
 
     :param filename: configuration YAML path
     :param params: initialized defaults and command/function inputs
     :return: same parameter manager with validated YAML values and sources
-    :raises SossisseConstantException: for invalid raw DQ keys or fractions
     :raises OSError: if the configuration file cannot be read
     """
     # Use the same structured YAML parser as the shared parameter loader.
     yaml_data = aperobase.load_yaml(filename)
     if yaml_data is None:
         return params
-    # Flatten other settings exactly as before; replace only this known leaf.
     flat_values = load_functions._to_flat_dict(yaml_data)
-    input_values = yaml_data.get('WLC', dict()).get('INPUTS', dict())
-    if 'VALID_DQ' in input_values:
-        # Validate ORIGINAL YAML keys before any stringification can hide an
-        # invalid float/Boolean/string key. Empty mappings must also fail.
-        raw_valid_dq = input_values['VALID_DQ']
-        valid_dq = constants.ValidDQConst.configuration(raw_valid_dq)
-        dq_key = 'WLC.INPUTS.VALID_DQ'
-        flat_values = {key: value for key, value in flat_values.items()
-                       if key != dq_key and not key.startswith(dq_key + '.')}
-        flat_values[dq_key] = valid_dq
     # Preserve the shared source accounting and all other Const validation.
     sources = load_functions.update_sources(params, flat_values, filename)
     load_args = [flat_values, sources, params.instances, params]
@@ -90,7 +74,7 @@ def _load_yaml_parameters(filename: str, params: ParamDict) -> ParamDict:
 
 
 def get_parameters(no_yaml: bool = False,
-                   only_create: bool = False, log_level: str = None,
+                   only_create: bool = False,
                    setup_mode: bool = False, **kwargs) -> Instrument:
     """
     Get the parameters from the constants module
@@ -110,13 +94,12 @@ def get_parameters(no_yaml: bool = False,
     # set function name
     func_name = __NAME__ + '.get_parameters()'
     # print splash
-    if log_level != 'setup':
+    if not setup_mode:
         misc.sossart()
     # in setup mode we force some parameters
     if setup_mode:
         no_yaml = True
         only_create = True
-        log_level = 'setup'
     # -------------------------------------------------------------------------
     # get the descriptions and inputs
     description = DESCRIPTIONS.get(kwargs['__NAME__'], 'UNKNOWN')
@@ -138,7 +121,7 @@ def get_parameters(no_yaml: bool = False,
             only_create = False
         # print param source
         msg = 'param source: POGOS (no_yaml=True, only_create=False)'
-        misc.printc(msg, msg_type='info')
+        WLOG(params, 'info', msg)
     else:
         # get parameters
         parameter_kwargs = dict(name=__NAME__, description=description,
@@ -205,7 +188,7 @@ def get_parameters(no_yaml: bool = False,
     # -------------------------------------------------------------------------
     # print that we are using yaml file
     if not no_yaml:
-        misc.printc(f'\tUsing parameter file: {param_file}', msg_type='info')
+        WLOG(params, 'info', f'\tUsing parameter file: {param_file}')
     # -------------------------------------------------------------------------
     # deal with special parameters that need checking
     # -------------------------------------------------------------------------
@@ -219,14 +202,6 @@ def get_parameters(no_yaml: bool = False,
         if fit_quad_term:
             emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
             raise exceptions.SossisseConstantException(emsg)
-    # -------------------------------------------------------------------------
-    # force global log level to match
-    if log_level is not None:
-        misc.LOC_LEVEL = str(log_level).upper()
-    else:
-        input_log_level = params.rget('INPUTS.LOG_LEVEL', required=True,
-                                      func=func_name)
-        misc.LOG_LEVEL = str(input_log_level).upper()
     # -------------------------------------------------------------------------
     # finally add the param file to the params
     params['INPUTS.PARAM_FILE'] = os.path.abspath(param_file)
@@ -413,13 +388,13 @@ def run_time_params(params: ParamDict, only_create: bool = False
             # get the absolute path
             abspath = os.path.join(paths['RAWPATH'], basename)
             # print progress
-            misc.printc(f'Checking file {abspath}', msg_type='debug')
+            WLOG(params, 'debug', f'Checking file {abspath}')
             # check if the file exists
             if not os.path.exists(abspath):
                 emsg = f'File {abspath} does not exist'
                 raise exceptions.SossisseFileException(emsg)
             # print progress
-            misc.printc(f'File {abspath} exists', msg_type='debug')
+            WLOG(params, 'debug', f'File {abspath} exists')
             # push into params
             general['FILES'][b_it] = abspath
         # All files now exist and have absolute paths; validate their headers.
@@ -457,7 +432,7 @@ def run_time_params(params: ParamDict, only_create: bool = False
             # Detector children replace this shared automatic position map.
             params['__AUTO_POS_FILE__'] = True
             wmsg = f'No POS_FILE set, creating pos_file.fits'
-            misc.printc(wmsg, msg_type='warning')
+            WLOG(params, 'warning', wmsg)
             absposfile = str(os.path.join(paths['CALIBPATH'], 'pos_file.fits'))
         # update POS_FILE in parameter dictionary
         general['POS_FILE'] = io.get_file(absposfile, 'trace',

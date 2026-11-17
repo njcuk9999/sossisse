@@ -10,19 +10,23 @@ Created on 2022-09-20
 @author: cook
 """
 import os
-from typing import cast
+from typing import Optional, cast
 
 import numpy as np
 from astropy.table import Table
 from astropy.table import vstack
 
+from aperocore.core import drs_log
 from sossisse.core import base
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.core import misc
 from sossisse.general.datacube import DataCube
+from sossisse.general.reconstruction import ReconstructionProducts
 from sossisse.general import plots
 from sossisse.instruments import Instrument
+
+WLOG = drs_log.wlog
 
 # =============================================================================
 # Define variables
@@ -34,8 +38,21 @@ __authors__ = base.__authors__
 
 
 # =============================================================================
-# Define functions
+# Define main functions
 # =============================================================================
+def _processing_splash_message(inst: Instrument) -> Optional[str]:
+    """Describe the active detector and jump chunk for a processing splash."""
+    messages = []
+    detector = getattr(inst, '_detector_trace', None)
+    if detector is not None:
+        messages.append(f'Detector {detector}')
+    jump_slice = getattr(inst, '_jump_slice', None)
+    if getattr(inst, '_jump_suffix', '') and jump_slice is not None:
+        start, stop = jump_slice
+        messages.append(f'Jump chunk {start}-{stop - 1}')
+    return '  '.join(messages) or None
+
+
 def linear_recon_init(inst):
     # set the function name
     func_name = f'{__NAME__}.linear_recon'
@@ -44,7 +61,8 @@ def linear_recon_init(inst):
     # print the splash
     misc.sossart()
     # print the white light curve splash
-    print(misc.art('Linear Recon ' + objname, 'blue', 'CYAN'))
+    print(misc.art('Linear Recon ' + objname, 'blue', 'CYAN',
+                   message=_processing_splash_message(inst)))
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
@@ -56,8 +74,12 @@ def linear_recon_init(inst):
         use_temporary = inst.params.rget('GENERAL.USE_TEMPORARY',
                                          required=True, func=func_name)
         if use_temporary:
+            try:
+                inst.load_wlc_results()
+            except (OSError, ValueError, KeyError, TypeError):
+                return False
             msg = 'File {0} exists we skip linear reconstruction step'
-            misc.printc(msg.format(wlc_ltbl_file), 'info')
+            WLOG(inst.params, 'info', msg.format(wlc_ltbl_file))
             # A fresh instrument does not have the fitted-column metadata in memory.
             # Restore it from the current model configuration before merging/plotting.
             inst.set_linear_output_metadata()
@@ -65,147 +87,6 @@ def linear_recon_init(inst):
     # if we've got here return false
     return False
 
-
-def get_jump_chunks(inst: Instrument):
-    """
-    Get the validated jump chunks for this run.
-
-    :param inst: Instrument, the instrument object
-    :return: tuple, list of chunk dictionaries and list of jump integrations
-    """
-    # Count the input frames after any time-binning has been applied.
-    nframes = inst.get_input_n_frames()
-    # Read the user-supplied jump locations from the SOSSISSE WLC parameters.
-    jump_ints = inst.params['WLC.INPUTS.JUMP_INTS']
-    # Treat a missing value the same as an empty list of jumps.
-    if jump_ints is None:
-        jump_ints = []
-    # The yaml value must be a list so that ordering and duplicates are explicit.
-    if not isinstance(jump_ints, list):
-        emsg = 'WLC.INPUTS.JUMP_INTS must be a list of integers or None'
-        raise exceptions.SossisseConstantException(emsg)
-    # Convert values to integers here so all downstream code gets one type.
-    try:
-        jump_ints = [int(jump_int) for jump_int in jump_ints]
-    # Give a parameter-level error if one of the entries cannot be an integer.
-    except Exception as _:
-        emsg = 'WLC.INPUTS.JUMP_INTS must contain integers'
-        raise exceptions.SossisseConstantException(emsg)
-    # Sort jumps so chunk construction is deterministic even if yaml is not.
-    jump_ints = sorted(jump_ints)
-    # Duplicate jumps would create an empty chunk, so reject them early.
-    if len(jump_ints) != len(set(jump_ints)):
-        emsg = 'WLC.INPUTS.JUMP_INTS must not contain duplicate values'
-        raise exceptions.SossisseConstantException(emsg)
-    # Validate each jump against the binned integration range.
-    for jump_int in jump_ints:
-        # A jump marks the last frame in a chunk, so the final frame is invalid.
-        if jump_int < 0 or jump_int >= nframes - 1:
-            emsg = ('WLC.INPUTS.JUMP_INTS values must be between 0 and '
-                    f'{nframes - 2}')
-            raise exceptions.SossisseConstantException(emsg)
-    # no jumps: one normal chunk with no suffix
-    if len(jump_ints) == 0:
-        # Use named keys so callers do not need positional tuple indexes.
-        chunk = dict(start=0, stop=nframes, suffix='')
-        # Return the single legacy-style chunk and the empty jump list.
-        return [chunk], jump_ints
-    # The first chunk always starts at integration zero.
-    starts = [0]
-    # Each later chunk starts immediately after the previous jump frame.
-    starts.extend([jump_int + 1 for jump_int in jump_ints])
-    # Each jump is stored as the final included frame, so stop is jump + 1.
-    stops = [jump_int + 1 for jump_int in jump_ints]
-    # The final chunk runs to the end of the time series.
-    stops.append(nframes)
-    # Build a list of named chunk definitions.
-    chunks = []
-    # Number suffixes by chunk, not by the integration number, for compact names.
-    for chunk_num, start in enumerate(starts):
-        # Zero-fill suffixes so filenames sort in processing order.
-        suffix = '_jump{0:03d}'.format(chunk_num)
-        # Store stop as exclusive, which matches normal Python slicing.
-        stop = stops[chunk_num]
-        # Store each chunk as a dictionary so fields are self-documenting.
-        chunk = dict(start=start, stop=stop, suffix=suffix)
-        # Append this chunk to the chronological processing list.
-        chunks.append(chunk)
-    # Return both the chunk layout and normalized jump list for metadata.
-    return chunks, jump_ints
-
-
-def get_wlc_files(inst: Instrument):
-    """
-    Get WLC product filenames from the current instrument context.
-
-    :param inst: Instrument, the instrument object
-    :return: dict, WLC product filenames
-    """
-    # Keep the function name for informative get_variable errors.
-    func_name = f'{__NAME__}.get_wlc_files()'
-    # Capture the currently suffixed WLC filenames after a chunk is processed.
-    return dict(err=inst.get_variable('WLC_ERR_FILE', func_name),
-                res=inst.get_variable('WLC_RES_FILE', func_name),
-                recon=inst.get_variable('WLC_RECON_FILE', func_name),
-                ltable=inst.get_variable('WLC_LTBL_FILE', func_name))
-
-
-def write_sossisse_summary(inst: Instrument):
-    """Write one summary page after the active processing context finishes.
-
-    Detector children share a plot directory, so the parent writes the page
-    once all detector-specific plots have been generated.
-
-    :param inst: Instrument, the completed parent or single-trace instrument
-    :return: None
-    """
-    # Read identity from the completed instrument configuration.
-    objname = inst.params['INPUTS.OBJECTNAME']
-    # Keep the instrument mode in the page title for existing users.
-    imode = inst.params['INPUTS.INSTRUMENTMODE']
-    # Generate one index page for the shared plot directory.
-    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
-                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
-                    f'{objname} [{imode}]')
-
-
-def merge_linear_recon(inst: Instrument, wlc_files: list,
-                       jump_ints: list) -> Instrument:
-    """
-    Merge chunked linear-reconstruction products.
-
-    :param inst: Instrument, the instrument object
-    :param wlc_files: list, per-chunk WLC filenames
-    :param jump_ints: list, jump integrations
-    :return: Instrument, updated instrument object
-    """
-    # Announce the merge so logs clearly separate chunk runs from the merge.
-    msg = 'Merging jump linear reconstruction products'
-    misc.printc(msg, 'info')
-    # Merge the per-frame error cubes along the time axis.
-    err = np.concatenate([io.load_fits(files['err']) for files in wlc_files])
-    # Merge the residual cubes along the time axis.
-    res = np.concatenate([io.load_fits(files['res']) for files in wlc_files])
-    # Merge the reconstructed model cubes along the time axis.
-    recon = np.concatenate([io.load_fits(files['recon'])
-                            for files in wlc_files])
-    # Read each per-chunk linear-reconstruction coefficient table.
-    ltables = [io.load_table(files['ltable']) for files in wlc_files]
-    # Stack the tables in chunk order to recover the full integration series.
-    ltable = vstack(ltables)
-    # Switch filenames to the final merged product namespace.
-    inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
-    # The last chunk left DATA_N_FRAMES set to its local number of frames.
-    # Reset it to the full table length before rebuilding baseline domains.
-    inst.set_variable('DATA_N_FRAMES', len(ltable))
-    # Recompute filenames so save_wlc_results writes *_jumpmerged products.
-    inst.define_filenames()
-    # Save merged WLC files in the same format as the normal no-jump products.
-    inst.save_wlc_results(res, err, recon, ltable)
-    # Rebuild the stability plot from the merged table.
-    plots.plot_stability(inst, ltable)
-    # Return the instrument with filenames pointing at the merged products.
-    return inst
 
 
 def linear_recon(inst: Instrument) -> Instrument:
@@ -215,56 +96,63 @@ def linear_recon(inst: Instrument) -> Instrument:
     :param inst: Instrument, the instrument object
     :return: Instrument, updated instrument object
     """
-    # NIRSpec detectors require independent grids, calibrations and jump runs.
-    children = getattr(inst, 'get_detector_children', lambda: None)()
-    if children is not None:
-        # Never concatenate simultaneous detectors along the integration axis.
-        for child in children.values():
-            linear_recon(child)
-        # Expose the common jump suffix through the selection-level parent.
-        first_child = next(iter(children.values()))
-        parent_jump_kwargs = dict(suffix=first_child._jump_suffix)
-        parent_jump_kwargs['jump_ints'] = (
-            inst.params['WLC.INPUTS.JUMP_INTS'] or [])
-        inst.set_jump_context(**parent_jump_kwargs)
-        # Rebuild parent filenames after detector and jump namespace changes.
-        inst.define_filenames()
-        # Child plots share a directory, so write its summary only once.
-        write_sossisse_summary(inst)
-        return inst
-    # Convert the JUMP_INTS parameter into validated processing chunks.
-    chunks, jump_ints = get_jump_chunks(inst)
-    # normal path: keep filenames unchanged and avoid writing merged products
-    if len(jump_ints) == 0:
-        # Use the no-suffix context so all filenames match the legacy behavior.
-        chunk = chunks[0]
-        # Activate the single no-jump chunk by name rather than by tuple index.
-        inst.set_jump_context(chunk['start'], chunk['stop'], chunk['suffix'],
-                              jump_ints)
-        # Run the original linear-reconstruction body once.
-        return linear_recon_chunk(inst)
-    # jump path: run each chunk independently, then merge products
-    # Store the per-chunk WLC filenames so the merge step can reload them.
-    wlc_files = []
-    # Loop over the validated chunks in chronological order.
-    for chunk in chunks:
-        # Log the inclusive frame range being processed for this chunk.
-        msg = 'Processing linear reconstruction chunk {0}: {1}-{2}'
-        margs = [chunk['suffix'], chunk['start'], chunk['stop'] - 1]
-        misc.printc(msg.format(*margs), 'alert')
-        # Activate chunk-local slicing and filename suffixing.
-        inst.set_jump_context(chunk['start'], chunk['stop'], chunk['suffix'],
-                              jump_ints)
-        # Run the original linear-reconstruction body on this one chunk.
-        inst = linear_recon_chunk(inst)
-        # Remember where this chunk wrote its WLC products.
-        wlc_files.append(get_wlc_files(inst))
-    # Concatenate the chunk products and leave the instrument on _jumpmerged.
-    inst = merge_linear_recon(inst, wlc_files, jump_ints)
-    # Return the same instrument object expected by notebooks and POGOS.
-    return inst
+    # Each detector has an independent instrument; the default is inst itself.
+    detectors = inst.get_processing_detectors()
+    # Validate jumps against each detector's frames, not the combined files.
+    # With no jumps, each detector gets one chunk with unchanged filenames.
+    jump_contexts = {key: get_jump_chunks(detector_inst)
+                     for key, detector_inst in detectors.items()}
+    # Keep filenames by detector so only time-adjacent chunks are merged.
+    wlc_files = {key: [] for key in detectors}
+    for detector, detector_inst in detectors.items():
+        chunks, jump_ints = jump_contexts[detector]
+        for chunk in chunks:
+            # Set the integration slice and product names for this run.
+            detector_inst.set_jump_context(chunk['start'], chunk['stop'],
+                                           chunk['suffix'], jump_ints)
+            # run the linear reconstruction for this detector and chunk
+            detector_inst = linear_recon_chunk(detector_inst)
+            # push the WLC product filenames into the list for this detector
+            wlc_files[detector].append(get_wlc_files(detector_inst))
+        detectors[detector] = detector_inst
+    # Merge jump products within each detector and update the main instrument.
+    return merge_linear_recon(inst, detectors, wlc_files, jump_ints)
 
 
+
+def spectral_extraction(inst: Instrument) -> Instrument:
+    """
+    Spectral extraction functionality
+
+    :param inst: Instrument, the instrument object
+    :return: Instrument, updated instrument object
+    """
+    # Each detector has an independent instrument; the default is inst itself.
+    detectors = inst.get_processing_detectors()
+    # Use the same detector-specific jump slices as linear reconstruction.
+    # With no jumps, each detector gets one chunk with unchanged filenames.
+    jump_contexts = {key: get_jump_chunks(detector_inst)
+                     for key, detector_inst in detectors.items()}
+    # Store results separately so detector wavelength grids are never joined.
+    storages = {key: [] for key in detectors}
+    for detector, detector_inst in detectors.items():
+        chunks, jump_ints = jump_contexts[detector]
+        for chunk in chunks:
+            # Select the matching reconstruction products and frame interval.
+            detector_inst.set_jump_context(chunk['start'], chunk['stop'],
+                                           chunk['suffix'], jump_ints)
+            # Run the spectral extraction for this detector and chunk.
+            chunk_storage = spectral_extraction_chunk(detector_inst)
+            # Store the per-chunk results for later merging.
+            storages[detector].append(chunk_storage)
+    # Merge time chunks within each detector, then publish the final products.
+    return merge_spectral_extraction(inst, detectors, storages, jump_ints)
+
+
+
+# =============================================================================
+# Define chunk functions
+# =============================================================================
 def linear_recon_chunk(inst: Instrument) -> Instrument:
     """
     Linear reconstruction functionality
@@ -342,18 +230,13 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     trace_mask = inst.recenter_trace_position(trace_mask, med)
 
-    # PCA and every later science stage still require DataCube migration.
-    raise NotImplementedError(
-        'TODO(DataCube): PCA and later stages need migration; '
-        f'1/f-corrected {len(datacube)} integrations')
-
     # =========================================================================
     # PCA Analysis
     # =========================================================================
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
-    # TODO(DataCube): NEEDS TO BE CHANGED: baseline selection/PCA workspace.
-    pcas = inst.fit_pca(cube, err, med, trace_mask)
+    # TODO(DataCube): fit_pca temporarily materializes its inputs internally.
+    pcas = inst.fit_pca(datacube, med, trace_mask)
 
     # =========================================================================
     # Linear reconstruction
@@ -390,14 +273,13 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # Flux = amp[0] x M + amp[1] x dM/dx + amp[2] x dM/dy + amp[3] x dM/dtheta 
     #      + amp[4] x d2M/dy2
     # -------------------------------------------------------------------------
-    # TODO(DataCube): NEEDS TO BE CHANGED: bounded fit and output cube storage.
-    l_out = inst.get_linear_coeffs(cube, err, med, mask_trace_pos,
+    l_out = inst.get_linear_coeffs(datacube, med, mask_trace_pos,
                                    lvector, x_trace_pos, y_trace_pos,
                                    x_order0, y_order0)
     # get outputs of apply_amp_recon
     #  Note the recon model has been subtracted from the cube in order to 
     #  later to differential spectral extraction
-    ltable, lrecon, valid_cube, rescube = l_out
+    ltable, lproducts = l_out
 
     # =========================================================================
     # Linear recon analysis
@@ -411,10 +293,11 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # print the rms baseline for all methods
     for method in inst.rms_baselines():
         # calculate the rms for this method
-        rms_method = inst.get_rms_baseline(ltable['amplitude'], method=method)
+        rms_method = inst.get_rms_baseline(np.asarray(ltable['amplitude']),
+                          method=method)
         # print this
         msg = '{0}, rms = {1:.1f}ppm'.format(method, rms_method * 1e6)
-        misc.printc(msg, 'number')
+        WLOG(inst.params, 'info', msg)
     # -------------------------------------------------------------------------
     # calculate and print the effective wavelength
     inst.get_effective_wavelength(med)
@@ -429,14 +312,13 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # (and we don't have reopen it)
 
     # if inst.params['WLC.GENERAL.PER_PIXEL_BASELINE_CORRECTION']:
-    #     misc.printc('Performing per-pixel baseline subtraction', 'info')
-    #     rescube = inst.per_pixel_baseline(rescube, valid_cube)
+    #     WLOG(inst.params, 'info', 'Performing per-pixel baseline subtraction')
+    #     products = inst.per_pixel_baseline(lproducts)
 
     # =========================================================================
     # write files
     # =========================================================================
-    # TODO(DataCube): NEEDS TO BE CHANGED: persist output blocks directly.
-    inst.save_wlc_results(rescube, err, lrecon, ltable)
+    inst.save_wlc_results(lproducts, ltable)
 
     # =========================================================================
     # Plots and Summary HTML
@@ -451,82 +333,6 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # return the instrument object
     return inst
 
-
-def spectral_extraction(inst: Instrument) -> Instrument:
-    """
-    Spectral extraction functionality
-
-    :param inst: Instrument, the instrument object
-    :return: Instrument, updated instrument object
-    """
-    # Detectors are independent traces, not successive observing segments.
-    children = getattr(inst, 'get_detector_children', lambda: None)()
-    if children is not None:
-        # Retain each detector's own wavelength grid and integration times.
-        storage = dict()
-        for trace, child in children.items():
-            spectral_extraction(child)
-            storage[trace] = child.spectral_storage[trace]
-        # The parent publishes combined products in the common jump namespace.
-        first_child = next(iter(children.values()))
-        parent_jump_kwargs = dict(suffix=first_child._jump_suffix)
-        parent_jump_kwargs['jump_ints'] = (
-            inst.params['WLC.INPUTS.JUMP_INTS'] or [])
-        inst.set_jump_context(**parent_jump_kwargs)
-        inst.define_filenames()
-        # Keep the child results available without merging their time axes.
-        inst.spectral_storage = storage
-        inst.save_final_outputs(storage)
-        # Replace any linear-only summary after spectral plots are generated.
-        write_sossisse_summary(inst)
-        return inst
-    # Convert the JUMP_INTS parameter into validated processing chunks.
-    chunks, jump_ints = get_jump_chunks(inst)
-    # normal path: keep filenames unchanged and finish as before
-    if len(jump_ints) == 0:
-        # Use the no-suffix context so all filenames match the legacy behavior.
-        chunk = chunks[0]
-        # Activate the single no-jump chunk by name rather than by tuple index.
-        inst.set_jump_context(chunk['start'], chunk['stop'], chunk['suffix'],
-                              jump_ints)
-        # Run the original spectral-extraction body once and keep its storage.
-        storage = spectral_extraction_chunk(inst)
-        # Write Eureka/final products and summary from the single storage block.
-        finish_spectral_extraction(inst, storage)
-        # Return the instrument object for the normal public API.
-        return inst
-    # jump path: load and process each chunk independently
-    # Store each chunk's spectral storage until the final time-axis merge.
-    storages = []
-    # Loop over the same chunk definitions used by linear reconstruction.
-    for chunk in chunks:
-        # Log the inclusive frame range being processed for this chunk.
-        msg = 'Processing spectral extraction chunk {0}: {1}-{2}'
-        margs = [chunk['suffix'], chunk['start'], chunk['stop'] - 1]
-        misc.printc(msg.format(*margs), 'alert')
-        # Activate the matching WLC input filenames and local frame context.
-        inst.set_jump_context(chunk['start'], chunk['stop'], chunk['suffix'],
-                              jump_ints)
-        # Run the original spectral-extraction body for this one chunk.
-        storages.append(spectral_extraction_chunk(inst))
-    # Concatenate per-chunk spectral arrays and tables into full-length storage.
-    storage = merge_spectral_extraction(storages)
-    # Switch filenames to the final merged product namespace.
-    inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
-    # The last chunk left DATA_N_FRAMES set to its local number of frames.
-    # Reset it from the merged light-curve table before final plots and files.
-    traces = list(storage.keys())
-    merged_nframes = len(storage[traces[0]]['ltable'])
-    inst.set_variable('DATA_N_FRAMES', merged_nframes)
-    # Recompute filenames so spectral products are saved with _jumpmerged.
-    inst.define_filenames()
-    # Save merged per-trace spectra for direct inspection.
-    for trace in storage:
-        inst.save_spe_results(storage[trace], trace)
-    # Write Eureka/final products and summary from the merged storage block.
-    finish_spectral_extraction(inst, storage)
-    # Return the instrument with downstream-visible filenames on _jumpmerged.
-    return inst
 
 
 def spectral_extraction_chunk(inst: Instrument) -> dict:
@@ -543,10 +349,12 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     # Spectral extraction setup
     # =========================================================================
     # print the white light curve splash
-    print(misc.art('Spectral timeseries ' + objname, 'blue', 'CYAN'))
+    print(misc.art('Spectral timeseries ' + objname, 'blue', 'CYAN',
+                   message=_processing_splash_message(inst)))
     # -------------------------------------------------------------------------
     # load temporary filenames (should be run before science starts)
     inst.define_filenames()
+    products, ltable = inst.load_wlc_results()
     # -------------------------------------------------------------------------
     # plot / save storage
     storage = dict()
@@ -555,28 +363,30 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     # =========================================================================
     # Processing trace loop
     # =========================================================================
-    # loop around traces
+    # loop around traces (orders or detectors) and process each one
     for trace in traces:
         # print progress
         if len(traces) is not None:
-            misc.printc('Processing trace {0}'.format(trace), 'alert')
+            WLOG(inst.params, 'info', 'Processing trace {0}'.format(trace), colour='magenta')
         # ---------------------------------------------------------------------
         # load data for this trace
-        indata = inst.load_input_spec_data(trace)
-        med, dx, dy, rotxy, ddy, med_clean, residual, err = indata[:8]
-        recon, ltable, posmax, throughput, wavegrid = indata[8:]
+        indata = inst.load_input_spec_data(trace, products=products)
+        med, med_clean, posmax, throughput, wavegrid = indata
         # ---------------------------------------------------------------------
         # create the SED
-        sed_args = [med, residual, wavegrid, posmax, throughput, med_clean,
-                trace]
+        sed_args = [med, products.shape, wavegrid, posmax, throughput,
+                    med_clean, trace]
         sp_sed = inst.create_sed(*sed_args)
-        # ---------------------------------------------------------------------
-        # load the model (and deal with masking order zero if required)
-        model = inst.load_model(recon, med)
-        # ---------------------------------------------------------------------
-        # spectrum is the ratio of the residual to the trace model
-        spec, spec_err = inst.ratio_residual_to_trace(model, err, residual,
-                                                      posmax)
+        # Only extracted (integration, wavelength) arrays survive block reads.
+        spec = np.full((len(products), products.shape[2]), np.nan)
+        spec_err = np.full_like(spec, np.nan)
+        for integration, arrays in products.iter_integrations():
+            ratio_args = [arrays['RECON'], arrays['ERR'], arrays['RESIDUAL'],
+                  posmax]
+            block_spec, block_err = inst.ratio_residual_to_trace(*ratio_args)
+            spec[integration] = block_spec
+            spec_err[integration] = block_err
+            del arrays, ratio_args, block_spec, block_err
         # ---------------------------------------------------------------------
         # # remove the out-of-transit trend on the spectrum
         # if inst.params['SPEC_EXT.REMOVE_TREND']:
@@ -617,7 +427,115 @@ def spectral_extraction_chunk(inst: Instrument) -> dict:
     return storage
 
 
-def merge_spectral_extraction(storages: list) -> dict:
+
+# =============================================================================
+# Define linear working functions
+# =============================================================================
+def get_wlc_files(inst: Instrument):
+    """
+    Get WLC product filenames from the current instrument context.
+
+    :param inst: Instrument, the instrument object
+    :return: dict, WLC product filenames
+    """
+    # Keep the function name for informative get_variable errors.
+    func_name = f'{__NAME__}.get_wlc_files()'
+    # Capture the currently suffixed WLC filenames after a chunk is processed.
+    return dict(manifest=inst.get_wlc_manifest(),
+                ltable=inst.get_variable('WLC_LTBL_FILE', func_name))
+
+
+
+def merge_linear_recon(inst: Instrument, detectors: dict, wlc_files: dict,
+                       jump_ints: list) -> Instrument:
+    """Finish each detector's time-axis merge and update the main instrument."""
+    for detector, detector_inst in detectors.items():
+        if jump_ints:
+            detectors[detector] = merge_linear_recon_chunks(
+                detector_inst, wlc_files[detector], jump_ints)
+    if next(iter(detectors.values())) is not inst:
+        suffix = '_jumpmerged' if jump_ints else ''
+        inst.set_jump_context(suffix=suffix, jump_ints=jump_ints)
+        inst.define_filenames()
+        write_sossisse_summary(inst)
+    return inst
+
+
+
+def merge_linear_recon_chunks(inst: Instrument, wlc_files: list,
+                              jump_ints: list) -> Instrument:
+    """
+    Merge chunked linear-reconstruction products.
+
+    :param inst: Instrument, the instrument object
+    :param wlc_files: list, per-chunk WLC filenames
+    :param jump_ints: list, jump integrations
+    :return: Instrument, updated instrument object
+    """
+    # Announce the merge so logs clearly separate chunk runs from the merge.
+    msg = 'Merging jump linear reconstruction products'
+    WLOG(inst.params, 'info', msg)
+    loaded = [ReconstructionProducts.load(files['manifest'])
+              for files in wlc_files]
+    paths = [path for products, _ in loaded
+             for path in products.current_infiles]
+    limit = max(products.max_integrations for products, _ in loaded)
+    memory = min(products.max_math_memory_gb for products, _ in loaded)
+    products = ReconstructionProducts(paths, limit, memory)
+    ltables = [table for _, table in loaded]
+    # Stack the tables in chunk order to recover the full integration series.
+    ltable = vstack(ltables)
+    # Switch filenames to the final merged product namespace.
+    inst.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
+    # The last chunk left DATA_N_FRAMES set to its local number of frames.
+    # Reset it to the full table length before rebuilding baseline domains.
+    inst.set_variable('DATA_N_FRAMES', len(ltable))
+    # Recompute filenames so save_wlc_results writes *_jumpmerged products.
+    inst.define_filenames()
+    # Save merged WLC files in the same format as the normal no-jump products.
+    inst.save_wlc_results(products, ltable)
+    # Rebuild the stability plot from the merged table.
+    plots.plot_stability(inst, ltable)
+    # Return the instrument with filenames pointing at the merged products.
+    return inst
+
+
+
+# =============================================================================
+# Define spectral extraction functions
+# =============================================================================
+def merge_spectral_extraction(inst: Instrument, detectors: dict,
+                              storages: dict, jump_ints: list) -> Instrument:
+    """Finish detector-local spectra and publish the combined products."""
+    combined = {}
+    for detector, detector_inst in detectors.items():
+        chunks = storages[detector]
+        if jump_ints:
+            storage = merge_spectral_chunks(chunks)
+            detector_inst.set_jump_context(suffix='_jumpmerged',
+                                           jump_ints=jump_ints)
+            trace = next(iter(storage))
+            detector_inst.set_variable('DATA_N_FRAMES',
+                                       len(storage[trace]['ltable']))
+            detector_inst.define_filenames()
+            for trace in storage:
+                detector_inst.save_spe_results(storage[trace], trace)
+        else:
+            storage = chunks[0]
+        finish_spectral_extraction(detector_inst, storage)
+        combined.update(storage)
+    if next(iter(detectors.values())) is not inst:
+        suffix = '_jumpmerged' if jump_ints else ''
+        inst.set_jump_context(suffix=suffix, jump_ints=jump_ints)
+        inst.define_filenames()
+        inst.spectral_storage = combined
+        inst.save_final_outputs(combined)
+        write_sossisse_summary(inst)
+    return inst
+
+
+
+def merge_spectral_chunks(storages: list) -> dict:
     """
     Merge chunked spectral extraction storage.
 
@@ -658,6 +576,7 @@ def merge_spectral_extraction(storages: list) -> dict:
     return storage
 
 
+
 def finish_spectral_extraction(inst: Instrument, storage: dict):
     """
     Save and summarize final spectral extraction products.
@@ -682,6 +601,7 @@ def finish_spectral_extraction(inst: Instrument, storage: dict):
     # Detector children defer the shared summary page to their parent.
     if getattr(inst, '_detector_trace', None) is None:
         write_sossisse_summary(inst)
+
 
 
 def trace_storage(storage: dict, trace, wavegrid, sp_sed, throughput,
@@ -721,6 +641,98 @@ def trace_storage(storage: dict, trace, wavegrid, sp_sed, throughput,
     storage[trace] = storage_it
 
     return storage
+
+
+
+# =============================================================================
+# Define other working functions
+# =============================================================================
+def get_jump_chunks(inst: Instrument):
+    """
+    Get the validated jump chunks for this run.
+
+    :param inst: Instrument, the instrument object
+    :return: tuple, list of chunk dictionaries and list of jump integrations
+    """
+    # Count the input frames after any time-binning has been applied.
+    nframes = inst.get_input_n_frames()
+    # Read the user-supplied jump locations from the SOSSISSE WLC parameters.
+    jump_ints = inst.params['WLC.INPUTS.JUMP_INTS']
+    # Treat a missing value the same as an empty list of jumps.
+    if jump_ints is None:
+        jump_ints = []
+    # The yaml value must be a list so that ordering and duplicates are explicit.
+    if not isinstance(jump_ints, list):
+        emsg = 'WLC.INPUTS.JUMP_INTS must be a list of integers or None'
+        raise exceptions.SossisseConstantException(emsg)
+    # Convert values to integers here so all downstream code gets one type.
+    try:
+        jump_ints = [int(jump_int) for jump_int in jump_ints]
+    # Give a parameter-level error if one of the entries cannot be an integer.
+    except Exception as _:
+        emsg = 'WLC.INPUTS.JUMP_INTS must contain integers'
+        raise exceptions.SossisseConstantException(emsg)
+    # Sort jumps so chunk construction is deterministic even if yaml is not.
+    jump_ints = sorted(jump_ints)
+    # Duplicate jumps would create an empty chunk, so reject them early.
+    if len(jump_ints) != len(set(jump_ints)):
+        emsg = 'WLC.INPUTS.JUMP_INTS must not contain duplicate values'
+        raise exceptions.SossisseConstantException(emsg)
+    # Validate each jump against the binned integration range.
+    for jump_int in jump_ints:
+        # A jump marks the last frame in a chunk, so the final frame is invalid.
+        if jump_int < 0 or jump_int >= nframes - 1:
+            emsg = ('WLC.INPUTS.JUMP_INTS values must be between 0 and '
+                    f'{nframes - 2}')
+            raise exceptions.SossisseConstantException(emsg)
+    # no jumps: one normal chunk with no suffix
+    if len(jump_ints) == 0:
+        # Use named keys so callers do not need positional tuple indexes.
+        chunk = dict(start=0, stop=nframes, suffix='')
+        # Return the single legacy-style chunk and the empty jump list.
+        return [chunk], jump_ints
+    # The first chunk always starts at integration zero.
+    starts = [0]
+    # Each later chunk starts immediately after the previous jump frame.
+    starts.extend([jump_int + 1 for jump_int in jump_ints])
+    # Each jump is stored as the final included frame, so stop is jump + 1.
+    stops = [jump_int + 1 for jump_int in jump_ints]
+    # The final chunk runs to the end of the time series.
+    stops.append(nframes)
+    # Build a list of named chunk definitions.
+    chunks = []
+    # Number suffixes by chunk, not by the integration number, for compact names.
+    for chunk_num, start in enumerate(starts):
+        # Zero-fill suffixes so filenames sort in processing order.
+        suffix = '_jump{0:03d}'.format(chunk_num)
+        # Store stop as exclusive, which matches normal Python slicing.
+        stop = stops[chunk_num]
+        # Store each chunk as a dictionary so fields are self-documenting.
+        chunk = dict(start=start, stop=stop, suffix=suffix)
+        # Append this chunk to the chronological processing list.
+        chunks.append(chunk)
+    # Return both the chunk layout and normalized jump list for metadata.
+    return chunks, jump_ints
+
+
+
+def write_sossisse_summary(inst: Instrument):
+    """Write one summary page after the active processing context finishes.
+
+    Detector children share a plot directory, so the parent writes the page
+    once all detector-specific plots have been generated.
+
+    :param inst: Instrument, the completed parent or single-trace instrument
+    :return: None
+    """
+    # Read identity from the completed instrument configuration.
+    objname = inst.params['INPUTS.OBJECTNAME']
+    # Keep the instrument mode in the page title for existing users.
+    imode = inst.params['INPUTS.INSTRUMENTMODE']
+    # Generate one index page for the shared plot directory.
+    io.summary_html(inst.params, 'SOSSISSE', 'PATHS.PLOT_PATH',
+                    'INPUTS.PROJECT_NAME', 'PATHS.RUN_PATH',
+                    f'{objname} [{imode}]')
 
 
 

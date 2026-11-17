@@ -3,6 +3,7 @@
 """Check independent NIRSpec detector traces and shared SOSS amplitudes."""
 
 import os
+import re
 
 import numpy as np
 import pytest
@@ -342,6 +343,7 @@ def test_dispatch_runs_children_and_combines_storage(tmp_path, monkeypatch,
     inst = make_instrument(tmp_path)
     inst.params['WLC.INPUTS.JUMP_INTS'] = jumps
     chunk_calls = []
+    events = []
     saved = []
     summaries = []
     monkeypatch.setattr(general, 'write_sossisse_summary', summaries.append)
@@ -355,6 +357,7 @@ def test_dispatch_runs_children_and_combines_storage(tmp_path, monkeypatch,
     def run_chunk(child):
         """Record one detector chunk and slice only its integration axis."""
         trace = child._detector_trace
+        events.append('chunk')
         chunk_calls.append((trace, child._jump_suffix))
         storage = storage_for(trace)
         start, stop = child._jump_slice
@@ -365,10 +368,11 @@ def test_dispatch_runs_children_and_combines_storage(tmp_path, monkeypatch,
         return chunk_storage
 
     monkeypatch.setattr(general, 'spectral_extraction_chunk', run_chunk)
-    finish_args = [general, 'finish_spectral_extraction',
-                   lambda child, storage: setattr(child, 'spectral_storage',
-                                                  storage)]
-    monkeypatch.setattr(*finish_args)
+    def finish_detector(detector_inst, storage):
+        events.append('finish')
+        detector_inst.spectral_storage = storage
+
+    monkeypatch.setattr(general, 'finish_spectral_extraction', finish_detector)
     monkeypatch.setattr(inst, 'save_final_outputs',
                         lambda storage: saved.append(storage))
     assert general.spectral_extraction(inst) is inst
@@ -376,6 +380,7 @@ def test_dispatch_runs_children_and_combines_storage(tmp_path, monkeypatch,
     assert list(saved[0]) == [1, 2]
     assert all(trace in (1, 2) for trace, suffix in chunk_calls)
     assert len(chunk_calls) == (2 if jumps is None else 4)
+    assert events == ['chunk'] * len(chunk_calls) + ['finish', 'finish']
     assert inst._jump_suffix == ('' if jumps is None else '_jumpmerged')
     np.testing.assert_array_equal(saved[0][2]['ltable']['bjd'], [20, 21])
 
@@ -386,6 +391,7 @@ def test_linear_dispatch_isolated_jump_contexts(tmp_path, monkeypatch, jumps):
     inst = make_instrument(tmp_path)
     inst.params['WLC.INPUTS.JUMP_INTS'] = jumps
     calls = []
+    events = []
     summaries = []
     monkeypatch.setattr(general, 'write_sossisse_summary', summaries.append)
     instrument_class = jwst_nirspec.JWST_NIRSPEC
@@ -397,24 +403,138 @@ def test_linear_dispatch_isolated_jump_contexts(tmp_path, monkeypatch, jumps):
         """Record the detector, jump interval and unchanged input file list."""
         calls.append((child._detector_trace, child._jump_slice,
                       child.params['GENERAL.FILES']))
+        events.append('chunk')
         return child
 
     def merge_chunks(child, files, jump_ints):
         """Expose the merged jump suffix without performing disk I/O."""
+        events.append('merge')
         child.set_jump_context(suffix='_jumpmerged', jump_ints=jump_ints)
         return child
 
     monkeypatch.setattr(general, 'linear_recon_chunk', run_chunk)
     monkeypatch.setattr(general, 'get_wlc_files', lambda child: dict())
-    monkeypatch.setattr(general, 'merge_linear_recon', merge_chunks)
+    monkeypatch.setattr(general, 'merge_linear_recon_chunks', merge_chunks)
     assert general.linear_recon(inst) is inst
     assert summaries == [inst]
     assert len(calls) == (2 if jumps is None else 4)
+    assert events == ['chunk'] * len(calls) + (['merge', 'merge'] if jumps else [])
     assert inst._jump_suffix == ('' if jumps is None else '_jumpmerged')
     for trace, chunk, files in calls:
         assert len(files) == 1
         assert f'NRS{trace}' in files[0]
         assert chunk in ([(0, 2)] if jumps is None else [(0, 1), (1, 2)])
+
+
+@pytest.mark.parametrize('workflow', [general.linear_recon,
+                                      general.spectral_extraction])
+def test_jump_validation_uses_detector_frame_count(tmp_path, monkeypatch,
+                                                   workflow):
+    """Reject jumps outside one detector even when combined files are longer."""
+    inst = make_instrument(tmp_path)
+    inst.params['WLC.INPUTS.JUMP_INTS'] = [2]
+    monkeypatch.setattr(jwst_nirspec.JWST_NIRSPEC, 'get_data_bin_size',
+                        lambda self: 1)
+    with pytest.raises(SossisseConstantException, match='between 0 and 0'):
+        workflow(inst)
+
+
+@pytest.mark.parametrize('jumps', [None, [0]])
+@pytest.mark.parametrize('workflow', ['linear', 'spectral'])
+def test_single_instrument_dispatch(monkeypatch, jumps, workflow):
+    """Run one default detector with or without a time-axis merge."""
+    inst = Instrument(ParamDict({'WLC.INPUTS.JUMP_INTS': jumps}))
+    monkeypatch.setattr(inst, 'get_input_n_frames', lambda: 2)
+    monkeypatch.setattr(inst, 'define_filenames', lambda: None)
+    monkeypatch.setattr(inst, 'save_spe_results', lambda *args: None)
+    calls = []
+
+    def linear_chunk(detector_inst):
+        calls.append(detector_inst._jump_slice)
+        return detector_inst
+
+    def spectral_chunk(detector_inst):
+        start, stop = detector_inst._jump_slice
+        calls.append((start, stop))
+        data = storage_for(1)
+        for key in ('spec', 'spec_err', 'spec2', 'wavegrid_2d', 'ltable'):
+            data[key] = data[key][start:stop]
+        return {1: data}
+
+    monkeypatch.setattr(general, 'linear_recon_chunk', linear_chunk)
+    monkeypatch.setattr(general, 'get_wlc_files', lambda detector_inst: {})
+    monkeypatch.setattr(general, 'merge_linear_recon_chunks',
+                        lambda detector_inst, files, jump_ints:
+                        detector_inst.set_jump_context(
+                            suffix='_jumpmerged', jump_ints=jump_ints)
+                        or detector_inst)
+    monkeypatch.setattr(general, 'spectral_extraction_chunk', spectral_chunk)
+    monkeypatch.setattr(general, 'finish_spectral_extraction',
+                        lambda detector_inst, storage:
+                        setattr(detector_inst, 'spectral_storage', storage))
+    result = (general.linear_recon(inst) if workflow == 'linear'
+              else general.spectral_extraction(inst))
+    assert result is inst
+    assert calls == ([(0, 1), (1, 2)] if jumps else [(0, 2)])
+    assert inst._jump_suffix == ('_jumpmerged' if jumps else '')
+    if workflow == 'spectral':
+        np.testing.assert_array_equal(inst.spectral_storage[1]['ltable']['bjd'],
+                                      [10, 11])
+
+
+@pytest.mark.parametrize('jumps', [None, [270]])
+@pytest.mark.parametrize('detectors', [(None,), (1,), (1, 2)])
+@pytest.mark.parametrize('workflow', ['linear', 'spectral'])
+def test_processing_splash_per_chunk(tmp_path, monkeypatch, capsys, jumps,
+                                     detectors, workflow):
+    """Print exactly one contextual banner before each detector/chunk runs."""
+    params = ParamDict({'INPUTS.OBJECTNAME': 'target',
+                        'WLC.INPUTS.JUMP_INTS': jumps})
+    inst = Instrument(params)
+    children = {}
+    seen = []
+
+    def start_chunk():
+        output = re.sub(r'\x1b\[[0-9;]*m', '', capsys.readouterr().out)
+        rows = [row.strip() for row in output.splitlines() if row.strip()]
+        assert len(rows) in (5, 7)
+        assert rows[0].startswith('╔')
+        assert rows[-1].startswith('╚')
+        seen.append(rows[5].strip('║ ') if len(rows) == 7 else '')
+
+    for detector in detectors:
+        child = Instrument(params)
+        child._detector_trace = detector
+        monkeypatch.setattr(child, 'get_input_n_frames', lambda: 465)
+        monkeypatch.setattr(child, 'define_filenames', start_chunk)
+        monkeypatch.setattr(child, 'get_variable',
+                            lambda *args: tmp_path / 'missing-table')
+        monkeypatch.setattr(child, 'load_wlc_results', lambda: (None, None))
+        monkeypatch.setattr(child, 'get_traces', lambda: [])
+        children[detector] = child
+    monkeypatch.setattr(inst, 'get_processing_detectors', lambda: children)
+    monkeypatch.setattr(general.misc, 'sossart', lambda: None)
+
+    if workflow == 'linear':
+        def init_chunk(child):
+            general.linear_recon_init(child)
+            return child
+
+        monkeypatch.setattr(general, 'linear_recon_chunk', init_chunk)
+        monkeypatch.setattr(general, 'get_wlc_files', lambda child: {})
+        monkeypatch.setattr(general, 'merge_linear_recon', lambda *args: inst)
+        general.linear_recon(inst)
+    else:
+        monkeypatch.setattr(general, 'merge_spectral_extraction',
+                            lambda *args: inst)
+        general.spectral_extraction(inst)
+
+    ranges = ['Jump chunk 0-270', 'Jump chunk 271-464'] if jumps else ['']
+    assert seen == [
+        '  '.join(filter(None, (f'Detector {detector}' if detector else '',
+                                chunk_range)))
+        for detector in detectors for chunk_range in ranges
+    ]
 
 
 def test_automatic_position_ignores_stale_parent_map(tmp_path):
@@ -443,8 +563,10 @@ def test_scalar_headerless_wave_remains_supported(tmp_path):
         jwst_nirspec.detector_children(inst)
 
 
-def test_real_child_filenames_wave_and_cube_loading(tmp_path):
+def test_real_child_filenames_wave_and_cube_loading(tmp_path, monkeypatch):
     """Load real child cubes and preserve each detector's calibration times."""
+    monkeypatch.setattr(jwst_nirspec.JWST_NIRSPEC, '_force_pixel_grid',
+                        lambda self, filename: (0, 4))
     minimal = make_instrument(tmp_path)
     params = const_funcs.load_functions.load_parameters([constants.CDict])
     for key, value in minimal.params.items():

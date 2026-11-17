@@ -125,6 +125,8 @@ sossisse_run {path_to_yaml_file}
 
 where `{path_to_yaml_file}` is the path to the yaml file you created in the setup step.
 
+SOSSISSE uses APERO's shared WLOG logger. The former `INPUTS.LOG_LEVEL`
+setting has been removed; remove it from existing YAML configurations.
 
 ### Advanced use / developer use
 
@@ -140,9 +142,11 @@ unknown detectors, and incomplete pairs are rejected, even when only one trace
 is selected. Detector time values need not agree.
 
 Each detector is processed independently with its own parameters, cached cubes,
-plots, generated position map, and jump chunks. Detectors share the configured
-calibration, temporary, plot, auxiliary, and output directories. Detector
-products are distinguished by `_nrs1` and `_nrs2` filename suffixes; combined
+plots, generated position map, and jump chunks. The Linear Recon and Spectral
+timeseries banners show the active detector and the inclusive jump chunk range
+before each chunk, omitting either label when it does not apply. Detectors share
+the configured calibration, temporary, plot, auxiliary, and output directories.
+Detector products use `_nrs1` and `_nrs2` filename suffixes; combined
 parent products use the selected set, such as `_nrs1_nrs2`. No mixed-detector
 cube is fitted. The returned instrument is the logical parent; its output
 filename templates and `GENERAL.PREFIX` locate the combined final products.
@@ -198,6 +202,12 @@ choose another project name or an explicit `PATHS.RUN_PATH` to keep reductions
 separate. A copy of the parameters used is stored with the outputs.
 
 Here are the main steps of the analysis :
+
+`WLC.INPUTS.JUMP_INTS` optionally splits the binned time series into
+independently processed chunks. Each zero-based index is the last integration
+in a chunk; omit the setting or use an empty list for a single chunk. For
+multiple detectors, the same jump boundaries are applied to each detector
+independently, and chunks are merged in time without joining detector grids.
 
 - **Step 1** : Read the yaml file and check that all the parameters are present and have the correct format.
 

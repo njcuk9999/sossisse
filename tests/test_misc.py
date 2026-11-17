@@ -47,3 +47,20 @@ def test_art_plus_glyph():
     banner = re.sub(r'\x1b\[[0-9;]*m', '', misc.art('+'))
     rows = [row.strip() for row in banner.strip('\n').splitlines()]
     assert rows[1:4] == ['║  │  ║', '║ ─┼─ ║', '║  │  ║']
+
+
+@pytest.mark.parametrize('title', ['Linear Recon target', 'A'])
+def test_art_message_is_framed_and_aligned(title):
+    """Append optional processing context inside the splash border."""
+    message = 'Detector 1  Jump chunk 271-464'
+    banner = re.sub(
+        r'\x1b\[[0-9;]*m', '',
+        misc.art(title, 'blue', 'CYAN', message=message))
+    rows = banner.strip('\n').splitlines()
+    assert len(rows) == 7
+    assert len({len(row) for row in rows}) == 1
+    assert message in rows[5]
+    assert rows[4].strip().startswith('╠')
+    assert rows[5].strip().startswith('║ ')
+    assert rows[5].strip().endswith(' ║')
+    assert rows[6].strip().startswith('╚')

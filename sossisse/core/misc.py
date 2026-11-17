@@ -13,16 +13,15 @@ import os
 import sys
 import random
 import string
-from datetime import datetime
-import textwrap
 import time
 import getpass
 import pwd
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 from astropy.time import Time
 
+from aperocore.core import drs_log
 from sossisse.core import base
 
 # =============================================================================
@@ -34,17 +33,7 @@ __date__ = base.__date__
 __authors__ = base.__authors__
 # get all chars
 CHARS = string.ascii_uppercase + string.digits
-# set the log level
-LOG_LEVEL = 'INFO'
-# log levels
-LOG_LEVELS = dict()
-LOG_LEVELS['DEBUG'] = 0
-LOG_LEVELS['SETUP'] = 0.5
-LOG_LEVELS['INFO'] = 1
-LOG_LEVELS['WARNING'] = 2
-LOG_LEVELS['ERROR'] = 3
-LOG_LEVELS['ALERT'] = 4
-LOG_LEVELS['NUMBER'] = 1
+WLOG = drs_log.wlog
 # flag for sossart printing
 SOSSART_USED = False
 
@@ -165,7 +154,7 @@ def sossart():
     vstring = f'SOSSISSE: v{__version__} - {__date__}'
     # print date and version
     header_line()
-    printc(vstring, 'ALERT', print_time=False)
+    WLOG(None, 'info', vstring, colour='magenta', no_timestamp=True)
     header_line()
 
 
@@ -182,13 +171,15 @@ def modeart(mode: str):
     print(mode_title)
 
 
-def art(word: str, color1: str = 'magenta', color2: str = 'red'):
+def art(word: str, color1: str = 'magenta', color2: str = 'red',
+        message: Optional[str] = None):
     """
     Print a word in ascii art
 
     :param word: str, the word to print
     :param color1: str, the color of the border
     :param color2: str, the color of the word
+    :param message: optional str, a message to print beneath the word art
     :return: str, the banner with whitespace rendered as spaces and
              unsupported characters rendered as question marks
     """
@@ -246,73 +237,22 @@ def art(word: str, color1: str = 'magenta', color2: str = 'red'):
             low_1 += up1[l0[it]:l1[it]]
             low_2 += up2[l0[it]:l1[it]]
             low_3 += up3[l0[it]:l1[it]]
-    # add border
-    low_0 = color('╔' + '═' * (len(low_1) + 2) + '╗', color1)
-    low_4 = color('╚' + '═' * (len(low_1) + 2) + '╝', color1)
-    low_1 = color('║ ', color1) + color(low_1, color2) + color(' ║', color1)
-    low_2 = color('║ ', color1) + color(low_2, color2) + color(' ║', color1)
-    low_3 = color('║ ', color1) + color(low_3, color2) + color(' ║', color1)
-    # add spaces
-    # try:
-    #     w = os.get_terminal_size().columns
-    # except OSError:
-    w = 80
-    dw = (w - len(low_1) // 2) // 2
-    low_0 = ' ' * dw + low_0
-    low_1 = ' ' * dw + low_1
-    low_2 = ' ' * dw + low_2
-    low_3 = ' ' * dw + low_3
-    low_4 = ' ' * dw + low_4
-    # return the combined string
-    string_list = [low_0, low_1, low_2, low_3, low_4]
-    return '\n' + '\n'.join(string_list) + '\n'
+    if message:
+        message = ' '.join(message.splitlines()).strip()
+    line_width = max(len(low_1), len(message or ''))
+    rule = '═' * (line_width + 2)
 
+    def framed(text: str) -> str:
+        return (color('║ ', color1) + color(text.ljust(line_width), color2)
+                + color(' ║', color1))
 
-def printc(message: str, msg_type: str, print_time: bool = True,
-           wrap: bool = True):
-    """
-    Print a message with color
-
-    :param message: str, the message to print
-    :param msg_type: str, the type of message (info, bad1, bad2, bad3, number)
-    :param print_time: bool, if True print the timestamp
-
-    :return: None, prints to screen
-    """
-    # get time now
-    timenow = datetime.now().strftime('%H:%M:%S.%f')[:-4] + '│ '
-
-    subsequent_indent = ' ' * (len(timenow) - 2) + '| '
-    # wrap messages
-    if wrap:
-        message = textwrap.fill(message, width=base.CONSOLE_WIDTH - len(timenow),
-                                break_long_words=False, break_on_hyphens=False,
-                                initial_indent='',
-                                subsequent_indent=subsequent_indent)
-    # formally bad1
-    if msg_type.lower() == 'warning':
-        msg_color = 'yellow'
-    # formally bad2
-    elif msg_type.lower() == 'error':
-        msg_color = 'red'
-    # formally bad3
-    elif msg_type.lower() == 'alert' or msg_type.lower() == 'plot':
-        msg_color = 'magenta'
-
-    elif msg_type.lower() == 'number' or msg_type.lower() == 'info':
-        msg_color = 'blue'
-    else:
-        msg_color = 'green'
-    # get the time message
-    if not print_time:
-        timenow = ''
-    # at this point we set everything else at the info level
-    if msg_type.upper() not in LOG_LEVELS:
-        msg_type = 'INFO'
-    # print if the log level is high enough
-    if LOG_LEVELS[msg_type.upper()] >= LOG_LEVELS[LOG_LEVEL.upper()]:
-        print(color(timenow + message, msg_color), flush=True)
-        time.sleep(0.01)
+    rows = [color('╔' + rule + '╗', color1),
+            framed(low_1), framed(low_2), framed(low_3)]
+    if message:
+        rows.extend([color('╠' + rule + '╣', color1), framed(message)])
+    rows.append(color('╚' + rule + '╝', color1))
+    indent = ' ' * ((80 - len(rows[1]) // 2) // 2)
+    return '\n' + '\n'.join(indent + row for row in rows) + '\n'
 
 
 def sossice_unique_id(param_file: str) -> str:
@@ -452,14 +392,15 @@ def get_input(parameter, dtype: str = 'str', comment: str = None,
         return value
 
 
-def header_line():
-    printc('*' * base.CONSOLE_WIDTH, 'alert', print_time=False)
+def header_line(params=None):
+    WLOG(params, 'info', '*' * base.CONSOLE_WIDTH, colour='magenta',
+         no_timestamp=True, wrap=False)
 
 
-def end_recipe():
-    header_line()
-    printc('Code finished successfully', 'alert')
-    header_line()
+def end_recipe(params=None):
+    header_line(params)
+    WLOG(params, 'info', 'Code finished successfully', colour='magenta')
+    header_line(params)
 
 # =============================================================================
 # Start of code

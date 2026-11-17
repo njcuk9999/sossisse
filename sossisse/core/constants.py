@@ -10,8 +10,7 @@ Created on 2024-08-13
 from aperocore.constants import constant_functions
 
 from sossisse.core import base
-from sossisse.core.custom_const import (DQThresholdConst, MathMemoryConst,
-                                        ValidDQConst, WavelengthFileConst)
+from sossisse.core.custom_const import MathMemoryConst, WavelengthFileConst
 
 # =============================================================================
 # Define variables
@@ -106,13 +105,6 @@ CDict.add('DESCRIPTION', value='', dtype=str, source=__NAME__,
           description='Description of the SOSSISSE run e.g. object name, '
                       'date of observation, is it a transit or '
                       'an eclipse etc.')
-# -----------------------------------------------------------------------------
-# Log level (DEBUG, INFO, WARNING, ERROR, NONE)
-CDict.add('LOG_LEVEL', value='INFO', dtype=str,
-          source=__NAME__, user=True, active=True,
-          options=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'NONE'],
-          group=cgroup,
-          description='Log level (DEBUG, INFO, WARNING, ERROR, NONE)')
 # -----------------------------------------------------------------------------
 # Define the name of the object (must match the object directory name)
 CDict.add('OBJECTNAME', value=None, dtype=str, not_none=True,
@@ -385,28 +377,22 @@ CDict.add('APPLY_DQ_FLAGS', value=True, dtype=bool, source=__NAME__,
 
 # -----------------------------------------------------------------------------
 # Accepted exact DQ values, not bit flags; limits apply to the active jump.
-CDict.addc('VALID_DQ', value={0: 1.0, 2: 1.0}, dtype=dict,
+CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int, minimum=0,
            source=__NAME__, user=True, active=True, tex_arg=True, group=cgroup,
-           const_class=ValidDQConst,
-           description='Accepted exact DQ values mapped to '
-                       'maximum occurrence fractions in the '
-                       'active DataCube/jump. Inclusive limits: '
-                       '0 permits no occurrence, 1 permits '
-                       'every integration. '
-                       'Any unlisted value (including NaN/inf) or '
-                       'exceeded limit masks that spatial pixel '
-                       'in ALL frames. Legacy lists use '
-                       'DQ_THRESHOLD for every accepted value; '
-                       'set it to 1 to permit any listed mix.')
-CDict.addc('DQ_THRESHOLD', value=0.0, dtype=float, minimum=0, maximum=1,
+           description='List of accepted exact DQ values, not bit flags; '
+                       'default [0, 2]. Each integration is accepted when '
+                       'its DQ equals ANY listed value. Unlisted values '
+                       '(including NaN/inf) mask only that integration, '
+                       'unless the pixel also fails DQ_THRESHOLD.')
+CDict.add('DQ_THRESHOLD', value=1.0, dtype=float, minimum=0, maximum=1,
            source=__NAME__, user=True, active=True, tex_arg=True, group=cgroup,
-           const_class=DQThresholdConst,
-           description='Maximum inclusive occurrence fraction '
-                       'for each accepted value in a legacy '
-                       'VALID_DQ list. Default 0 forbids any '
-                       'listed occurrence, so a nonempty cube '
-                       'is fully masked. VALID_DQ mappings '
-                       'override this fallback per value.')
+           description='Maximum fraction of integrations per pixel allowed '
+                       'to have a DQ value outside VALID_DQ, across the '
+                       'active DataCube/jump. 0 allows no bad integrations, '
+                       '0.5 allows half, and 1 allows all. Pixels exceeding '
+                       'this fraction are masked in every integration. '
+                       'Equality passes. Default 1 applies only per-integration '
+                       'DQ rejection.')
 # -----------------------------------------------------------------------------
 # Correct 1/f
 CDict.add('APPLY_1F_CORR', value=True, dtype=bool, source=__NAME__,
@@ -460,8 +446,9 @@ CDict.add('JUMP_INTS', value=None, dtype=list, dtypei=int,
           source=__NAME__, user=True, active=True, not_none=False,
           group=cgroup, tex_arg = True,
           description='Integrations flagged as a jump in the data. '
-                      'Used to separate the data into chunks that are '
-                      'analysed individually and separately.')
+                      'Each zero-based index is the last binned integration '
+                      'of a chunk. Chunks are analysed separately for each '
+                      'selected detector and merged along the time axis.')
 # -----------------------------------------------------------------------------
 # used to reject bits of domain from the analysis
 # you can reject frames 0-600 with the values

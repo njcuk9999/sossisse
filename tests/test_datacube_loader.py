@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import yaml
 from astropy.io import fits
+from astropy.table import Table
 from astropy.io.fits.hdu.image import Section
 
 from aperocore.constants.param_functions import ParamDict
@@ -189,7 +190,7 @@ def test_yaml_math_memory_round_trip(tmp_path):
         constant.validate(test_value=True)
 
 
-def test_reconstruction_marks_migration_boundary(tmp_path, monkeypatch):
+def test_reconstruction_completes_datacube_handoff(tmp_path, monkeypatch):
     instrument, _ = make_loader(tmp_path, monkeypatch)
     filename = write_segment(tmp_path, 1)
     instrument.params.set('GENERAL.FILES', [filename], source='test')
@@ -254,8 +255,33 @@ def test_reconstruction_marks_migration_boundary(tmp_path, monkeypatch):
                         median_stack_stage)
     monkeypatch.setattr(instrument, 'clean_residual_1f', residual_stage)
     monkeypatch.setattr(instrument, 'recenter_trace_position', recenter_stage)
-    with pytest.raises(NotImplementedError, match='PCA and later'):
-        general.linear_recon_chunk(instrument)
+    monkeypatch.setattr(instrument, 'fit_pca', lambda *values: None)
+    monkeypatch.setattr(instrument, 'get_fit_params',
+                        lambda med: [med] * 5)
+    monkeypatch.setattr(instrument, 'get_linear_recon_mask',
+                        lambda *values: [np.ones((2, 4))] * 5)
+    monkeypatch.setattr(instrument, 'setup_linear_reconstruction',
+                        lambda *values: np.ones((1, 8)))
+    table = Table(dict(amplitude=[1., 1., 1.]))
+    result_products = object()
+
+    def coefficients(datacube, *values):
+        assert datacube is stages[0][1]
+        return table, result_products
+
+    saved = []
+    monkeypatch.setattr(instrument, 'get_linear_coeffs', coefficients)
+    monkeypatch.setattr(instrument, 'add_integration_times', lambda data: data)
+    monkeypatch.setattr(instrument, 'normalize_sum_trace', lambda data: data)
+    monkeypatch.setattr(instrument, 'rms_baselines', lambda: [])
+    monkeypatch.setattr(instrument, 'get_effective_wavelength',
+                        lambda med: None)
+    monkeypatch.setattr(instrument, 'save_wlc_results',
+                        lambda products, data: saved.append((products, data)))
+    monkeypatch.setattr(general.plots, 'plot_stability', lambda *values: None)
+    monkeypatch.setattr(general, 'write_sossisse_summary', lambda inst: None)
+    assert general.linear_recon_chunk(instrument) is instrument
+    assert saved == [(result_products, table)]
     assert [stage[0] for stage in stages] == [
         'flat', 'dq', 'background', 'lowpass', 'isolated', 'cosmics',
         'trace_mask', 'median_stack', 'subtract_1f', 'recenter']

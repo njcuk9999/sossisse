@@ -23,6 +23,7 @@ import numpy as np
 from numpy.typing import NDArray
 from astropy.io import fits
 from astropy.table import Table
+from astropy.table import vstack
 from scipy.interpolate import InterpolatedUnivariateSpline as ius
 from scipy.ndimage import binary_dilation
 from scipy.ndimage import shift
@@ -33,12 +34,13 @@ from wpca import EMPCA
 
 from aperocore import math as mp
 from aperocore.constants import param_functions
+from aperocore.core import drs_log
 from sossisse.core import base
 from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
-from sossisse.core import misc
 from sossisse.general.datacube import DataCube
+from sossisse.general.reconstruction import ReconstructionProducts
 from sossisse.general import plots
 
 # =============================================================================
@@ -48,6 +50,7 @@ __NAME__ = 'sossisse.instruments.default'
 __version__ = base.__version__
 __date__ = base.__date__
 __authors__ = base.__authors__
+WLOG = drs_log.wlog
 # Get parmaeter dictionary
 ParamDict = param_functions.ParamDict
 # cache for param table
@@ -407,6 +410,10 @@ class Instrument:
                                  'SOSSISSE jump integrations')
         # Cache the metadata for the save routines.
         self.set_variable('META', meta_data)
+
+    def get_processing_detectors(self):
+        """Return the independent instruments used for processing."""
+        return {None: self}
 
     def set_jump_context(self, start: Optional[int] = None,
                          stop: Optional[int] = None, suffix: str = '',
@@ -931,7 +938,7 @@ class Instrument:
                 emsg = (f'BJD is the same as MJD times.\n'+
                         f'Adding 2400000.5 to the BJD times '
                         f'(seg{ifile+1}[0]: {bjd_times[0]}, {bjd_times[-1]})')
-                misc.printc(emsg, 'warning')
+                WLOG(self.params, 'warning', emsg)
                 # push to int_times
                 int_times = np.append(int_times, bjd_times + 2400000.5)
             else:
@@ -1040,7 +1047,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # First pass: find one error replacement value for the whole selection.
         # ---------------------------------------------------------------------
-        misc.printc('Applying flat field to data', 'info')
+        WLOG(self.params, 'info', 'Applying flat field to data')
         # Starting with NaN lets the first finite candidate establish the min.
         minimum = np.nan
         # Distinguish an entirely zero error dataset from NaN-containing data.
@@ -1196,7 +1203,7 @@ class Instrument:
         # print progress
         msg = 'We bin data by a factor {0}'
         margs = [bin_size]
-        misc.printc(msg.format(*margs), 'number')
+        WLOG(self.params, 'info', msg.format(*margs))
         # loop around bins
         for it in tqdm(range(n_bins)):
             # get the start frame and end frame
@@ -1269,7 +1276,7 @@ class Instrument:
             # print message that we are not removing cosmic rays
             msg = ('WLC.GENERAL.REMOVE_COSMIC_RAYS=False. '
                    'Not removing cosmic rays')
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             # Keep the original working products active.
             return datacube
         # Working products are mandatory; USE_TEMPORARY controls reuse only.
@@ -1284,10 +1291,10 @@ class Instrument:
         reuse = use_temp and datacube.products_valid(products)
         # print progress
         msg = 'We remove cosmisc rays'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # first we get a median of the 1-sigma cube
         msg = '\tCalculating median of 1-sigma cube'
-        misc.printc(msg, '')
+        WLOG(self.params, 'info', msg)
         # We first get the median of the -1 to +1 sigma of the cube
         with warnings.catch_warnings(record=True) as _:
             # we don't care about the warnings
@@ -1339,15 +1346,13 @@ class Instrument:
         return datacube
 
     def apply_dq(self, datacube: DataCube) -> DataCube:
-        """Apply one conservative spatial DQ whitelist to all active frames.
+        """Apply the DQ whitelist and maximum bad-integration fraction.
 
-        VALID_DQ maps accepted EXACT values (not bits) to maximum occurrence
-        fractions. A legacy list uses DQ_THRESHOLD for each accepted value.
-        Limits are inclusive: 0 forbids occurrence, 1 permits every frame.
-        Fractions use the entire active DataCube (the current jump chunk),
-        never an individual block or an unselected part of the observation.
-        Any unlisted occurrence, including NaN/inf, or any exceeded limit
-        rejects that spatial pixel in EVERY frame, even otherwise valid ones.
+        Count integrations with unlisted DQ values per spatial pixel across
+        the active DataCube/jump. A bad fraction at most DQ_THRESHOLD passes:
+        0 allows no bad integrations, 0.5 allows half, and 1 allows all.
+        Pixels above the threshold are masked in every integration. Otherwise,
+        only individual samples with unlisted DQ values are masked.
 
         :param datacube: bounded, aligned SCI/ERR/DQ working-product manager
         :return: same manager; rejected SCI becomes NaN and ERR becomes inf,
@@ -1366,24 +1371,33 @@ class Instrument:
                                            func=func_name)
         if not apply_dq_flags:
             msg = 'WLC.INPUTS.APPLY_DQ_FLAGS = False. Not applying DQ flags'
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             return datacube
 
         # Validate before reading images; ParamDict callers may bypass Const.
         valid_dq = input_params.rget('VALID_DQ', required=True, func=func_name)
-        valid_dq = constants.ValidDQConst.configuration(valid_dq)
-        if isinstance(valid_dq, list):
-            # Mappings override the fallback, so only lists need this setting.
-            threshold = input_params.rget('DQ_THRESHOLD', required=True,
-                                          func=func_name)
-            threshold = constants.DQThresholdConst.fraction(threshold)
-            valid_dq = dict.fromkeys(valid_dq, threshold)
+        if (not isinstance(valid_dq, list) or not valid_dq
+            or any(isinstance(value, (bool, np.bool_))
+                   or not isinstance(value, (int, np.integer))
+                   or value < 0 for value in valid_dq)
+            or len(set(valid_dq)) != len(valid_dq)):
+            raise exceptions.SossisseConstantException(
+            'VALID_DQ must be a nonempty list of distinct '
+            'nonnegative integers')
+        threshold = input_params.rget('DQ_THRESHOLD', required=True,
+                                      func=func_name)
+        if (isinstance(threshold, (bool, np.bool_))
+            or not isinstance(threshold, (int, float, np.integer,
+                               np.floating))
+            or not 0 <= threshold <= 1):
+            raise exceptions.SossisseConstantException(
+            'DQ_THRESHOLD must be a finite fraction in [0, 1]')
+        threshold = float(threshold)
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
                                     func=func_name)
-        # Canonical ordering makes equivalent YAML mappings share products.
-        # The rule version prevents reuse of older per-integration semantics.
-        signature = dict(rule='exact-whitelist-shared-inclusive-v1',
-                         limits=sorted(valid_dq.items()))
+        # A new rule identity invalidates cached minimum-accepted-fraction masks.
+        signature = dict(rule='maximum-bad-fraction-v3',
+                         valid_dq=sorted(valid_dq), threshold=threshold)
         products = datacube.plan_stage('dq', signature)
         if use_temp and datacube.products_valid(products):
             # A complete hit needs no science/DQ block reads or recounting.
@@ -1391,33 +1405,32 @@ class Instrument:
             return datacube
 
         # ---------------------------------------------------------------------
-        # First pass: count each accepted exact category across the selection.
+        # First pass: count bad integrations across the active selection.
         # ---------------------------------------------------------------------
-        # Retain N int64 detector maps, never a cube-wide Boolean mask.
-        dq_count: dict[int, NDArray[np.int64]] = dict()
-        for value in valid_dq:
-            dq_count[value] = np.zeros(datacube.shape[1:], dtype=np.int64)
+        bad_count = np.zeros(datacube.shape[1:], dtype=np.int64)
         for _, arrays in datacube.iter_integrations():
-            # Equality excludes NaN/inf and does not interpret combined bits.
+            # Only exact listed values are good; NaN/inf are bad as well.
             quality = arrays['DQ']
-            for value, count in dq_count.items():
-                count += np.count_nonzero(quality == value, axis=0)
+            bad_count += np.count_nonzero(~np.isin(quality, valid_dq), axis=0)
             # Do not keep the last image block alive during the second pass.
             del quality, arrays
 
-        # One shared 2D mask applies to ALL integrations, not just bad samples.
-        cube_mask = np.ones(datacube.shape[1:], dtype=bool)
-        for value, count in dq_count.items():
-            # Inclusive comparison preserves exact boundary acceptance.
-            cube_mask &= count <= valid_dq[value] * len(datacube)
-        # Each sample matches at most one exact category. Sum counts in place
-        # after testing limits, avoiding another detector-sized count map.
-        counts = iter(dq_count.values())
-        accepted_count = next(counts)
-        for count in counts:
-            accepted_count += count
-        # Any unmatched sample rejects the entire pixel, including NaN/inf.
-        cube_mask &= accepted_count == len(datacube)
+        # Equality passes: the configured fraction is the maximum allowed bad.
+        n_integrations = len(datacube)
+        bad_fraction = bad_count / n_integrations
+        pixel_mask = bad_fraction <= threshold
+        rejected_pixels = np.count_nonzero(~pixel_mask)
+        total_pixels = pixel_mask.size
+        max_bad_integrations = int(np.floor(threshold * n_integrations))
+        bad_samples = int(bad_count.sum())
+        total_samples = n_integrations * total_pixels
+        bad_fraction_all = bad_samples / total_samples
+        msg = (f'{rejected_pixels}/{total_pixels} spatial pixels rejected '
+               f'(bad integrations > {max_bad_integrations}/'
+               f'{n_integrations}; DQ_THRESHOLD={threshold:g}); '
+               f'bad samples={bad_samples}/{total_samples} '
+               f'({bad_fraction_all:.1%})')
+        WLOG(self.params, 'info', msg)
 
         # ---------------------------------------------------------------------
         # Second pass: mask science/errors and persist unchanged DQ per block.
@@ -1426,11 +1439,13 @@ class Instrument:
                                          datacube.iter_integrations()):
             flux = arrays['FLUX']
             err = arrays['ERR']
-            flux[:, ~cube_mask] = np.nan
-            err[:, ~cube_mask] = np.inf
+            sample_mask = np.isin(arrays['DQ'], valid_dq)
+            sample_mask &= pixel_mask[None, :, :]
+            flux[~sample_mask] = np.nan
+            err[~sample_mask] = np.inf
             # Atomic block writes do not publish partial stage filenames.
             datacube.write_product(product, arrays)
-            del flux, err, arrays
+            del flux, err, arrays, sample_mask
         # Failed counting/writes/validation leave the original stage active.
         datacube.commit_products(products)
         return datacube
@@ -1467,7 +1482,7 @@ class Instrument:
         if not do_background:
             # print progress
             msg = 'We do not clean background. GENERAL.DO_BACKGROUND=False'
-            misc.printc(msg, 'warning')
+            WLOG(self.params, 'warning', msg)
             # Keep the original working products active.
             return datacube
         # update the meta data
@@ -1484,7 +1499,7 @@ class Instrument:
         # ---------------------------------------------------------------------
         # print progress
         msg = 'Apply the background model correction'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # get the background file
         background = self.load_data(background_file)
         # force the background to floats
@@ -1544,7 +1559,7 @@ class Instrument:
         del mean_sum, mean_count, valid
         # print progress
         msg = '\tTweaking the position of the background'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # storage for the rms
         rms = np.zeros_like(bgnd_shifts)
         # loop around shifts
@@ -1573,7 +1588,7 @@ class Instrument:
             optimal_offset = 0.0
             msg = ('\tHere we just take the offset to be 0 '
                    '(Optimal obackgroun offset not found)')
-            misc.printc(msg, 'number')
+            WLOG(self.params, 'info', msg)
         # otherwise we work out the optimal offset
         else:
             # fit this rms
@@ -1588,7 +1603,7 @@ class Instrument:
             # print the optimal offset
             msg = '\tOptimal background offset {:.3f} pix'
             margs = [optimal_offset]
-            misc.printc(msg.format(*margs), 'number')
+            WLOG(self.params, 'info', msg.format(*margs))
         # ---------------------------------------------------------------------
         # apply the optimal offset
         background2 = shift(background, (0, optimal_offset))
@@ -1599,7 +1614,7 @@ class Instrument:
                                     mean_cube_box.ravel(), 1, 5)
         # apply fit to full image
         background = np.polyval(bfit, background2)
-        misc.printc('Writing background-corrected working products', 'info')
+        WLOG(self.params, 'info', 'Writing background-corrected working products')
         # Subtract the same fitted detector image from every integration.
         # ERR and DQ retain their original float64 payloads without changes.
         for product, (_, arrays) in zip(products,
@@ -1651,7 +1666,7 @@ class Instrument:
         with warnings.catch_warnings(record=True):
             mcube = datacube.nanmean('FLUX', axis=0)
         frame0 = datacube.read_integrations(0, 1)['FLUX'][0].copy()
-        misc.printc('\tLow pass filtering the data', 'info')
+        WLOG(self.params, 'info', '\tLow pass filtering the data')
         # Preserve the strict below-median rule independently in each column.
         mean_mask = np.zeros_like(mcube, dtype=float)
         for column in tqdm(range(mcube.shape[1])):
@@ -1719,7 +1734,7 @@ class Instrument:
             # print message that we are not patching isolated bad pixels
             msg = ('WLC.GENERAL.PATCH_ISOLATED_BADS=False. Not patching '
                    'isolated bad pixels')
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             # Keep the original working products active.
             return datacube
         # Working products are mandatory; USE_TEMPORARY controls reuse only.
@@ -1740,7 +1755,7 @@ class Instrument:
         reuse = use_temp and datacube.products_valid(products)
         # print progress
         msg = ' Removing isolated NaNs'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # storage for the heat map
         heat_map = np.zeros(datacube.shape[1:], dtype=float)
         # storage of bad pixel stamps, keyed by global integration index
@@ -1900,7 +1915,7 @@ class Instrument:
         # print progress
         msg = ('Saving cutouts of all bad pixels to {0}.')
         margs = [outdir]
-        misc.printc(msg.format(*margs), 'info')
+        WLOG(self.params, 'info', msg.format(*margs))
         # ---------------------------------------------------------------------
         # loop around frames
         for iframe in tqdm(cutouts):
@@ -2088,7 +2103,7 @@ class Instrument:
                            required=True, func=func_name)
         # print progress
         if log:
-            misc.printc('Getting the trace mask', 'info')
+            WLOG(self.params, 'info', 'Getting the trace mask')
         # get x and y size from cube
         xsize = self.get_variable('DATA_X_SIZE', func_name)
         ysize = self.get_variable('DATA_Y_SIZE', func_name)
@@ -2110,7 +2125,7 @@ class Instrument:
             if log:
                 msg = 'We cut the domain of the WLC to {0:.2f} - {1:.2f} um'
                 margs = [wavelow, wavehigh]
-                misc.printc(msg.format(*margs), 'number')
+                WLOG(self.params, 'info', msg.format(*margs))
             # get the wavegrid
             wavegrid = self.get_wavegrid()
             # mask the trace map
@@ -2196,7 +2211,7 @@ class Instrument:
             # print debug message
             msg = ('The trace table does not have a "THROUGHPUT" column, '
                    'we set throughput to 1')
-            misc.printc(msg, 'debug')
+            WLOG(self.params, 'debug', msg)
             # add the throughput column of ones
             throughput = np.ones(len(xpos))
         else:
@@ -2415,14 +2430,14 @@ class Instrument:
             if cond:
                 # print that we are loading temporary files to speed things up
                 msg = 'We read temporary files to speed things up.'
-                misc.printc(msg, 'info')
+                WLOG(self.params, 'info', msg)
                 try:
                     # load the median image
                     msg = '\tReading: {0}'.format(median_image_file)
-                    misc.printc(msg, 'info')
+                    WLOG(self.params, 'info', msg)
                     median_image = self.load_data(median_image_file)
                     # load the tmp file
-                    misc.printc('\tReading: {0}'.format(tmp_amps), 'info')
+                    WLOG(self.params, 'info', '\tReading: {0}'.format(tmp_amps))
                     amps = self.load_data(tmp_amps)
                 except exceptions.SossisseFileException:
                     median_image, amps = None, None
@@ -2437,10 +2452,10 @@ class Instrument:
                     return return_list
                 # Invalid caches are misses; recompute everything below.
                 msg = '\tTemporary median/amplitude files invalid: recompute'
-                misc.printc(msg, 'warning')
+                WLOG(self.params, 'warning', msg)
         # ---------------------------------------------------------------------
         # first estimate of the trace amplitude
-        misc.printc('\tFirst median of cube to create trace esimate', 'info')
+        WLOG(self.params, 'info', '\tFirst median of cube to create trace esimate')
         # validate out-of-transit domain
         self.get_baseline_params()
         has_baseline = self.get_variable('HAS_BASELINE', func_name)
@@ -2494,7 +2509,7 @@ class Instrument:
             del arrays
         # ---------------------------------------------------------------------
         # median of the normalized cube
-        misc.printc('\tSecond median of cube with proper normalization', 'info')
+        WLOG(self.params, 'info', '\tSecond median of cube with proper normalization')
         # A separate manager keeps the active unnormalized stage unchanged.
         norm_paths = [product.filename for product in products]
         norm_kwargs: Dict[str, Any] = dict(
@@ -2512,7 +2527,7 @@ class Instrument:
         # write files to disk
         # ---------------------------------------------------------------------
         # write the median image
-        misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
+        WLOG(self.params, 'info', '\tWriting: {0}'.format(median_image_file))
         fits.writeto(median_image_file, med, overwrite=True)
         # ---------------------------------------------------------------------
         return [datacube, med, amps]
@@ -2547,7 +2562,7 @@ class Instrument:
             # A disabled stage leaves files and amplitudes untouched.
             msg = ('WLC.INPUTS.APPLY_1F_CORR=False. '
                    'Not applying 1/f correction')
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             return datacube
         # Read reuse and numerical settings only for an active correction.
         use_temp = self.params.rget('GENERAL.USE_TEMPORARY', required=True,
@@ -2568,7 +2583,7 @@ class Instrument:
         # Parents and current selection are included by DataCube planning.
         products = datacube.plan_stage('subtract_1f', signature)
         reuse = use_temp and datacube.products_valid(products)
-        misc.printc('\nCalculating residuals', 'info')
+        WLOG(self.params, 'info', '\nCalculating residuals')
         # Retain only 2-D diagnostics, never the full correction cube.
         frame_before = None
         frame_after = None
@@ -2618,7 +2633,7 @@ class Instrument:
         assert frame_before is not None and frame_after is not None
         assert scorr_first is not None and scorr_last is not None
         # Preserve the median-image side effect in both fresh and reused runs.
-        misc.printc('\tWriting: {0}'.format(median_image_file), 'info')
+        WLOG(self.params, 'info', '\tWriting: {0}'.format(median_image_file))
         fits.writeto(median_image_file, med, overwrite=True)
         # Plot only the first, last and mean correction maps plus first frames.
         plots.plot_subtract_1f_scorr(self, scorr_first, scorr_last, mean_scorr)
@@ -2773,7 +2788,7 @@ class Instrument:
         # Product shapes, not instrument globals, define this block's extent.
         nframes, _, xsize = cube.shape
         scorr = np.zeros_like(cube)
-        misc.printc('\tSubtracting 1/f noise', 'info')
+        WLOG(self.params, 'info', '\tSubtracting 1/f noise')
         if degree_1f_corr == 0:
             # Compute the original per-frame column median correction.
             with warnings.catch_warnings(record=True) as _:
@@ -2809,14 +2824,13 @@ class Instrument:
                         scorr[iframe, :, column] = np.nan
         return cube, scorr
 
-    def fit_pca(self, cube2: np.ndarray, err: np.ndarray,
-                med: np.ndarray, trace_mask: np.ndarray
+    def fit_pca(self, datacube: DataCube, med: np.ndarray,
+                trace_mask: np.ndarray
                 ) -> Union[None, np.ndarray]:
         """
         Fit the PCA to the trace_mask
 
-        :param cube2: np.ndarray, the cube to fit the PCA to
-        :param err: np.ndarray, the error cube
+        :param datacube: flux/error working-product manager
         :param med: np.ndarray, the median image
         :param trace_mask: np.ndarray, the trace map
 
@@ -2825,8 +2839,6 @@ class Instrument:
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
-        temp_path = self.params.rget('PATHS.TEMP_PATH', required=True,
-                         func=func_name)
         flag_fit_pca = self.params.rget('WLC.LMODEL.FIT_PCA', required=True,
                         func=func_name)
         n_comp = self.params.rget('WLC.LMODEL.FIT_N_PCA', required=True,
@@ -2838,20 +2850,18 @@ class Instrument:
         # update meta data
         self.update_meta_data()
         # make sure we have a pca file
-        tmp_pcas = 'temporary_pcas.fits'
-        tmp_pcas = os.path.join(temp_path, tmp_pcas)
-        self.set_variable('TEMP_PCA_FILE', tmp_pcas)
+        tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         # ---------------------------------------------------------------------
         # if we aren't fitting or we fit no components return None
         if (not flag_fit_pca) or n_comp == 0:
             msg = ('WLC.LMODEL.FIT_PCA={0}  WLC.LMODEL.FIT_N_PCA={1} '
                    'Not fitting with PCA').format(flag_fit_pca, n_comp)
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             return None
         # ---------------------------------------------------------------------
         # only look for fit pca file if we are fitting pca
         if use_temp and os.path.exists(tmp_pcas):
-            misc.printc('\tReading: {0}'.format(tmp_pcas), 'info')
+            WLOG(self.params, 'info', '\tReading: {0}'.format(tmp_pcas))
             return self.load_data(tmp_pcas)
 
         # get the shape of the data
@@ -2866,11 +2876,21 @@ class Instrument:
         if not has_baseline:
             wmsg = ('Cannot do PCA analysis without baseline domain.'
                     '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to use PCA.')
-            misc.printc(wmsg, 'warning')
+            WLOG(self.params, 'warning', wmsg)
             return None
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # TODO(DataCube): PCA still materializes flux, errors and workspaces.
+        # Replace this bridge with a bounded PCA implementation for large runs.
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        cube2 = np.empty(datacube.shape, dtype=float)
+        err = np.empty(datacube.shape, dtype=float)
+        for integration, arrays in datacube.iter_integrations():
+            cube2[integration] = arrays['FLUX']
+            err[integration] = arrays['ERR']
+        del arrays
         # ---------------------------------------------------------------------
         # print progress
-        misc.printc('Fitting PCA', 'info')
+        WLOG(self.params, 'info', 'Fitting PCA')
         # ---------------------------------------------------------------------
         # only fit the pca to the flux in the trace (nan everything else)
         nanmask = np.ones_like(trace_mask, dtype=float)
@@ -2906,20 +2926,19 @@ class Instrument:
         # print process
         margs = [n_comp]
         msg = '\tComputing principle components (ncomp={0})...'
-        misc.printc(msg.format(*margs), 'info')
+        WLOG(self.params, 'info', msg.format(*margs))
         # compute the principle components
         with warnings.catch_warnings(record=True) as _:
             # set up the pca class
             pca_class = EMPCA(n_components=n_comp)
             # process
-            misc.printc('\t\tRunning PCA fit, please wait...', 'number')
+            WLOG(self.params, 'info', '\t\tRunning PCA fit, please wait...')
             start = time.time()
             # fit out data
             pca_fit = pca_class.fit(cube3[:, valid], weights=weights[:, valid])
             # process
             margs = [time.time() - start]
-            misc.printc('\t\tFinished PCA fit, took {0:.2f}s'.format(*margs),
-                        'number')
+            WLOG(self.params, 'info', '\t\tFinished PCA fit, took {0:.2f}s'.format(*margs))
             # get the raito of all components
             variance_ratio = np.array(pca_class.explained_variance_ratio_)
             # normalize by the ratio of the first component
@@ -2970,7 +2989,7 @@ class Instrument:
         # Always persist working products
         tmp_pcas = self.get_variable('TEMP_PCA_FILE', func_name)
         # write the pca
-        misc.printc('\tWriting: {0}'.format(tmp_pcas), 'info')
+        WLOG(self.params, 'info', '\tWriting: {0}'.format(tmp_pcas))
         fits.writeto(tmp_pcas, pcas, overwrite=True)
         # ---------------------------------------------------------------------
         # return the pcas
@@ -2989,7 +3008,7 @@ class Instrument:
             # print message that we are not removing cosmic rays
             msg = ('WLC.GENERAL.RECENTER_TRACE_POSITION=False. '
                    'Not recentering trace position')
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             return trace_mask
         trace_width = wlc_gen_params.rget('TRACE_WIDTH_MASKING', required=True,
                                           func=func_name)
@@ -3004,14 +3023,14 @@ class Instrument:
                                              func=func_name)
         # print progress
         msg = 'Recentering trace position'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # ---------------------------------------------------------------------
         # get some parameters from instrument
         nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # ---------------------------------------------------------------------
         # print what we are doing
         msg = '\tScan to optimize position of trace mask to maximize flux'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # force a trace width masking
         wlc_gen_params['TRACE_WIDTH_MASKING'] = 20
         wlc_gen_params.set_source('TRACE_WIDTH_MASKING', func_name)
@@ -3055,8 +3074,8 @@ class Instrument:
                     best_dx = dxs[ix]
                     best_dy = dys[iy]
         # print the best dx and dy
-        misc.printc('Best dx : {} pix'.format(best_dx), 'number')
-        misc.printc('Best dy : {} pix'.format(best_dy), 'number')
+        WLOG(self.params, 'info', 'Best dx : {} pix'.format(best_dx))
+        WLOG(self.params, 'info', 'Best dy : {} pix'.format(best_dy))
         # update the trace offsets with the best values found
         wlc_gen_params['X_TRACE_OFFSET'] = best_dx
         wlc_gen_params.set_source('X_TRACE_OFFSET', func_name)
@@ -3076,11 +3095,11 @@ class Instrument:
         for iy in range(len(dys)):
             margs = [dys[iy], loss_ppt[xmax, iy]]
             msg = '\toffset dy = {0:3f}, gain = {1:3f} ppt'
-            misc.printc(msg.format(*margs), 'number')
+            WLOG(self.params, 'info', msg.format(*margs))
         # print the optimum value
         msg = 'We scanned the y position of trace, optimum at dy = {0}'
         margs = [wlc_gen_params['Y_TRACE_OFFSET']]
-        misc.printc(msg.format(*margs), 'number')
+        WLOG(self.params, 'info', msg.format(*margs))
         # plot the trace flux loss
         plots.plot_trace_flux_loss(self, sums, dxs, dys, xmax, ymax, loss_ppt,
                                    trace_mask, med, best_dx, best_dy)
@@ -3099,7 +3118,7 @@ class Instrument:
         """
         # print progress
         msg = 'We find the gradients'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # ---------------------------------------------------------------------
         # copy the med array into a new array
         med2 = np.array(med)
@@ -3235,7 +3254,7 @@ class Instrument:
 
     def setup_linear_reconstruction(self, med: np.ndarray, dx: np.ndarray,
                                     dy: np.ndarray, rotxy: np.ndarray,
-                                    ddy: np.ndarray, pca: np.ndarray,
+                                    ddy: np.ndarray, pca: Optional[np.ndarray],
                                     ) -> np.ndarray:
         """
         Setup the linear reconstruction vector and output column names
@@ -3312,11 +3331,65 @@ class Instrument:
         # return the vector
         return vector
 
-    def get_linear_coeffs(self, cube: np.ndarray, err: np.ndarray,
+    def get_linear_coeffs(self, datacube: DataCube, med: np.ndarray,
+                          mask_trace_pos: np.ndarray, lvector: np.ndarray,
+                          x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
+                          x_order0: np.ndarray, y_order0: np.ndarray
+                          ) -> Tuple[Table, ReconstructionProducts]:
+        """Fit frames and persist reconstruction planes one block at a time.
+
+        :param datacube: ordered flux/error/DQ products, left unchanged
+        :param med: reference median image
+        :param mask_trace_pos: accepted detector-pixel mask
+        :param lvector: model basis images
+        :param x_trace_pos: trace plotting columns
+        :param y_trace_pos: trace plotting rows
+        :param x_order0: order-zero plotting columns
+        :param y_order0: order-zero plotting rows
+        :return: coefficient table and RECON/RESIDUAL/VALID/ERR block manager
+        :raises OSError: if a product cannot be written
+        :raises ValueError: if output blocks are incomplete or misaligned
+        """
+        signature = dict()
+        signature['median'] = hashlib.sha256(med.tobytes()).hexdigest()
+        signature['mask'] = hashlib.sha256(mask_trace_pos.tobytes()).hexdigest()
+        signature['basis'] = hashlib.sha256(lvector.tobytes()).hexdigest()
+        signature['zeropoint'] = self.params.rget(
+            'WLC.LMODEL.FIT_ZERO_POINT_OFFSET', required=True)
+        signature['algorithm'] = 'linear-reconstruction-v1'
+        products = datacube.plan_stage('linrecon', signature)
+        tables = []
+        for product, (integration, arrays) in zip(
+                products, datacube.iter_integrations()):
+            block_args = [arrays['FLUX'], arrays['ERR'], med, mask_trace_pos,
+                          lvector, x_trace_pos, y_trace_pos,
+                          x_order0, y_order0, integration.start]
+            table, recon, valid, residual = self._get_linear_coeffs_block(
+                *block_args)
+            planes = dict(RECON=recon, RESIDUAL=residual, VALID=valid)
+            planes['ERR'] = arrays['ERR']
+            ReconstructionProducts.write_block(
+                product, planes, getattr(self, '_trace_suffix', ''))
+            tables.append(table)
+            del arrays, planes, recon, valid, residual, block_args
+        output_table = vstack(tables)
+        # Aperture normalization is global, never independently per block.
+        trace_corr = np.array(output_table['aperture_correction'])
+        trace_corr /= np.nanmedian(trace_corr)
+        output_table['aperture_correction'] = trace_corr
+        output_table['amplitude'] *= trace_corr
+        plots.aperture_correction_plot(self, output_table, trace_corr)
+        result = ReconstructionProducts(
+            [product.filename for product in products],
+            datacube.max_integrations, datacube.max_math_memory_gb)
+        return output_table, result
+
+    def _get_linear_coeffs_block(self, flux: np.ndarray, err: np.ndarray,
                           med: np.ndarray, mask_trace_pos: np.ndarray,
                           lvector: np.ndarray,
                           x_trace_pos: np.ndarray, y_trace_pos: np.ndarray,
-                          x_order0: np.ndarray, y_order0: np.ndarray
+                          x_order0: np.ndarray, y_order0: np.ndarray,
+                          frame_offset: int = 0
                           ) -> Tuple[Table, np.ndarray, np.ndarray, np.ndarray]:
         """
         Apply the amplitude reconstruction to the cube
@@ -3334,7 +3407,7 @@ class Instrument:
                        note there are Q components
         9. 'flux^2' -> amplitude of the flux squared (if FIT_QUAD_TERM)
 
-        :param cube: np.ndarray, the cube
+        :param flux: block of science images
         :param err: np.ndarray, the error cube
         :param med: np.ndarray, the median image
         :param mask_trace_pos: np.ndarray, the mask trace positions
@@ -3343,6 +3416,7 @@ class Instrument:
         :param y_trace_pos: np.ndarray, the y trace positions
         :param x_order0: np.ndarray, the x order 0 positions
         :param y_order0: np.ndarray, the y order 0 positions
+        :param frame_offset: first logical integration in this block
 
         :return: tuple, 1. dict, the outputs (see above), 2. the recon cube,
                  3. the valid mask
@@ -3352,50 +3426,50 @@ class Instrument:
         zpoint = self.params.rget('WLC.LMODEL.FIT_ZERO_POINT_OFFSET',
                                   required=True, func=func_name)
         # get parameters
-        nframes = self.get_variable('DATA_N_FRAMES', func_name)
+        nframes = flux.shape[0]
         output_names = self.get_variable('OUTPUT_NAMES', func_name)
         # vectors to keep track of the rotation/amplitudes/dx/dy
-        all_recon = np.zeros_like(cube)
+        all_recon = np.zeros_like(flux)
         # starting point of the residual cube is the cube 
         #    (will be subtracted off per integration)
-        rescube = np.array(cube)
+        rescube = np.array(flux)
         # ---------------------------------------------------------------------
         # storage to append to (one value for each frame of the cube)
         outputs = dict()
         for output_name in output_names:
-            outputs[output_name] = np.zeros(cube.shape[0])
-            outputs[output_name + '_error'] = np.zeros(cube.shape[0])
+            outputs[output_name] = np.zeros(nframes)
+            outputs[output_name + '_error'] = np.zeros(nframes)
         # add rms cube of the reconstruction
-        outputs['rms_cube_recon'] = np.zeros(cube.shape[0])
+        outputs['rms_cube_recon'] = np.zeros(nframes)
         # add the sum of the trace
-        outputs['sum_trace'] = np.zeros(cube.shape[0])
+        outputs['sum_trace'] = np.zeros(nframes)
         # add the sum of the trace error
-        outputs['sum_trace_error'] = np.zeros(cube.shape[0])
+        outputs['sum_trace_error'] = np.zeros(nframes)
         # add the amplitude without the model
-        outputs['amplitude_no_model'] = np.zeros(cube.shape[0])
+        outputs['amplitude_no_model'] = np.zeros(nframes)
         # add the amplitude without the model error
-        outputs['amplitude_no_model error'] = np.zeros(cube.shape[0])
+        outputs['amplitude_no_model error'] = np.zeros(nframes)
         # storage of a mask cube of bad pixels
-        valid_arr = np.ones_like(cube).astype(float)
+        valid_arr = np.ones_like(flux).astype(float)
         # ---------------------------------------------------------------------
         # storage a trace correction array
         trace_corr = np.zeros(nframes, dtype=float)
         # print progress
-        misc.printc('Linear recon of trace model', '')
+        WLOG(self.params, 'info', 'Linear recon of trace model')
         # loop around the frames
-        for iframe in tqdm(range(cube.shape[0])):
+        for iframe in tqdm(range(nframes)):
             # find the best combination of scale/dx/dy/rotation
             # amps is a vector with the amplitude of all fitted terms
             # -----------------------------------------------------------------
             # set up a mask of valid pixels
-            valid = np.isfinite(cube[iframe]).astype(float)
+            valid = np.isfinite(flux[iframe]).astype(float)
             valid[valid != 1] = np.nan
             valid[mask_trace_pos == 0] = np.nan
             # -----------------------------------------------------------------
             # calculate the sum of the trace
             with warnings.catch_warnings(record=True) as _:
                 # work out the sum and error on the sum of the trace
-                sum_trace = np.nansum(cube[iframe] * valid)
+                sum_trace = np.nansum(flux[iframe] * valid)
                 err_sum_trace = np.sqrt(np.nansum(err[iframe] ** 2 * valid))
                 # push into outputs
                 outputs['sum_trace'][iframe] = sum_trace
@@ -3404,7 +3478,7 @@ class Instrument:
             # calculate the amplitude when there is no model applied
             with warnings.catch_warnings(record=True) as _:
                 # normalize cube by median
-                tmp_slice = valid * (cube[iframe] / med)
+                tmp_slice = valid * (flux[iframe] / med)
                 tmp_slice_err = valid * (err[iframe] / med)
                 # get the odd ratio mean
                 amp0 = mp.odd_ratio_mean(tmp_slice.ravel(),
@@ -3414,10 +3488,10 @@ class Instrument:
                 outputs['amplitude_no_model error'][iframe] = amp0[1]
             # -----------------------------------------------------------------
             # >5 sigma clipping of linear system
-            bad = np.abs((cube[iframe] - med * amp0[0]) / err[iframe]) > 5
+            bad = np.abs((flux[iframe] - med * amp0[0]) / err[iframe]) > 5
             valid[bad] = np.nan
             # setup inputs to lin mini errors
-            largs = [cube[iframe] * valid, err[iframe], lvector]
+            largs = [flux[iframe] * valid, err[iframe], lvector]
             amp_model, err_model, recon = mp.lin_mini_errors(*largs)
             # -----------------------------------------------------------------
             # deal with zero point offset (subtract it off the recon)
@@ -3430,9 +3504,9 @@ class Instrument:
             trace_corr[iframe] = part1 / part2
             # -----------------------------------------------------------------
             # plot the trace correction sample plot
-            if iframe == 0:
+            if iframe == 0 and frame_offset == 0:
                 plots.trace_correction_sample(self, iframe,
-                                              cube, recon,
+                                              flux, recon,
                                               x_trace_pos, y_trace_pos,
                                               x_order0, y_order0)
             # -----------------------------------------------------------------
@@ -3458,15 +3532,12 @@ class Instrument:
             valid_arr[iframe] = valid
         # ---------------------------------------------------------------------
         # normalize the trace correction by the median
-        trace_corr /= np.nanmedian(trace_corr)
         # push into outputs
         outputs['amplitude_uncorrected'] = np.array(outputs['amplitude'])
         outputs['aperture_correction'] = trace_corr
         # update the amplitudes by the trace correction
-        outputs['amplitude'] = outputs['amplitude'] * trace_corr
         # ---------------------------------------------------------------------
         # plot the aperture correction plot
-        plots.aperture_correction_plot(self, outputs, trace_corr)
         # ---------------------------------------------------------------------
         # convert outputs to an astropy table
         output_table = Table(outputs)
@@ -3496,97 +3567,54 @@ class Instrument:
         # return the outputs
         return loutputs
 
-    def per_pixel_baseline(self, cube: np.ndarray,
-                           valid_arr: np.ndarray) -> np.ndarray:
-        """
-        Correct the per pixel baseline
+    def per_pixel_baseline(self, products: ReconstructionProducts
+                           ) -> ReconstructionProducts:
+        """Fit full pixel histories and subtract baselines in bounded blocks.
 
-        :param cube: np.ndarray, the cube
-        :param valid_arr: np.ndarray, the valid pixels
-
-        :return: np.ndarray, the corrected cube
+        :param products: reconstruction planes, including validity and errors
+        :return: new residual products; other planes and inputs stay unchanged
+        :raises MemoryError: if history or coefficient workspace is too large
         """
-        # set function name
-        func_name = f'{__NAME__}.{self.name}.per_pixel_baseline()'
-        # get params
-        nframes = self.get_variable('DATA_N_FRAMES', func_name)
-        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
-        # ---------------------------------------------------------------------
-        # copy the cube
-        cube = np.array(cube)
-        # get the frame numbers
-        frames = np.arange(nframes, dtype=float)
-        # get the out-of-transit domain
+        func_name = f'{__NAME__}.per_pixel_baseline()'
         self.get_baseline_params()
-        has_baseline = self.get_variable('HAS_BASELINE', func_name)
-        baseline_domain = self.get_variable('BASELINE_DOMAIN', func_name)
-        # ---------------------------------------------------------------------
-        # if we don't have oot domain we cannot do the normalization
-        if not has_baseline:
-            wmsg = ('Cannot do per pixel baseline correction without '
-                    'baseline domain.'
-                    '\n\tPlease set WLC.INPUTS.BASELINE_INTS to do per pixel'
-                    ' baseline correction.')
-            misc.printc(wmsg, 'warning')
-            # return loutputs without normalization
-            return cube
-        # ---------------------------------------------------------------------
-        # get the polynomial degree for the transit baseline
-        poly_order = self.params.rget('WLC.GENERAL.TRANSIT_BASELINE_POLYORD',
-                                      required=True, func=func_name)
-        # ---------------------------------------------------------------------
-        # print progress
-        msg = 'Correcting the per pixel baseline'
-        misc.printc(msg, 'info')
-        # Precompute finite mask for the entire cube
-        finite_mask_cube = np.isfinite(cube)
-        # ---------------------------------------------------------------------
-        # loop around x pix
-        for ix in tqdm(range(nbxpix)):
-            # get the slice of the cube
-            cube_slice = cube[:, :, ix]
-            valid_slice = valid_arr[:, :, ix]
-            finite_mask_slice = finite_mask_cube[:, :, ix]
-            # Skip if no valid pixels
-            if not np.any(finite_mask_slice):
-                continue
-            # loop around y pix
-            for iy in range(nbypix):
-                # Skip if slice  if no pixels are finite
-                if np.sum(np.isfinite(valid_slice[:, iy])) == 0:
+        if not self.get_variable('HAS_BASELINE', func_name):
+            WLOG(self.params, 'warning', 'Cannot fit pixel baselines without baseline frames')
+            return products
+        domain = self.get_variable('BASELINE_DOMAIN', func_name)
+        order = self.params.rget('WLC.GENERAL.TRANSIT_BASELINE_POLYORD',
+                                 required=True, func=func_name)
+        shape = (order + 1,) + products.shape[1:]
+        if np.prod(shape) * 8 > products.max_math_memory_gb * 1024 ** 3 / 2:
+            raise MemoryError('Pixel baseline coefficients exceed math budget')
+        coefficients = np.full(shape, np.nan)
+        frames = np.arange(len(products), dtype=float)
+        for column in tqdm(range(products.shape[2])):
+            for row in range(products.shape[1]):
+                history = products.read_pixel(row, column)
+                if not np.any(np.isfinite(history['VALID'])):
                     continue
-                # get the sample column
-                sample = cube_slice[:, iy]
-                # get the out of transit domain in the sample
-                sample_oot = sample[baseline_domain]
-                # get the indices of the out of transit domain
-                frames_oot = frames[baseline_domain]
-                # find any nans in the oot sample
-                finite_mask = finite_mask_slice[:, iy][baseline_domain]
-                # -------------------------------------------------------------
-                # only fit the polynomial if we have enough points
-                if np.sum(finite_mask) <= poly_order:
+                sample = history['RESIDUAL'][domain]
+                valid = np.isfinite(sample)
+                if np.count_nonzero(valid) <= order:
                     continue
-                # -------------------------------------------------------------
-                # deal with having NaNs in the sample
-                if False in finite_mask:
-                    # remove non-finite values
-                    sample_oot = sample_oot[finite_mask]
-                    frames_oot = frames_oot[finite_mask]
-                # -------------------------------------------------------------
-                # robustly fit the out of transit part
-                oot_fit, _ = mp.robust_polyfit(frames_oot, sample_oot,
-                                               poly_order, 5)
-                # -------------------------------------------------------------
-                # subtract this off the cube_slice
-                cube_slice[:, iy] -= np.polyval(oot_fit, frames)
-            # -----------------------------------------------------------------
-            # push the updated cube slice back into the cube
-            cube[:, :, ix] = np.array(cube_slice)
-        # ---------------------------------------------------------------------
-        # return the updated cube
-        return cube
+                coefficients[:, row, column], _ = mp.robust_polyfit(
+                    frames[domain][valid], sample[valid], order, 5)
+        signature = dict(order=order, domain=np.arange(len(products))[
+            domain].tolist(), algorithm='pixel-baseline-v1')
+        outputs = products.plan_stage('baseline', signature)
+        for product, (integration, arrays) in zip(
+                outputs, products.iter_integrations()):
+            for row in range(products.shape[1]):
+                for column in range(products.shape[2]):
+                    fit = coefficients[:, row, column]
+                    if np.all(np.isfinite(fit)):
+                        arrays['RESIDUAL'][:, row, column] -= np.polyval(
+                            fit, frames[integration])
+            ReconstructionProducts.write_block(
+                product, arrays, str(products.headers[0].get('RCDET', '')))
+        return ReconstructionProducts(
+            [product.filename for product in outputs],
+            products.max_integrations, products.max_math_memory_gb)
 
     def rms_baselines(self) -> List[str]:
             return ['naive_sigma', 'linear_sigma', 'lowpass_sigma',
@@ -3692,18 +3720,18 @@ class Instrument:
         if self.params['GENERAL.WLC_DOMAIN'] is not None:
             msg = 'Domain:\t {0:.3f} -- {1:.3f} um'
             margs = self.params['WLO_DOMAIN']
-            misc.printc(msg.format(*margs), 'number')
+            WLOG(self.params, 'info', msg.format(*margs))
         else:
             msg = ('Full domain included, parameter GENERAL.WLC_DOMAIN '
                    'not defined')
-            misc.printc(msg, 'warning')
+            WLOG(self.params, 'warning', msg)
         # ---------------------------------------------------------------------
         # print the energy-weighted mean
         msg = 'Energy-weighted mean:\t{0:.3f} um'
-        misc.printc(msg.format(mean_energy_weighted), 'number')
+        WLOG(self.params, 'info', msg.format(mean_energy_weighted))
         # print the photon-weighted mean
         msg = 'Photon-weighted mean:\t{0:.3f} um'
-        misc.printc(msg.format(mean_photon_weighted), 'number')
+        WLOG(self.params, 'info', msg.format(mean_photon_weighted))
         # ----------------------------------------------------------------
         # Add to variables
         self.set_variable('PHOTO_WEIGHTED_MEAN', mean_photon_weighted)
@@ -3712,34 +3740,47 @@ class Instrument:
         # return the effective wavelength factors
         return mean_photon_weighted, mean_energy_weighted
 
-    def save_wlc_results(self, rescube: np.ndarray, err: np.ndarray, 
-                         lrecon: np.ndarray, ltable: Table):
-        # set function name
+    def get_wlc_manifest(self) -> str:
+        """Return the detector/jump-specific reconstruction manifest path.
+
+        :return: JSON sidecar path beside the former reconstruction cube
+        """
+        path = self.get_variable('WLC_RECON_FILE', 'get_wlc_manifest')
+        return os.path.splitext(path)[0] + '_products.json'
+
+    def load_wlc_results(self) -> Tuple[ReconstructionProducts, Table]:
+        """Reopen all named reconstruction planes without loading their data.
+
+        :return: validated block manager and matching coefficient table
+        :raises ValueError: if a completion manifest or output is invalid
+        """
+        return ReconstructionProducts.load(self.get_wlc_manifest())
+
+    def save_wlc_results(self, products: ReconstructionProducts,
+                         ltable: Table) -> None:
+        """Publish coefficients and bounded reconstruction references.
+
+        :param products: complete ordered RECON/RESIDUAL/VALID/ERR products
+        :param ltable: coefficients with one row per integration
+        :return: None; writes CSV and publishes completion manifest last
+        :raises ValueError: if coefficient rows and products do not agree
+        """
         func_name = f'{__NAME__}.{self.name}.save_wlc_results()'
-        # ---------------------------------------------------------------------
-        # update the meta data
         self.update_meta_data()
-        # get the meta data
         meta_data = self.get_variable('META', func_name)
-        # -------------------------------------------------------------------------
-        # write the error map
-        errfile = self.get_variable('WLC_ERR_FILE', func_name)
-        io.save_fits(errfile, datalist=[err], datatypes=['image'],
-                     datanames=['err'], meta=meta_data)
-        # -------------------------------------------------------------------------
-        # write the residual map
-        resfile = self.get_variable('WLC_RES_FILE', func_name)
-        io.save_fits(resfile, datalist=[rescube], datatypes=['image'],
-                     datanames=['residual'], meta=meta_data)
-        # -------------------------------------------------------------------------
-        # write the recon
-        reconfile = self.get_variable('WLC_RECON_FILE', func_name)
-        io.save_fits(reconfile, datalist=[lrecon], datatypes=['image'],
-                     datanames=['recon'], meta=meta_data)
-        # -------------------------------------------------------------------------
-        # write the table to the csv path
+        # Headers are small; updating metadata never loads image payloads.
+        for path in products.current_infiles:
+            with fits.open(path, mode='update', memmap=True) as hdul:
+                header = cast(fits.PrimaryHDU, hdul[0]).header
+                for key, value in meta_data.items():
+                    if key not in header and value is not None:
+                        header[key] = value
         ltbl_file = self.get_variable('WLC_LTBL_FILE', func_name)
+        if len(ltable) != len(products):
+            raise ValueError('Coefficient table does not match product rows')
         io.save_table(ltbl_file, ltable, fmt='csv')
+        products.save(self.get_wlc_manifest(), ltbl_file)
+        self.reconstruction_products = products
 
     # ==========================================================================
     # Spectral Extraction functionality
@@ -3773,63 +3814,40 @@ class Instrument:
         return traces
 
 
-    def load_input_spec_data(self, trace: Optional[int] = None
-                             ) -> List[np.ndarray]:
+    def load_input_spec_data(self, trace: Optional[int] = None,
+                             products: Optional[ReconstructionProducts] = None
+                             ) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
+                                        np.ndarray, np.ndarray]:
+        """Load trace calibration images, never detector time-series cubes.
+
+        :param trace: SOSS order, NIRSpec detector or None for one trace
+        :param products: validated reconstruction references for this chunk;
+                         reopen the manifest if not supplied
+        :return: median, cleaned median, trace rows, throughput, wavelengths
+        :raises ValueError: if calibration and reconstruction shapes disagree
         """
-        Load input data for this trace for the spectral extraction
-
-        :param trace: int, trace to load
-
-        returns:
-        - med: np.ndarray
-        - dx: np.ndarray
-        - dy: np.ndarray
-        - rotxy: np.ndarray
-        - ddy: np.ndarray
-        - med_clean: np.ndarray
-        - residual: np.ndarray
-        - err: np.ndarray
-        - recon: np.ndarray
-        - ltable: np.ndarray
-        - posmax: np.ndarray
-        - throughput: np.ndarray
-        - wavegrid: np.ndarray
-
-        :return: list of numpy arrays: loaded input data (see above)
-        """
-        # set the function name
         func_name = f'{__NAME__}.spectral_extraction'
-        # load the median image
+        if products is None:
+            products, _ = self.load_wlc_results()
         med_file = self.get_variable('MEDIAN_IMAGE_FILE', func_name)
         med = io.load_fits(med_file)
-        # get clean median trace for spectrum
-        dx, dy, rotxy, ddy, med_clean = self.get_fit_params(med, no_plot=True)
-        # load the residuals
-        res_file = self.get_variable('WLC_RES_FILE', func_name)
-        residual = io.load_fits(res_file)
-        # load the error file
-        err_file = self.get_variable('WLC_ERR_FILE', func_name)
-        err = io.load_fits(err_file)
-        # load the residuals
-        recon_file = self.get_variable('WLC_RECON_FILE', func_name)
-        recon = io.load_fits(recon_file)
-        # load the linear fit table
-        ltable_file = self.get_variable('WLC_LTBL_FILE', func_name)
-        ltable = io.load_table(ltable_file)
-        # for future reference in the code, we keep track of data size
+        if med.shape != products.shape[1:]:
+            raise ValueError('Median and reconstruction detector grids differ')
+        _, _, _, _, med_clean = self.get_fit_params(med, no_plot=True)
+        # Keep observation metadata global; block routines use their own shape.
         self.set_variable('DATA_X_SIZE', med.shape[1], func_name)
         self.set_variable('DATA_Y_SIZE', med.shape[0], func_name)
-        # get the trace position
+        self.set_variable('DATA_N_FRAMES', len(products), func_name)
         posmax, throughput = self.get_trace_pos(order_num=trace)
-        # get wave grid
-        wavegrid = self.get_wavegrid(order_num=trace)
-        # return all input data
-        return [med, dx, dy, rotxy, ddy, med_clean, residual, err,
-                recon, ltable, posmax, throughput, wavegrid]
+        wavegrid = cast(np.ndarray, self.get_wavegrid(order_num=trace))
+        if any(np.shape(values) != (med.shape[1],)
+               for values in (posmax, throughput, wavegrid)):
+            raise ValueError('Trace calibration lengths differ from detector')
+        return med, med_clean, posmax, throughput, wavegrid
 
 
 
-    def create_sed(self, med: np.ndarray, residual: np.ndarray,
+    def create_sed(self, med: np.ndarray, shape: Tuple[int, int, int],
                    wavegrid: np.ndarray, posmax: np.ndarray,
                    throughput: np.ndarray, med_clean: np.ndarray,
                    trace: int) -> np.ndarray:
@@ -3837,7 +3855,7 @@ class Instrument:
         Sum the clean median inside the configured trace ribbon and plot it.
 
         :param med: array, median image with shape (n_rows, n_pixels)
-        :param residual: array, residual cube defining frame and spatial sizes
+        :param shape: reconstruction (integrations, rows, columns) geometry
         :param wavegrid: array, wavelength values at each spectral pixel
         :param posmax: array, trace row per pixel; NaN skips that column
         :param throughput: array, throughput used only for the SED plot
@@ -3850,9 +3868,9 @@ class Instrument:
         trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
                                        required=True, func=func_name)
         # for future reference in the code, we keep track of data size
-        self.set_variable('DATA_X_SIZE', residual.shape[2], func_name)
-        self.set_variable('DATA_Y_SIZE', residual.shape[1], func_name)
-        self.set_variable('DATA_N_FRAMES', residual.shape[0], func_name)
+        self.set_variable('DATA_X_SIZE', shape[2], func_name)
+        self.set_variable('DATA_Y_SIZE', shape[1], func_name)
+        self.set_variable('DATA_N_FRAMES', shape[0], func_name)
         # ---------------------------------------------------------------------
         # construct the sed
         sp_sed = np.zeros(med.shape[1])
@@ -3909,25 +3927,28 @@ class Instrument:
         the trace profile are the input errors divided by the model trace.
         Pixels with a very low trace value have correspondingly larger errors.
 
-        :param model: np.ndarray, the model
-        :param err: np.ndarray, the error cube
-        :param residual: np.ndarray, the residual cube
+        :param model: model block, shaped (integrations, rows, columns)
+        :param err: aligned error block, left unchanged
+        :param residual: aligned residual block, left unchanged
         :param posmax: np.ndarray, the position of the trace
 
         :return: tuple, 1. the spectrum, 2. the spectrum error
+        :raises ValueError: if input shapes or trace-column counts disagree
+        :raises SossisseException: if ten updates do not meet the tolerance
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.ratio_residual_to_trace()'
         trace_width = self.params.rget('WLC.GENERAL.LINRECON_TRACE_WIDTH',
                                        required=True, func=func_name)
-        # get the number of frames
-        nbframes = self.get_variable('DATA_N_FRAMES', func_name)
-        # get the number of x and y pixels
-        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
+        if (residual.ndim != 3 or model.shape != residual.shape
+                or err.shape != residual.shape):
+            raise ValueError('Extraction requires aligned 3-D input blocks')
+        nbframes, nbypix, nbxpix = residual.shape
+        if posmax.shape != (nbxpix,):
+            raise ValueError('Trace positions must match detector columns')
         # ---------------------------------------------------------------------
         # print progress
-        misc.printc('Finding the ratio of residuals to the trace', '')
+        WLOG(self.params, 'info', 'Finding the ratio of residuals to the trace')
         time.sleep(0.1)
         # placeholder for the cube spectra
         spec = np.full([nbframes, nbxpix], np.nan)
@@ -3940,6 +3961,10 @@ class Instrument:
         bmask &= posmax > width
         bmask &= posmax < nbypix - width
         posmax_valid = posmax[bmask]
+        # Filtering trace rows must preserve their original detector columns.
+        valid_columns = np.flatnonzero(bmask)
+        if valid_columns.size == 0:
+            return spec, spec_err
         # get the positions in the spatial dimensions of the trace
         posmax_x2d = []
         posmax_y2d = []
@@ -3948,7 +3973,7 @@ class Instrument:
             yvalues = posmax_valid + iwidth
             # push into the y and x indices (for slicing)
             posmax_y2d.append(yvalues)
-            posmax_x2d.append(np.arange(len(yvalues)))
+            posmax_x2d.append(valid_columns)
         # convert to 2D numpy array of integers
         posmax_y2d = np.array(posmax_y2d).astype(int)
         posmax_x2d = np.array(posmax_x2d).astype(int)
@@ -3984,6 +4009,7 @@ class Instrument:
             counter = 0
             # iterate until we get a dp below 1e-4
             while max_dp_valid > 1e-4 and counter < 10:
+                counter += 1
                 with warnings.catch_warnings(record=True) as _:
                     # calculate the weight
                     weight = p_valid / noise_ratio1 ** 2
@@ -4002,7 +4028,7 @@ class Instrument:
                     sigsum = np.sum(p_valid / noise_ratio1 ** 2, axis=0)
                     sig1 = np.sqrt(1 / sigsum)
             # deal with no convergence
-            if counter >= 10:
+            if counter >= 10 and max_dp_valid > 1e-4:
                 emsg = 'ratio_residual_to_trace did not converge'
                 raise exceptions.SossisseException(emsg)
             # update the cube
@@ -4095,7 +4121,7 @@ class Instrument:
         if not save_results:
             # print message saving results are not saved 
             msg = 'Results not saved as SAVE_RESUILTS is False'
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             return
 
         # get the meta data
@@ -4224,13 +4250,13 @@ class Instrument:
         traces = list(storage.keys())
         # print progress
         msg = 'Converting to Eureka format'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # loop around traces
         for trace in traces:
             # ----------------------------------------------------------------
             # print progress
             msg = f'Processing order {trace}'
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             # get variables from storage
             flux = np.array(storage[trace]['spec2'])
             flux_err = np.array(storage[trace]['spec_err'])
@@ -4238,7 +4264,7 @@ class Instrument:
             # ----------------------------------------------------------------
             # print progress
             msg = 'Sorting in decreasing wavelength order'
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             # sort by decreasing wavelength order
             sortmask = np.argsort(wavegrid)[::-1]
             # apply sort mask
@@ -4248,7 +4274,7 @@ class Instrument:
             # -----------------------------------------------------------------
             # print progress
             msg = 'Reading raw file(s) to get time array'
-            misc.printc(msg, 'info')
+            WLOG(self.params, 'info', msg)
             # storage for time info
             time_arr = self.get_int_times()
             # -----------------------------------------------------------------
@@ -4282,7 +4308,7 @@ class Instrument:
                                       func=func_name)
         # print progress
         msg = 'Saving final outputs'
-        misc.printc(msg, 'info')
+        WLOG(self.params, 'info', msg)
         # check output directory
         if not os.path.exists(output_dir):
             msg = f'Output directory {output_dir} does not exist'
@@ -4290,7 +4316,7 @@ class Instrument:
         elif 'ipykernel' in sys.modules:
             msg = (f'For final outputs please run from the command line with '
                    f'your yaml file.')
-            misc.printc(msg, 'warning')
+            WLOG(self.params, 'warning', msg)
             return
         # ---------------------------------------------------------------------
         # update the meta data
