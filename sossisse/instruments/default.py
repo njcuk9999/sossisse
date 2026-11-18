@@ -30,7 +30,6 @@ from scipy.ndimage import shift
 from scipy.signal import convolve2d
 from scipy.signal import medfilt2d
 from tqdm import tqdm
-from wpca import EMPCA
 
 from aperocore import math as mp
 from aperocore.constants import param_functions
@@ -40,6 +39,7 @@ from sossisse.core import constants
 from sossisse.core import exceptions
 from sossisse.core import io
 from sossisse.general.datacube import DataCube
+from sossisse.general.streaming_pca import streaming_pca
 from sossisse.general.reconstruction import ReconstructionProducts
 from sossisse.general import plots
 
@@ -2828,14 +2828,14 @@ class Instrument:
                 trace_mask: np.ndarray
                 ) -> Union[None, np.ndarray]:
         """
-        Fit the PCA to the trace_mask
+        Fit weighted PCA to the trace without materializing the detector cube.
 
         :param datacube: flux/error working-product manager
         :param med: np.ndarray, the median image
         :param trace_mask: np.ndarray, the trace map
 
         :return: None if unable to do the PCA otherwise np.ndarray:
-                 the principle components
+                 the principal component images
         """
         # set the function name
         func_name = f'{__NAME__}.{self.name}.fit_pca()'
@@ -2864,9 +2864,6 @@ class Instrument:
             WLOG(self.params, 'info', '\tReading: {0}'.format(tmp_pcas))
             return self.load_data(tmp_pcas)
 
-        # get the shape of the data
-        nbxpix = self.get_variable('DATA_X_SIZE', func_name)
-        nbypix = self.get_variable('DATA_Y_SIZE', func_name)
         # validate out-of-transit domain
         self.get_baseline_params()
         has_baseline = self.get_variable('HAS_BASELINE', func_name)
@@ -2878,110 +2875,9 @@ class Instrument:
                     '\n\tPlease set WLC.INPUTS.CONTACT_FRAMES to use PCA.')
             WLOG(self.params, 'warning', wmsg)
             return None
-        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        # TODO(DataCube): PCA still materializes flux, errors and workspaces.
-        # Replace this bridge with a bounded PCA implementation for large runs.
-        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        cube2 = np.empty(datacube.shape, dtype=float)
-        err = np.empty(datacube.shape, dtype=float)
-        for integration, arrays in datacube.iter_integrations():
-            cube2[integration] = arrays['FLUX']
-            err[integration] = arrays['ERR']
-        del arrays
-        # ---------------------------------------------------------------------
-        # print progress
         WLOG(self.params, 'info', 'Fitting PCA')
-        # ---------------------------------------------------------------------
-        # only fit the pca to the flux in the trace (nan everything else)
-        nanmask = np.ones_like(trace_mask, dtype=float)
-        nanmask[~trace_mask] = np.nan
-        # copy the normalized cube
-        cube3ini = cube2[baseline_domain]
-        # subtract off the median
-        for iframe in tqdm(range(cube3ini.shape[0])):
-            cube3ini[iframe] -= med
-        # ---------------------------------------------------------------------
-        # copy the normalized cube
-        cube3 = np.array(cube3ini)
-        # get the valid error domain
-        err3 = err[baseline_domain]
-        # apply the nanmask to the cube3
-        for iframe in range(cube3.shape[0]):
-            cube3[iframe] *= nanmask
-        # reshape the cubes to flatten each frame into a 1D array
-        cube3 = cube3.reshape([cube3.shape[0], nbypix * nbxpix])
-        err3 = err3.reshape([err3.shape[0], nbypix * nbxpix])
-        # find the bad pixels
-        badpix = ~(np.isfinite(cube3) & np.isfinite(err3))
-        # work out the weights
-        weights = 1 / err3
-        # set the bad weights to zero
-        weights[badpix] = 0
-        cube3[badpix] = 0
-        # ---------------------------------------------------------------------
-        # find out the regions that are valid at least 95% of the time
-        with warnings.catch_warnings(record=True) as _:
-            valid = np.where(np.nanmean(weights != 0, axis=0) > 0.95)[0]
-        # ---------------------------------------------------------------------
-        # print process
-        margs = [n_comp]
-        msg = '\tComputing principle components (ncomp={0})...'
-        WLOG(self.params, 'info', msg.format(*margs))
-        # compute the principle components
-        with warnings.catch_warnings(record=True) as _:
-            # set up the pca class
-            pca_class = EMPCA(n_components=n_comp)
-            # process
-            WLOG(self.params, 'info', '\t\tRunning PCA fit, please wait...')
-            start = time.time()
-            # fit out data
-            pca_fit = pca_class.fit(cube3[:, valid], weights=weights[:, valid])
-            # process
-            margs = [time.time() - start]
-            WLOG(self.params, 'info', '\t\tFinished PCA fit, took {0:.2f}s'.format(*margs))
-            # get the raito of all components
-            variance_ratio = np.array(pca_class.explained_variance_ratio_)
-            # normalize by the ratio of the first component
-            variance_ratio /= variance_ratio[0]
-        # ---------------------------------------------------------------------
-        # get the amplitudes
-        amps = np.zeros((n_comp, cube3.shape[0]))
-        # loop around frames
-        for iframe in range(cube3.shape[0]):
-            # get the error squared
-            err3_2 = err3[iframe, valid] ** 2
-            # loop around components
-            for icomp in range(n_comp):
-                # get the component value
-                comp_val = pca_fit.components_[icomp]
-                # get the amplitude of this component
-                part1 = np.nansum(comp_val * cube3[iframe, valid] / err3_2)
-                part2 = np.nansum(1 / err3_2)
-                amps[icomp, iframe] = part1 / part2
-        # ---------------------------------------------------------------------
-        # calculate the pca values
-        pcas = np.zeros((n_comp, nbypix, nbxpix), dtype=float)
-        # reset cube3 to its initial value
-        cube3 = np.array(cube3ini)
-        # set all nan pixels to zero
-        cube3[~np.isfinite(cube3)] = 0
-        # loop around components
-        for icomp in range(n_comp):
-            # add the contribution from each frame
-            for iframe in range(cube3.shape[0]):
-                pcas[icomp] += amps[icomp, iframe] * cube3[iframe]
-            # TODO: Etienne explain this
-            # trick to avoid getting slices of a 3D cube
-            tmp = np.array(pcas[icomp, :, :])
-            for icol in range(nbxpix):
-                tmp[:, icol] -= np.nanmedian(tmp[:, icol])
-            # normalize the tmp component
-            # TODO: Etienne explain this
-            part1 = np.nansum(tmp ** 2 * nanmask)
-            part2 = np.nansum(med ** 2 * nanmask)
-            tmp /= np.sqrt(part1 / part2)
-            # update the pcas ith the tmp array
-            pcas[icomp, :, :] = tmp
+        pca_args = [datacube, med, trace_mask, baseline_domain, n_comp]
+        pcas, variance_ratio = streaming_pca(*pca_args)
         # ---------------------------------------------------------------------
         # deal with plotting
         plots.pca_plot(self, n_comp, pcas, variance_ratio)
@@ -3755,6 +3651,15 @@ class Instrument:
         :raises ValueError: if a completion manifest or output is invalid
         """
         return ReconstructionProducts.load(self.get_wlc_manifest())
+
+    def save_input_residuals(self, products: ReconstructionProducts,
+                             *, overwrite: bool = True) -> None:
+        """Write residual cubes named for their input and detector/jump."""
+        func_name = f'{__NAME__}.{self.name}.save_input_residuals()'
+        output_dir = self.params.rget('PATHS.OUT_PATH', required=True,
+                                      func=func_name)
+        products.write_input_residuals(output_dir, self.add_product_suffix(''),
+                                       overwrite=overwrite)
 
     def save_wlc_results(self, products: ReconstructionProducts,
                          ltable: Table) -> None:

@@ -75,9 +75,10 @@ def linear_recon_init(inst):
                                          required=True, func=func_name)
         if use_temporary:
             try:
-                inst.load_wlc_results()
+                products, _ = inst.load_wlc_results()
             except (OSError, ValueError, KeyError, TypeError):
                 return False
+            inst.save_input_residuals(products, overwrite=False)
             msg = 'File {0} exists we skip linear reconstruction step'
             WLOG(inst.params, 'info', msg.format(wlc_ltbl_file))
             # A fresh instrument does not have the fitted-column metadata in memory.
@@ -235,7 +236,6 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # construct the principal component model from the out of transit domain
     # using pca (we deal with not fitting the PCA inside)
-    # TODO(DataCube): fit_pca temporarily materializes its inputs internally.
     pcas = inst.fit_pca(datacube, med, trace_mask)
 
     # =========================================================================
@@ -318,6 +318,7 @@ def linear_recon_chunk(inst: Instrument) -> Instrument:
     # =========================================================================
     # write files
     # =========================================================================
+    inst.save_input_residuals(lproducts)
     inst.save_wlc_results(lproducts, ltable)
 
     # =========================================================================

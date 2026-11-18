@@ -22,7 +22,10 @@ def make_case(tmp_path, monkeypatch, limit=2, selection=None, zpoint=False):
     instrument = Instrument.__new__(Instrument)
     instrument.name = 'test'
     instrument._trace_suffix = '_nrs1'
+    instrument._jump_suffix = ''
     instrument.params = ParamDict()
+    instrument.params.set('PATHS.OUT_PATH', str(tmp_path / 'output'),
+                          source='test')
     instrument.params.set('WLC.LMODEL.FIT_ZERO_POINT_OFFSET', zpoint,
                           source='test')
     names = ['amplitude', 'dx'] + (['zeropoint'] if zpoint else [])
@@ -175,7 +178,7 @@ def test_spectral_extraction_requires_complete_manifest(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('enabled', [False, True])
-def test_pca_bridge_and_context_cache(tmp_path, monkeypatch, enabled):
+def test_streaming_pca_and_context_cache(tmp_path, monkeypatch, enabled):
     from sossisse.instruments import default
 
     inst, manager, med, _, _, _ = make_case(tmp_path, monkeypatch)
@@ -194,23 +197,19 @@ def test_pca_bridge_and_context_cache(tmp_path, monkeypatch, enabled):
     def get_variable(key, *unused):
         return extras[key] if key in extras else original_get(key, 'test')
 
-    class FakePCA:
-        def __init__(self, n_components):
-            self.explained_variance_ratio_ = np.ones(n_components)
+    solve_pca = default.streaming_pca
 
-        def fit(self, flux, weights):
-            assert flux.shape == weights.shape
-            self.components_ = np.ones((1, flux.shape[1]))
-            return self
+    def short_fit(*pca_args):
+        return solve_pca(*pca_args, max_iter=3, random_state=42)
 
     monkeypatch.setattr(inst, 'get_variable', get_variable)
     monkeypatch.setattr(inst, 'get_baseline_params', lambda: None)
-    monkeypatch.setattr(default, 'EMPCA', FakePCA)
+    monkeypatch.setattr(default, 'streaming_pca', short_fit)
     monkeypatch.setattr(plots, 'pca_plot', lambda *unused: None)
     before = manager.current_infiles.copy()
     if not enabled:
-        monkeypatch.setattr(manager, 'iter_integrations',
-                            lambda: pytest.fail('Disabled PCA read pixels'))
+        monkeypatch.setattr(manager, 'read_integrations',
+                    lambda *unused: pytest.fail('Disabled PCA read'))
         assert inst.fit_pca(manager, med, np.ones(med.shape, bool)) is None
         return
     result = inst.fit_pca(manager, med, np.ones(med.shape, bool))
@@ -219,10 +218,98 @@ def test_pca_bridge_and_context_cache(tmp_path, monkeypatch, enabled):
     assert Path(cache).exists()
     assert manager.current_infiles == before
     inst.params.set('GENERAL.USE_TEMPORARY', True, source='test')
-    monkeypatch.setattr(manager, 'iter_integrations',
-                        lambda: pytest.fail('Cached PCA read pixels'))
+    monkeypatch.setattr(manager, 'read_integrations',
+                        lambda *unused: pytest.fail('Cached PCA read'))
     np.testing.assert_equal(inst.fit_pca(manager, med,
                                          np.ones(med.shape, bool)), result)
+
+
+@pytest.mark.parametrize('limit', [1, 3, 100])
+@pytest.mark.parametrize('selection_kind', ['mask', 'indices', 'slice'])
+def test_streaming_pca_matches_legacy(tmp_path, monkeypatch, limit,
+                                      selection_kind):
+    """Compare component images and variance with seeded full-array EMPCA."""
+    from wpca import EMPCA
+    from wpca.empca import random_orthonormal, weighted_mean
+    from sossisse.general.streaming_pca import streaming_pca
+
+    rng = np.random.default_rng(42)
+    med = rng.uniform(10, 20, (4, 5))
+    flux = med + rng.normal(size=(28, 4, 5))
+    errors = rng.uniform(1, 2, flux.shape)
+    flux[2, 2, 2] = np.nan
+    flux[:5, 1, 1] = np.nan
+    errors[4, 2, 3] = np.inf
+    trace = np.ones(med.shape, dtype=bool)
+    trace[0] = False
+    paths = []
+    for start, stop in ((0, 9), (9, 28)):
+        path = tmp_path / f'pca-source-{start}.fits'
+        header = fits.Header(dict(INTSTART=start + 1, INTEND=stop))
+        with fits.HDUList([fits.PrimaryHDU(header=header),
+                           fits.ImageHDU(flux[start:stop], name='SCI'),
+                           fits.ImageHDU(errors[start:stop], name='ERR'),
+                           fits.ImageHDU(np.zeros_like(flux[start:stop]),
+                                         name='DQ')]) as hdus:
+            hdus.writeto(path)
+        paths.append(str(path))
+    manager = DataCube(max_integrations=limit)
+    manager.normalize(paths, tmp_path / 'pca-initial.fits')
+    selection = slice(1, -1)
+    if selection_kind == 'mask':
+        selection = np.ones(len(flux), dtype=bool)
+        selection[[0, 6, 27]] = False
+    elif selection_kind == 'indices':
+        selection = np.r_[np.arange(1, 27)[::-1], 6]
+
+    raw = flux[selection] - med
+    nanmask = np.where(trace, 1., np.nan)
+    data = (raw * nanmask).reshape(len(raw), -1)
+    err = errors[selection].reshape(len(raw), -1)
+    bad = ~(np.isfinite(data) & np.isfinite(err))
+    weights = 1 / err
+    data[bad] = weights[bad] = 0
+    valid = np.flatnonzero(np.mean(weights != 0, axis=0) > 0.95)
+    data, weights, err = data[:, valid], weights[:, valid], err[:, valid]
+    centered = data - weighted_mean(data, weights, axis=0)
+    iterations = 100 if (limit, selection_kind) == (3, 'mask') else 5
+    solver = EMPCA(n_components=2, max_iter=iterations, random_state=42)
+    basis = random_orthonormal(2, len(valid), random_state=42)
+    # Bypass wpca's obsolete scikit-learn validation keyword on this fixture.
+    for _ in range(solver.max_iter):
+        coeff = solver._Estep(centered, weights, basis)
+        basis = solver._Mstep(centered, weights, basis, coeff)
+    coeff = solver._Estep(centered, weights, basis)
+    variance = (coeff ** 2).sum(axis=0) / len(raw)
+    variance /= np.sum(((centered * weights) ** 2).sum(axis=0)
+                       / (weights ** 2).sum(axis=0))
+    variance /= variance[0]
+    expected = np.zeros((2,) + med.shape)
+    raw[~np.isfinite(raw)] = 0
+    for index, component in enumerate(basis):
+        for frame in range(len(raw)):
+            squared = err[frame] ** 2
+            amp = np.nansum(component * data[frame] / squared)
+            amp /= np.nansum(1 / squared)
+            expected[index] += amp * raw[frame]
+        for column in range(med.shape[1]):
+            image_column = expected[index, :, column]
+            image_column -= np.nanmedian(image_column)
+        expected[index] /= np.sqrt(np.nansum(expected[index] ** 2 * nanmask)
+                                   / np.nansum(med ** 2 * nanmask))
+
+    read = manager.read_integrations
+
+    def bounded_read(start, stop):
+        assert stop - start <= limit
+        return read(start, stop)
+
+    monkeypatch.setattr(manager, 'read_integrations', bounded_read)
+    pca_kwargs = dict(max_iter=iterations, random_state=42)
+    actual, ratios = streaming_pca(manager, med, trace, selection, 2,
+                                  **pca_kwargs)
+    np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(ratios, variance, rtol=1e-10, atol=1e-10)
 
 
 @pytest.mark.parametrize('failure', ['write', 'plot', 'table'])
@@ -277,8 +364,15 @@ def test_pixel_baseline_fits_whole_history(tmp_path, monkeypatch):
         np.testing.assert_equal(actual[name], original[name])
 
 
-def test_linear_recon_chunk_completes_real_fit_and_save(tmp_path, monkeypatch):
-    inst, manager, med, basis, _, _ = make_case(tmp_path, monkeypatch)
+@pytest.mark.parametrize('selection, suffix, spans', [
+    (None, '', [(0, 3), (3, 7)]),
+    ((1, 6), '_jump001', [(1, 3), (3, 6)]),
+])
+def test_linear_recon_chunk_completes_real_fit_and_save(
+        tmp_path, monkeypatch, selection, suffix, spans):
+    inst, manager, med, basis, _, _ = make_case(
+        tmp_path, monkeypatch, selection=selection)
+    inst._jump_suffix = suffix
     monkeypatch.setattr(general, 'linear_recon_init', lambda inst: False)
     monkeypatch.setattr(inst, 'load_data_with_dq', lambda: manager)
     for name in ('apply_flat_field', 'apply_dq', 'remove_background',
@@ -319,8 +413,19 @@ def test_linear_recon_chunk_completes_real_fit_and_save(tmp_path, monkeypatch):
     products, table = inst.load_wlc_results()
     assert len(products) == len(table) == len(manager)
     assert 'bjd' in table.colnames
-    assert set(collect_products(products)) == {'ERR', 'RECON', 'RESIDUAL',
-                                              'VALID'}
+    residuals = collect_products(products)['RESIDUAL']
+    output = tmp_path / 'output'
+    assert len(list(output.glob('*.fits'))) == 2
+    offset = spans[0][0]
+    for source, (start, stop) in zip(('source0', 'source3'), spans):
+        path = output / f'{source}_nrs1{suffix}_residuals.fits'
+        with fits.open(path) as hdul:
+            image = cast(fits.PrimaryHDU, hdul[0])
+            expected = residuals[start - offset:stop - offset]
+            np.testing.assert_array_equal(image.data, expected)
+            assert image.header['SOURCE'] == str(tmp_path / f'{source}.fits')
+            assert (image.header['GSTART'], image.header['GSTOP']) == (start,
+                                                                      stop)
 
 
 def test_reconstruction_reuse_requires_complete_outputs(tmp_path, monkeypatch):
@@ -336,6 +441,10 @@ def test_reconstruction_reuse_requires_complete_outputs(tmp_path, monkeypatch):
     monkeypatch.setattr(general.misc, 'sossart', lambda: None)
     assert general.linear_recon_init(inst) is True
     assert restored == [True]
+    output = tmp_path / 'output' / 'source0_nrs1_residuals.fits'
+    assert output.is_file()
+    np.testing.assert_array_equal(fits.getdata(output),
+                                  collect_products(products)['RESIDUAL'][:3])
     Path(products.current_infiles[-1]).unlink()
     assert general.linear_recon_init(inst) is False
     assert restored == [True]

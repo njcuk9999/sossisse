@@ -1,7 +1,7 @@
 # Define versionV
-DRS.VERSION: 0.1.077
+DRS.VERSION: 0.1.078
 # Define date of release
-DRS.DATE: 2026-11-03
+DRS.DATE: 2026-11-18
 # Define release type
 DRS.RELEASE: alpha
 # Define authors

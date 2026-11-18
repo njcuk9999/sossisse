@@ -234,6 +234,58 @@ class ReconstructionProducts:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
+    def write_input_residuals(self, output_dir: str, suffix: str,
+                              *, overwrite: bool = True) -> None:
+        """Export one primary-image residual cube per source in this jump."""
+        by_source: dict[str, list[int]] = {}
+        for index, header in enumerate(self.headers):
+            by_source.setdefault(str(header['SOURCE']), []).append(index)
+
+        destinations: dict[Path, list[int]] = {}
+        for source, indices in by_source.items():
+            stem = Path(Path(source).name.removesuffix('.gz')).stem
+            destination = Path(output_dir) / f'{stem}{suffix}_residuals.fits'
+            if destination in destinations:
+                raise ValueError(f'Duplicate residual filename: {destination}')
+            destinations[destination] = indices
+
+        for destination, indices in destinations.items():
+            if not overwrite and destination.is_file():
+                continue
+            first = self.headers[indices[0]]
+            last = self.headers[indices[-1]]
+            frame_count = sum(self.shapes[index][0] for index in indices)
+            _, rows, columns = self.shapes[indices[0]]
+            header = fits.Header(dict(SIMPLE=True, BITPIX=-64, NAXIS=3,
+                                      NAXIS1=columns, NAXIS2=rows,
+                                      NAXIS3=frame_count))
+            for key in ('SOURCE', 'SEGSTART', 'SEGEND', 'BSTART', 'GSTART',
+                        'BINNING', 'CROPLO', 'CROPHI', 'SELSTART', 'SELSTOP',
+                        'RCDET'):
+                header[key] = first[key]
+            for key in ('BSTOP', 'GSTOP'):
+                header[key] = last[key]
+
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            descriptor, temporary = tempfile.mkstemp(dir=destination.parent)
+            os.close(descriptor)
+            try:
+                stream = fits.StreamingHDU(temporary, header)
+                try:
+                    for index in indices:
+                        with fits.open(self.current_infiles[index],
+                                       memmap=True) as hdul:
+                            image = cast(fits.ImageHDU, hdul['RESIDUAL'])
+                            stream.write(image.section[:, :, :])
+                    if not stream.writecomplete:
+                        raise OSError(f'Incomplete residual cube: {destination}')
+                finally:
+                    stream.close()
+                os.replace(temporary, destination)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+
     def read_integrations(self, start: int = 0, stop: int | None = None
                           ) -> dict[str, NDArray[np.float64]]:
         """Read named planes for a bounded logical integration range.
