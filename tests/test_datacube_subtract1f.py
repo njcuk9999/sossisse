@@ -219,6 +219,9 @@ def test_subtract1f_parity(tmp_path: Path,
     calls = record_plots(monkeypatch)
     amplitudes = np.full(len(manager), -17.0)
     before_parents = manager.current_infiles.copy()
+    messages = []
+    monkeypatch.setattr(default, 'WLOG',
+                        lambda params, level, msg: messages.append(msg))
     if degree > 0:
         # Column zero skips, making column one the first fit in every frame.
         fit_calls = [0]
@@ -238,6 +241,11 @@ def test_subtract1f_parity(tmp_path: Path,
     assert returned is manager
     assert manager.current_infiles != before_parents
     assert all('_subtract_1f_' in name for name in manager.current_infiles)
+    assert [msg for msg in messages
+            if msg.startswith('\tSubtracting 1/f noise')] == [
+        f'\tSubtracting 1/f noise for {name}'
+        for name in manager.current_infiles
+    ]
     actual, actual_error, actual_quality = collect(manager)
     np.testing.assert_allclose(actual, expected['cube'], equal_nan=True)
     np.testing.assert_allclose(amplitudes, expected['amps'], equal_nan=True)

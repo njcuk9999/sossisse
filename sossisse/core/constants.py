@@ -384,7 +384,7 @@ CDict.add('VALID_DQ', value=[0, 2], dtype=list, dtypei=int, minimum=0,
                        'its DQ equals ANY listed value. Unlisted values '
                        '(including NaN/inf) mask only that integration, '
                        'unless the pixel also fails DQ_THRESHOLD.')
-CDict.add('DQ_THRESHOLD', value=1.0, dtype=float, minimum=0, maximum=1,
+CDict.add('DQ_THRESHOLD', value=0.1, dtype=float, minimum=0, maximum=1,
            source=__NAME__, user=True, active=True, tex_arg=True, group=cgroup,
            description='Maximum fraction of integrations per pixel allowed '
                        'to have a DQ value outside VALID_DQ, across the '

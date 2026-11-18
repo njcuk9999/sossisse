@@ -1384,7 +1384,7 @@ def plot_spectral_timeseries(inst: Any, spec2: np.ndarray,
     if trace is None:
         title = f'{objname} -- {suffix} spectral time series'
     else:
-        title = f'{objname} -- {suffix} spectral time series order {trace}'
+        title = f'{objname} -- {suffix} spectral time series trace {trace}'
     frame.set(title=title)
     # force a tight layout
     plt.tight_layout()
@@ -1430,7 +1430,7 @@ def plot_sed(inst: Any, wavegrid: np.ndarray, sed: np.ndarray, trace: int):
     if trace is None:
         title = objname
     else:
-        title = f'{objname} -- {suffix} order={trace}'
+        title = f'{objname} -- {suffix} trace={trace}'
     # set the axis labels
     frame.set(xlabel='Wavelength [nm]',
               ylabel='Flux\nthroughput-corrected',
@@ -1478,7 +1478,7 @@ def plot_full_sed(inst: Any, plot_storage: Dict[int, Dict[str, Any]]):
         # plot the SED
         frame.plot(wavegrid, sed_spec / throughtput, color='k',
                    label='Flux, throughput-corrected, '
-                         'order {0}'.format(trace))
+                         'trace {0}'.format(trace))
     # -------------------------------------------------------------------------
     # construct frame title
     ftitle = objname

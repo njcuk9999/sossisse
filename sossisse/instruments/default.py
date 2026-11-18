@@ -317,8 +317,8 @@ class Instrument:
         # deal with median out of transit
         # ---------------------------------------------------------------------
         # add to meta data
-        meta_data['BASELINE_MED'] = (wlc_gen_params['MEDIAN_BASELINE'],
-                                     'Median out of transit')
+        meta_data['HIERARCH BASELINE_MED'] = (
+            wlc_gen_params['MEDIAN_BASELINE'], 'Median out of transit')
         # get the linear model params
         lm_params = self.params.get('WLC.LMODEL')
         # ---------------------------------------------------------------------
@@ -333,8 +333,9 @@ class Instrument:
         # deal with degree of the polynomial for the 1/f correction
         # ---------------------------------------------------------------------
         # add to meta data
-        meta_data['DEG1FCORR'] = (wlc_gen_params['DEGREE_1F_CORR'],
-                                  'Degree of polynomial for 1/f correction')
+        meta_data['HIERARCH DEG1FCORR'] = (
+            wlc_gen_params['DEGREE_1F_CORR'],
+            'Degree of polynomial for 1/f correction')
         # ---------------------------------------------------------------------
         # deal with whether we fit the rotation in the linear model
         # ---------------------------------------------------------------------
@@ -2611,7 +2612,8 @@ class Instrument:
                     frame_before = frame.copy()
             # The helper mutates only SCI and returns this block's scorr map.
             corrected, scorr = self.subtract_1f(residuals, flux,
-                                                arrays['ERR'], trace_mask)
+                                                arrays['ERR'], trace_mask,
+                                                pkind=product.filename)
             # Keep endpoint images and NaN-aware mean sufficient statistics.
             for local_index in range(scorr.shape[0]):
                 iframe = integration.start + local_index
@@ -2770,7 +2772,8 @@ class Instrument:
         return ltable
 
     def subtract_1f(self, residuals: np.ndarray, cube: np.ndarray,
-                    err: np.ndarray, trace_mask: np.ndarray
+                    err: np.ndarray, trace_mask: np.ndarray, *,
+                    pkind: str = ''
                     ) -> Tuple[np.ndarray, np.ndarray]:
         """Subtract the 1/f correction from one bounded integration block.
 
@@ -2778,6 +2781,7 @@ class Instrument:
         :param cube: SCI block modified in place
         :param err: unchanged ERR block shaped like ``cube``
         :param trace_mask: Boolean trace map shaped (y, x)
+        :param pkind: product filename to identify the block in the log
         :return: mutated SCI block and its correction block (n, y, x)
         :raises ValueError: if NumPy cannot perform the requested reductions
         """
@@ -2788,7 +2792,10 @@ class Instrument:
         # Product shapes, not instrument globals, define this block's extent.
         nframes, _, xsize = cube.shape
         scorr = np.zeros_like(cube)
-        WLOG(self.params, 'info', '\tSubtracting 1/f noise')
+        msg = '\tSubtracting 1/f noise'
+        if pkind:
+            msg = f'{msg} for {pkind}'
+        WLOG(self.params, 'info', msg)
         if degree_1f_corr == 0:
             # Compute the original per-frame column median correction.
             with warnings.catch_warnings(record=True) as _:
@@ -2798,6 +2805,8 @@ class Instrument:
                     scorr[iframe, :, column] = noise_1f[iframe, column]
                     cube[iframe, :, column] -= noise_1f[iframe, column]
         else:
+            # micro wait for WLOG to print before tqdm progress bar
+            time.sleep(0.1)
             # Preserve the weighted polynomial fit and its sparse-column skip.
             for iframe in tqdm(range(nframes)):
                 frame_residual = residuals[iframe]
