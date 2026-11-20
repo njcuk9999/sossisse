@@ -145,13 +145,6 @@ CDict.add('YAML_NAME', value=None, dtype=str,
           description='The name of the yaml file to create '
                       '(if not using a previous yaml file)')
 # -----------------------------------------------------------------------------
-# Define whether user wants all constants in yaml file created (doesn't go in
-#     yaml file itself: comment = None)
-CDict.add('ALL_CONSTANTS', value=False, dtype=bool,
-          source=__NAME__, user=False, active=False,
-          cmd_arg='all_const', group=cgroup,
-          description='Add all constants to yaml file')
-# -----------------------------------------------------------------------------
 # Special splash
 CDict.add('SSPLASH', value=False, dtype=bool,
           source=__NAME__, user=False, active=False, group=cgroup,
@@ -516,12 +509,6 @@ CDict.add('FIT_DY', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the dy -- along the cross-dispersion')
 # -----------------------------------------------------------------------------
-# fit the before - after morphological change
-#   Formally before_after
-CDict.add('FIT_BEFORE_AFTER', value=False, dtype=bool, tex_arg = True,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='fit the before - after morphological change')
-# -----------------------------------------------------------------------------
 # fit the rotation in the linear reconstruction of the trace
 CDict.add('FIT_ROTATION', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
@@ -529,28 +516,11 @@ CDict.add('FIT_ROTATION', value=True, dtype=bool, tex_arg = True,
                       'reconstruction of the trace')
 # -----------------------------------------------------------------------------
 # fit the zero point offset in the linear model for the trace
-#  should not be used at the time as the quadratic term
 #  Formally zero_point_offset
 CDict.add('FIT_ZERO_POINT_OFFSET', value=True, dtype=bool, tex_arg = True,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='fit the zero point offset in the linear '
-                      'model for the trace, should not be used at'
-                      ' the time as the quadratic term')
-# -----------------------------------------------------------------------------
-# fit a flux^2 dependency. This is mostly meant as a test of the quality
-# of the non-linearity correction. Normally this term should be de-correlated
-# with the amplitude term. Set to false for actual science analysis
-# should not be used at the same time as the zero point offset
-# formally quadratic_term
-CDict.add('FIT_QUAD_TERM', value=False, dtype=bool, tex_arg = True,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='fit a flux^2 dependency. This is mostly '
-                      'meant as a test of the quality of the '
-                      'non-linearity correction. Normally this term '
-                      'should be de-correlated with the amplitude '
-                      'term. Set to false for actual science '
-                      'analysis should not be used at the same time '
-                      'as the zero point offset')
+                      'model for the trace')
 # -----------------------------------------------------------------------------
 # fit the 2nd derivative in y, good to find glitches!
 #  Formally ddy
@@ -575,11 +545,6 @@ CDict.add('FIT_N_PCA', value=0, dtype=int, minimum=0, tex_arg = True,
 CDict.add('DATA_BIN_TIME', value=False, dtype=bool,
           source=__NAME__, user=True, active=True, group=cgroup,
           description='Bin the input data cube in time')
-# -----------------------------------------------------------------------------
-# Number of frames in each bin
-CDict.add('DATA_BIN_NUMBER', value=1, dtype=int, minimum=1,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Number of frames in each bin')
 
 # =============================================================================
 # Definition of inputs related to handling of the data within each frame
@@ -655,10 +620,10 @@ CDict.add('RECENTER_TRACE_POSITION', value=True, dtype=bool, tex_arg = True,
           description='Whether to recenter the trace position')
 # -----------------------------------------------------------------------------
 # Whether to fit a per pixel baseline correction
-CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=True, dtype=bool,
-          tex_arg = True,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='Whether to fit a per pixel baseline correction')
+# CDict.add('PER_PIXEL_BASELINE_CORRECTION', value=True, dtype=bool,
+#           tex_arg = True,
+#           source=__NAME__, user=True, active=True, group=cgroup,
+#           description='Whether to fit a per pixel baseline correction')
 # -----------------------------------------------------------------------------
 # out of transit polynomial level correction
 CDict.add('TRANSIT_BASELINE_POLYORD', value=2, dtype=int, minimum=0,
@@ -842,9 +807,9 @@ CDict.add_group(cgroup, description='Definition for white light curve',
                 source=__NAME__, user=True, active=True)
 # -----------------------------------------------------------------------------
 # do remove trend from out-of-transit
-CDict.add('REMOVE_TREND', value=True, dtype=bool,tex_arg=True,
-          source=__NAME__, user=True, active=True, group=cgroup,
-          description='remove trend from out-of-transit')
+# CDict.add('REMOVE_TREND', value=True, dtype=bool,tex_arg=True,
+#           source=__NAME__, user=True, active=True, group=cgroup,
+#           description='remove trend from out-of-transit')
 
 
 # =============================================================================

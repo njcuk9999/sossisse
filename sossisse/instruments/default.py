@@ -389,10 +389,10 @@ class Instrument:
         # deal with removing trend from out-of-transit data
         # ---------------------------------------------------------------------
         # get the spec extraction params
-        spec_ext_params = self.params.get('SPEC_EXT')
+        # spec_ext_params = self.params.get('SPEC_EXT')
         # add to meta data
-        meta_data['RMVTREND'] = (spec_ext_params['REMOVE_TREND'],
-                                 'Trend was removed from out-of-transit')
+        # meta_data['RMVTREND'] = (spec_ext_params['REMOVE_TREND'],
+        #                            'Trend was removed from out-of-transit')
         # ---------------------------------------------------------------------
         # get photo weighted mean and energy weighted mean
         # ---------------------------------------------------------------------
@@ -3175,9 +3175,7 @@ class Instrument:
         - FIT_ROTATION [M += 1]
         - FIT_ZERO_POINT_OFFSET [M += 1]
         - FIT_DDY [M += 1]
-        - FIT_BEFORE_AFTER [M += 1]
         - FIT_PCA [M += n_comp]
-        - FIT_QUAD_TERM [M += 1]
 
         :param med: np.ndarray, the median image
         :param dx: np.ndarray, the x gradient
@@ -3307,10 +3305,8 @@ class Instrument:
         4. 'theta' -> amplitude of the rotation of the trace (if FIT_ROTATION)
         5. 'zeropoint' -> amplitude of the zero point offset (if FIT_ZERO_POINT_OFFSET)
         6. 'ddy' -> amplitude of the second derivative of the trace (if FIT_DDY)
-        7. 'before_after' -> amplitude of the before/after trace (if FIT_BEFORE_AFTER)
-        8+Q. 'PCAQ' -> amplitude of the first PCA component (if FIT_PCA)
+        7+Q. 'PCAQ' -> amplitude of the first PCA component (if FIT_PCA)
                        note there are Q components
-        9. 'flux^2' -> amplitude of the flux squared (if FIT_QUAD_TERM)
 
         :param flux: block of science images
         :param err: np.ndarray, the error cube

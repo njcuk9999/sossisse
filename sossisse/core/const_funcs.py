@@ -43,8 +43,7 @@ INPUTARGS['sossisse.recipes.run_setup'] = ['INPUTS.PARAM_FILE',
                                            'INPUTS.PROJECT_NAME',
                                            'INPUTS.OBJECTNAME',
                                            'INPUTS.INSTRUMENTMODE',
-                                           'INPUTS.YAML_NAME',
-                                           'INPUTS.ALL_CONSTANTS']
+                                           'INPUTS.YAML_NAME']
 INPUTARGS['sossisse.recipes.run_sossisse'] = ['INPUTS.PARAM_FILE']
 
 
@@ -189,19 +188,6 @@ def get_parameters(no_yaml: bool = False,
     # print that we are using yaml file
     if not no_yaml:
         WLOG(params, 'info', f'\tUsing parameter file: {param_file}')
-    # -------------------------------------------------------------------------
-    # deal with special parameters that need checking
-    # -------------------------------------------------------------------------
-    lm_params = params.get('WLC.LMODEL')
-    fit_zero_point_offset = lm_params.rget('FIT_ZERO_POINT_OFFSET',
-                                           required=True, func=func_name)
-    # FIT_ZERO_POINT_OFFSET and FIT_QUAD_TERM cannot both be True
-    if fit_zero_point_offset:
-        fit_quad_term = lm_params.rget('FIT_QUAD_TERM', required=True,
-                                       func=func_name)
-        if fit_quad_term:
-            emsg = 'Cannot have "FIT_ZERO_POINT_OFFSET" and "FIT_QUAD_TERM" true.'
-            raise exceptions.SossisseConstantException(emsg)
     # -------------------------------------------------------------------------
     # finally add the param file to the params
     params['INPUTS.PARAM_FILE'] = os.path.abspath(param_file)

@@ -58,8 +58,7 @@ STANDALONE_WORKFLOW = textwrap.dedent("""
     def scientific_instrument(params):
         assert isinstance(params, ParamDict)
         assert params['CONFIG_LIST'] == [constants.CDict]
-        assert params['WLC.LMODEL.FIT_QUAD_TERM'] == (
-            defaults['WLC.LMODEL.FIT_QUAD_TERM'])
+        assert params['WLC.LMODEL.FIT_ZERO_POINT_OFFSET'] is True
         return SimpleNamespace(params=params)
 
     setup_options = dict(
